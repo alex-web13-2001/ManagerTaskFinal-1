@@ -35,6 +35,20 @@ export function CreateTaskDialog({
 }) {
   const { categories, projects } = useApp();
   
+  const [title, setTitle] = React.useState('');
+  const [description, setDescription] = React.useState('');
+  const [priority, setPriority] = React.useState('medium');
+  const [project, setProject] = React.useState('');
+  const [category, setCategory] = React.useState('none');
+  const [assignee, setAssignee] = React.useState('');
+  const [date, setDate] = React.useState<Date>();
+  const [tags, setTags] = React.useState<string[]>([]);
+  const [newTag, setNewTag] = React.useState('');
+  // Поля для повторяющихся задач
+  const [isRecurring, setIsRecurring] = React.useState(false);
+  const [recurringStartDate, setRecurringStartDate] = React.useState<Date>();
+  const [recurringIntervalDays, setRecurringIntervalDays] = React.useState<number>(1);
+  
   // Get selected project to filter categories
   const selectedProject = React.useMemo(() => {
     return projects.find((p) => p.id === project);
@@ -55,26 +69,14 @@ export function CreateTaskDialog({
     const projectAvailableCategories = (selectedProject as any).availableCategories;
     
     if (!projectAvailableCategories || !Array.isArray(projectAvailableCategories) || projectAvailableCategories.length === 0) {
-      // If no categories specified, allow all categories
+      // If no categories are assigned to the project, allow all categories
+      // This allows users to assign any task to themselves in the project
       return categories;
     }
     
     // Filter to only show categories available in this project
     return categories.filter(cat => projectAvailableCategories.includes(cat.id));
   }, [project, selectedProject, categories]);
-  const [title, setTitle] = React.useState('');
-  const [description, setDescription] = React.useState('');
-  const [priority, setPriority] = React.useState('medium');
-  const [project, setProject] = React.useState('');
-  const [category, setCategory] = React.useState('none');
-  const [assignee, setAssignee] = React.useState('');
-  const [date, setDate] = React.useState<Date>();
-  const [tags, setTags] = React.useState<string[]>([]);
-  const [newTag, setNewTag] = React.useState('');
-  // Поля для повторяющихся задач
-  const [isRecurring, setIsRecurring] = React.useState(false);
-  const [recurringStartDate, setRecurringStartDate] = React.useState<Date>();
-  const [recurringIntervalDays, setRecurringIntervalDays] = React.useState<number>(1);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,17 +180,16 @@ export function CreateTaskDialog({
               <Label>
                 Категория <span className="text-red-500">*</span>
               </Label>
-              <Select value={category} onValueChange={setCategory} required>
+              <Select 
+                value={category} 
+                onValueChange={setCategory} 
+                required
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Выберите категорию" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Без категории</SelectItem>
-                  {availableCategories.length === 0 && project !== 'personal' && (
-                    <SelectItem value="disabled" disabled>
-                      В проекте нет доступных категорий
-                    </SelectItem>
-                  )}
                   {availableCategories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       <div className="flex items-center gap-2">

@@ -13,7 +13,7 @@ import {
 } from './ui/dropdown-menu';
 import { useApp } from '../contexts/app-context';
 import { invitationsAPI, getAuthToken } from '../utils/supabase/client';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { RealtimeIndicator } from './realtime-indicator';
 import { Logo } from './logo';
 import { InvitationsModal } from './invitations-modal';
@@ -22,10 +22,11 @@ type HeaderProps = {
   onCreateTask: () => void;
   onNavigate: (view: string) => void;
   onLogout: () => void;
+  currentProject?: string;
 };
 
-export function Header({ onCreateTask, onNavigate, onLogout }: HeaderProps) {
-  const { currentUser, refreshData, isRealtimeConnected } = useApp();
+export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: HeaderProps) {
+  const { currentUser, refreshData, isRealtimeConnected, canCreateTask } = useApp();
   const [pendingInvitations, setPendingInvitations] = React.useState<any[]>([]);
   const [isInvitationsModalOpen, setIsInvitationsModalOpen] = React.useState(false);
 
@@ -91,6 +92,7 @@ export function Header({ onCreateTask, onNavigate, onLogout }: HeaderProps) {
           onClick={onCreateTask}
           className="bg-purple-600 hover:bg-purple-700 h-9 md:h-10"
           size="sm"
+          disabled={currentProject && !canCreateTask(currentProject)}
         >
           <Plus className="w-4 h-4 md:mr-2" />
           <span className="hidden md:inline">Новая задача</span>

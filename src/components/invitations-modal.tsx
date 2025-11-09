@@ -17,7 +17,7 @@ import {
   Clock,
   ExternalLink,
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { invitationsAPI } from '../utils/api-client';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
