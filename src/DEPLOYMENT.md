@@ -1,434 +1,522 @@
-# 🚀 Руководство по развертыванию T24
+# 🚀 Deployment Guide - Task Manager
 
-Полная инструкция по развертыванию приложения T24 Task Manager.
-
----
-
-## 📋 Содержание
-
-1. [Подготовка](#подготовка)
-2. [Настройка Supabase](#настройка-supabase)
-3. [Деплой Edge Functions](#деплой-edge-functions)
-4. [Деплой Frontend](#деплой-frontend)
-5. [Проверка работоспособности](#проверка-работоспособности)
-6. [Troubleshooting](#troubleshooting)
+Complete guide for deploying the Task Manager application with self-hosted Postgres and Prisma.
 
 ---
 
-## 1️⃣ Подготовка
+## 📋 Contents
 
-### Требования
+1. [Local Development](#local-development)
+2. [Production Deployment](#production-deployment)
+3. [Database Management](#database-management)
+4. [Environment Variables](#environment-variables)
+5. [Troubleshooting](#troubleshooting)
+
+---
+
+## 1️⃣ Local Development
+
+### Requirements
 
 - Node.js 18+
-- npm или yarn
-- Git
-- Аккаунт Supabase
-- Аккаунт Vercel/Netlify (для frontend)
+- Docker and Docker Compose
+- npm or yarn
 
-### Клонирование репозитория
+### Setup Steps
+
+#### 1. Clone and Install
 
 ```bash
-git clone https://github.com/yourusername/t24-task-manager.git
-cd t24-task-manager
+git clone <repository-url>
+cd Managertaskfin1
 npm install
 ```
 
----
-
-## 2️⃣ Настройка Supabase
-
-### Шаг 1: Создание проекта
-
-1. Перейдите на [supabase.com](https://supabase.com)
-2. Нажмите "New Project"
-3. Заполните:
-   - **Name**: T24 Task Manager
-   - **Database Password**: создайте надежный пароль
-   - **Region**: выберите ближайший регион
-4. Нажмите "Create new project"
-5. Дождитесь завершения (2-3 минуты)
-
-### Шаг 2: Настройка базы данных
-
-1. Откройте SQL Editor в вашем проекте
-2. Скопируйте и выполните следующий SQL:
-
-```sql
--- Создание таблицы KV Store
-CREATE TABLE IF NOT EXISTS kv_store_d9879966 (
-  key TEXT PRIMARY KEY,
-  value JSONB NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Индекс для быстрого поиска по префиксу
-CREATE INDEX IF NOT EXISTS idx_kv_store_key_prefix 
-ON kv_store_d9879966 (key text_pattern_ops);
-
--- Включаем Row Level Security
-ALTER TABLE kv_store_d9879966 ENABLE ROW LEVEL SECURITY;
-
--- Политика доступа для Service Role
-CREATE POLICY "Service role has full access" 
-ON kv_store_d9879966 
-FOR ALL 
-USING (true) 
-WITH CHECK (true);
-```
-
-### Шаг 3: Настройка Authentication
-
-1. Перейдите в **Authentication** → **Providers**
-2. Убедитесь, что **Email** провайдер включен
-3. Перейдите в **Authentication** → **Settings**
-4. В секции **Auth Confirmation**:
-   - Отключите "Enable email confirmations" (для прототипа)
-5. В секции **Site URL**:
-   - Development: `http://localhost:5173`
-   - Production: `https://your-app.vercel.app`
-6. В секции **Redirect URLs** добавьте:
-   - `http://localhost:5173/**`
-   - `https://your-app.vercel.app/**`
-
-### Шаг 4: Настройка Storage
-
-Storage buckets создаются автоматически при первом запуске сервера, но вы можете создать их вручную:
-
-1. Перейдите в **Storage**
-2. Создайте бакет `make-d9879966-task-attachments`:
-   - Public: **No** (приватный)
-   - File size limit: 50MB
-3. Создайте бакет `make-d9879966-avatars`:
-   - Public: **No** (приватный)
-   - File size limit: 5MB
-
-### Шаг 5: Получение ключей API
-
-1. Перейдите в **Settings** → **API**
-2. Скопируйте следующие значения:
-   - **Project URL**: `https://xxxxx.supabase.co`
-   - **anon/public key**: `eyJhbGc...`
-   - **service_role key**: `eyJhbGc...` (держите в секрете!)
-
----
-
-## 3️⃣ Деплой Edge Functions
-
-### Шаг 1: Установка Supabase CLI
+#### 2. Environment Configuration
 
 ```bash
-# macOS/Linux (с Homebrew)
-brew install supabase/tap/supabase
-
-# Windows (с Scoop)
-scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
-scoop install supabase
-
-# Или через npm
-npm install -g supabase
+cp .env.example .env
 ```
 
-### Шаг 2: Логин в Supabase
+Edit `.env` with your settings:
+
+```env
+# Database
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/taskmanager?schema=public"
+
+# JWT Secret (generate a secure random string)
+JWT_SECRET="your-secret-key-change-this-in-production"
+
+# Admin user credentials
+ADMIN_EMAIL="admin@example.com"
+ADMIN_PASSWORD="admin123"
+ADMIN_NAME="Admin User"
+
+# API Configuration
+PORT=3001
+NODE_ENV=development
+
+# Frontend Configuration
+VITE_API_BASE_URL="http://localhost:3001"
+```
+
+#### 3. Start Database
 
 ```bash
-supabase login
+# Start Postgres in Docker
+npm run docker:up
+
+# Verify it's running
+docker ps
 ```
 
-Откроется браузер для авторизации.
-
-### Шаг 3: Связывание проекта
+#### 4. Database Setup
 
 ```bash
-supabase link --project-ref your-project-ref
+# Generate Prisma Client
+npm run prisma:generate
+
+# Run migrations to create tables
+npm run prisma:migrate
+
+# Seed the database with admin user
+npm run prisma:seed
 ```
 
-**Project ref** можно найти в настройках проекта (Settings → General → Reference ID)
-
-### Шаг 4: Настройка переменных окружения для функций
+#### 5. Start Development Servers
 
 ```bash
-# URL вашего проекта
-supabase secrets set SUPABASE_URL=https://xxxxx.supabase.co
+# Option 1: Start both frontend and backend
+npm run dev:all
 
-# Service Role Key (из шага 2.5)
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
+# Option 2: Start separately
+# Terminal 1 - Backend
+npm run dev:server
+
+# Terminal 2 - Frontend  
+npm run dev
 ```
 
-### Шаг 5: Деплой функций
+#### 6. Access the Application
 
-```bash
-supabase functions deploy server
-```
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:3001
+- **Health Check**: http://localhost:3001/health
 
-Должно появиться сообщение:
-```
-✓ Deployed function server
-URL: https://xxxxx.supabase.co/functions/v1/server
-```
+#### 7. Login
 
-### Шаг 6: Проверка работы функций
-
-```bash
-# Проверка health endpoint
-curl https://xxxxx.supabase.co/functions/v1/make-server-d9879966/health
-```
-
-Должно вернуть: `{"status":"ok"}`
+Use the admin credentials from your `.env` file:
+- Email: admin@example.com
+- Password: admin123
 
 ---
 
-## 4️⃣ Деплой Frontend
+## 2️⃣ Production Deployment
 
-### Вариант A: Vercel (рекомендуется)
+### Prerequisites
 
-#### 1. Установка Vercel CLI
+- Linux server (Ubuntu 20.04+ recommended)
+- Node.js 18+
+- PostgreSQL 15+
+- Nginx (for reverse proxy)
+- PM2 (for process management)
+- Domain name with SSL certificate
+
+### Production Setup
+
+#### 1. Server Preparation
 
 ```bash
-npm i -g vercel
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Node.js 18
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Install PostgreSQL
+sudo apt install -y postgresql postgresql-contrib
+
+# Install PM2 globally
+sudo npm install -g pm2
+
+# Install Nginx
+sudo apt install -y nginx
 ```
 
-#### 2. Логин
+#### 2. PostgreSQL Setup
 
 ```bash
-vercel login
+# Switch to postgres user
+sudo -u postgres psql
+
+# Create database and user
+CREATE DATABASE taskmanager;
+CREATE USER taskmanager_user WITH ENCRYPTED PASSWORD 'your-secure-password';
+GRANT ALL PRIVILEGES ON DATABASE taskmanager TO taskmanager_user;
+\q
 ```
 
-#### 3. Первый деплой
+#### 3. Application Deployment
 
 ```bash
-vercel
+# Clone repository
+cd /var/www
+sudo git clone <repository-url> taskmanager
+cd taskmanager
+
+# Set permissions
+sudo chown -R $USER:$USER /var/www/taskmanager
+
+# Install dependencies
+npm install --production
+
+# Create production .env file
+nano .env
 ```
 
-Следуйте инструкциям:
-- Set up and deploy? **Y**
-- Which scope? Выберите ваш аккаунт
-- Link to existing project? **N**
-- Project name? **t24-task-manager**
-- In which directory is your code located? **./**
-- Want to modify settings? **N**
+Production `.env`:
 
-#### 4. Настройка переменных окружения
-
-В Vercel Dashboard:
-
-1. Откройте проект **t24-task-manager**
-2. Перейдите в **Settings** → **Environment Variables**
-3. Добавьте:
-   - `VITE_SUPABASE_URL` = `https://xxxxx.supabase.co`
-   - `VITE_SUPABASE_ANON_KEY` = ваш anon key
-
-#### 5. Production деплой
-
-```bash
-vercel --prod
+```env
+DATABASE_URL="postgresql://taskmanager_user:your-secure-password@localhost:5432/taskmanager?schema=public"
+JWT_SECRET="<generate-a-long-random-string>"
+ADMIN_EMAIL="admin@yourdomain.com"
+ADMIN_PASSWORD="<secure-password>"
+ADMIN_NAME="Admin"
+PORT=3001
+NODE_ENV=production
+VITE_API_BASE_URL="https://api.yourdomain.com"
 ```
 
-Ваше приложение будет доступно по адресу: `https://t24-task-manager.vercel.app`
-
-### Вариант B: Netlify
-
-#### 1. Установка Netlify CLI
+#### 4. Database Migration
 
 ```bash
-npm i -g netlify-cli
+# Generate Prisma Client
+npx prisma generate
+
+# Run migrations
+npx prisma migrate deploy
+
+# Seed admin user
+npx ts-node-esm prisma/seed.ts
 ```
 
-#### 2. Логин
+#### 5. Build Frontend
 
 ```bash
-netlify login
+npm run build
 ```
 
-#### 3. Инициализация
+#### 6. Start Backend with PM2
 
 ```bash
-netlify init
+# Start the server
+pm2 start src/server/index.ts --name taskmanager-api --interpreter ts-node-esm
+
+# Save PM2 config
+pm2 save
+
+# Setup PM2 to start on boot
+pm2 startup
+# Run the command that PM2 outputs
 ```
 
-Следуйте инструкциям:
-- Create & configure a new site
-- Team: выберите ваш team
-- Site name: **t24-task-manager**
-- Build command: **npm run build**
-- Publish directory: **dist**
+#### 7. Configure Nginx
 
-#### 4. Настройка переменных окружения
+Create `/etc/nginx/sites-available/taskmanager`:
 
-```bash
-netlify env:set VITE_SUPABASE_URL "https://xxxxx.supabase.co"
-netlify env:set VITE_SUPABASE_ANON_KEY "your-anon-key"
+```nginx
+# Frontend
+server {
+    listen 80;
+    server_name yourdomain.com www.yourdomain.com;
+    
+    root /var/www/taskmanager/dist;
+    index index.html;
+    
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+}
+
+# Backend API
+server {
+    listen 80;
+    server_name api.yourdomain.com;
+    
+    location / {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
 ```
 
-#### 5. Production деплой
+Enable the site:
 
 ```bash
-netlify deploy --prod
+sudo ln -s /etc/nginx/sites-available/taskmanager /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
 ```
 
----
-
-## 5️⃣ Проверка работоспособности
-
-### Чек-лист после деплоя
-
-- [ ] **Frontend загружается** - откройте ваш production URL
-- [ ] **Регистрация работает** - создайте новый аккаунт
-- [ ] **Логин работает** - войдите с созданными credentials
-- [ ] **Демо данные создаются** - проверьте наличие категорий и проектов
-- [ ] **Создание задачи работает** - создайте новую задачу
-- [ ] **Kanban доска работает** - перетащите задачу между колонками
-- [ ] **Табличный вид работает** - переключитесь на табличный вид
-- [ ] **Загрузка файлов работает** - прикрепите файл к задаче
-- [ ] **Загрузка аватара работает** - загрузите аватар в профиле
-- [ ] **Приглашения работают** - пригласите участника в проект
-
-### Тестовые данные
-
-После регистрации должны автоматически создаться:
-
-**Категории:**
-- 🔧 Разработка (синий)
-- 🎨 Дизайн (розовый)
-- 📢 Маркетинг (зеленый)
-
-**Проекты:**
-- Редизайн корпоративного сайта
-- Разработка мобильного приложения
-
-**Задачи:**
-- Несколько задач с разными статусами и приоритетами
-
----
-
-## 6️⃣ Troubleshooting
-
-### Проблема: "Failed to fetch" при запросах к API
-
-**Решение:**
-1. Проверьте CORS настройки в Edge Function
-2. Убедитесь, что функция задеплоена: `supabase functions list`
-3. Проверьте логи: `supabase functions logs server`
-
-### Проблема: Ошибка аутентификации
-
-**Решение:**
-1. Проверьте переменные окружения:
-   ```bash
-   supabase secrets list
-   ```
-2. Убедитесь, что Site URL настроен корректно в Supabase Auth Settings
-3. Проверьте срок действия токенов (по умолчанию 1 час)
-
-### Проблема: Storage ошибки при загрузке файлов
-
-**Решение:**
-1. Убедитесь, что buckets созданы:
-   ```bash
-   supabase storage list-buckets
-   ```
-2. Если нет, сервер создаст их автоматически при первом запросе
-3. Проверьте права доступа к Storage в Supabase Dashboard
-
-### Проблема: Данные не синхронизируются
-
-**Решение:**
-1. Откройте DevTools → Console
-2. Проверьте наличие ошибок в запросах
-3. Polling работает каждые 3 секунды - подождите немного
-4. Проверьте Network tab - должны быть регулярные запросы к `/tasks`, `/projects`, `/custom-columns`
-
-### Проблема: Edge Function не деплоится
-
-**Решение:**
-```bash
-# Проверьте версию CLI
-supabase --version
-
-# Обновите до последней версии
-npm update -g supabase
-
-# Повторите деплой с флагом verbose
-supabase functions deploy server --debug
-```
-
-### Проблема: "Module not found" в Edge Function
-
-**Решение:**
-- Edge Functions используют Deno, не Node.js
-- Используйте импорты с префиксами: `npm:`, `jsr:`, `node:`
-- Пример: `import { Hono } from 'npm:hono'`
-
-### Получение помощи
-
-**Логи Edge Functions:**
-```bash
-supabase functions logs server
-```
-
-**Realtime логи:**
-```bash
-supabase functions logs server --tail
-```
-
-**Проверка статуса Supabase:**
-- [status.supabase.com](https://status.supabase.com)
-
----
-
-## 🔄 Обновление деплоя
-
-### Frontend
+#### 8. Setup SSL with Let's Encrypt
 
 ```bash
-# Vercel
-vercel --prod
+# Install Certbot
+sudo apt install -y certbot python3-certbot-nginx
 
-# Netlify
-netlify deploy --prod
-```
+# Get certificates
+sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com -d api.yourdomain.com
 
-### Backend (Edge Functions)
-
-```bash
-supabase functions deploy server
+# Auto-renewal is configured automatically
 ```
 
 ---
 
-## 📊 Мониторинг
+## 3️⃣ Database Management
 
-### Vercel Analytics
+### Prisma Commands
 
-1. Перейдите в Vercel Dashboard
-2. Откройте проект
-3. Перейдите в **Analytics**
-4. Включите **Web Analytics**
+```bash
+# Generate Prisma Client after schema changes
+npx prisma generate
 
-### Supabase Dashboard
+# Create a new migration in development
+npx prisma migrate dev --name migration_name
 
-1. **Database** → **Database** - использование базы данных
-2. **Storage** → используемое пространство
-3. **Auth** → количество пользователей
-4. **Edge Functions** → количество invocations и ошибок
+# Apply migrations in production
+npx prisma migrate deploy
+
+# Seed the database
+npx ts-node-esm prisma/seed.ts
+
+# Open Prisma Studio (database GUI)
+npx prisma studio
+
+# Reset database (CAREFUL! Deletes all data)
+npx prisma migrate reset
+```
+
+### Database Backups
+
+```bash
+# Backup database
+pg_dump -U taskmanager_user -h localhost taskmanager > backup_$(date +%Y%m%d).sql
+
+# Restore database
+psql -U taskmanager_user -h localhost taskmanager < backup_20231209.sql
+```
+
+### Creating New Migrations
+
+1. Modify `prisma/schema.prisma`
+2. Run `npx prisma migrate dev --name description_of_changes`
+3. Commit both the schema file and the migration files
+4. On production, run `npx prisma migrate deploy`
 
 ---
 
-## 🎉 Готово!
+## 4️⃣ Environment Variables
 
-Ваше приложение T24 Task Manager успешно развернуто и готово к использованию!
+### Required Variables
 
-**Production URLs:**
-- Frontend: `https://your-app.vercel.app`
-- Backend: `https://xxxxx.supabase.co/functions/v1/make-server-d9879966`
-- Supabase Dashboard: `https://app.supabase.com/project/xxxxx`
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/db` |
+| `JWT_SECRET` | Secret for JWT token signing | Random 64+ char string |
+| `ADMIN_EMAIL` | Initial admin email | `admin@example.com` |
+| `ADMIN_PASSWORD` | Initial admin password | Secure password |
+| `ADMIN_NAME` | Initial admin name | `Admin User` |
+| `PORT` | Backend API port | `3001` |
+| `NODE_ENV` | Environment | `development` or `production` |
+| `VITE_API_BASE_URL` | Frontend API URL | `http://localhost:3001` |
 
-Не забудьте:
-- ⭐ Поставить звезду на GitHub
-- 📝 Обновить README с вашими production URLs
-- 🔐 Сохранить все ключи в безопасном месте
-- 📧 Настроить email notifications (опционально)
+### Generating Secure JWT_SECRET
+
+```bash
+# Using OpenSSL
+openssl rand -base64 64
+
+# Using Node.js
+node -e "console.log(require('crypto').randomBytes(64).toString('base64'))"
+```
 
 ---
 
-**Нужна помощь?** Создайте [issue на GitHub](https://github.com/yourusername/t24-task-manager/issues)
+## 5️⃣ Troubleshooting
+
+### Problem: Port 3001 already in use
+
+```bash
+# Find process using port 3001
+lsof -i :3001
+
+# Kill the process
+kill -9 <PID>
+```
+
+### Problem: Database connection failed
+
+```bash
+# Check if Postgres is running
+docker ps  # For Docker
+sudo systemctl status postgresql  # For system installation
+
+# Test connection
+psql -U postgres -h localhost -d taskmanager
+
+# Check DATABASE_URL format
+echo $DATABASE_URL
+```
+
+### Problem: Prisma Client errors
+
+```bash
+# Regenerate Prisma Client
+rm -rf node_modules/.prisma
+npx prisma generate
+```
+
+### Problem: Migration failures
+
+```bash
+# Check migration status
+npx prisma migrate status
+
+# Resolve failed migrations
+npx prisma migrate resolve --applied <migration-name>
+
+# Reset and re-run (CAUTION: Deletes data)
+npx prisma migrate reset
+npx prisma migrate dev
+```
+
+### Problem: PM2 not starting
+
+```bash
+# Check logs
+pm2 logs taskmanager-api
+
+# Restart
+pm2 restart taskmanager-api
+
+# Check status
+pm2 status
+```
+
+### Problem: File uploads failing
+
+```bash
+# Check uploads directory exists and is writable
+ls -la uploads/
+chmod 755 uploads/
+
+# Check disk space
+df -h
+```
+
+### Checking Logs
+
+```bash
+# Backend logs (PM2)
+pm2 logs taskmanager-api
+
+# Nginx logs
+sudo tail -f /var/log/nginx/error.log
+sudo tail -f /var/log/nginx/access.log
+
+# PostgreSQL logs
+sudo tail -f /var/log/postgresql/postgresql-15-main.log
+```
+
+---
+
+## 📊 Monitoring
+
+### PM2 Monitoring
+
+```bash
+# Status
+pm2 status
+
+# Detailed info
+pm2 show taskmanager-api
+
+# Real-time monitoring
+pm2 monit
+```
+
+### Database Health
+
+```bash
+# Connect to database
+psql -U taskmanager_user -h localhost taskmanager
+
+# Check table sizes
+SELECT 
+  schemaname,
+  tablename,
+  pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+```
+
+---
+
+## 🔄 Updating the Application
+
+```bash
+# Pull latest changes
+cd /var/www/taskmanager
+git pull origin main
+
+# Install new dependencies
+npm install
+
+# Run migrations
+npx prisma generate
+npx prisma migrate deploy
+
+# Rebuild frontend
+npm run build
+
+# Restart backend
+pm2 restart taskmanager-api
+
+# Clear Nginx cache if needed
+sudo systemctl restart nginx
+```
+
+---
+
+## 🎉 Success!
+
+Your Task Manager application is now deployed and running!
+
+**Important URLs:**
+- Frontend: `https://yourdomain.com`
+- Backend API: `https://api.yourdomain.com`
+- Health Check: `https://api.yourdomain.com/health`
+
+**Next Steps:**
+- Set up monitoring and alerts
+- Configure automated backups
+- Review security settings
+- Update admin credentials
+
+---
+
+**Need help?** Create an [issue on GitHub](https://github.com/yourusername/taskmanager/issues)
