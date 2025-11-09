@@ -93,7 +93,8 @@ export function ProjectModal({
       }
     }
     prevOpenRef.current = open;
-  }, [open, isEditMode, projectId, projects]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isEditMode, projectId]);
 
   const resetForm = () => {
     setName('');

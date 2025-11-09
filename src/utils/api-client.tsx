@@ -658,7 +658,18 @@ export const projectsAPI = {
     const userId = getUserIdFromToken();
     if (!userId) throw new Error('Invalid token');
 
-    const projects = await projectsAPI.getAll();
+    // Fetch only owned projects, not shared projects
+    const ownedProjectsResponse = await fetch(`${API_BASE_URL}/api/kv/projects:${userId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    let projects = [];
+    if (ownedProjectsResponse.ok) {
+      const ownedData = await ownedProjectsResponse.json();
+      projects = ownedData.value || [];
+    }
     
     const newProject = {
       ...projectData,
@@ -676,6 +687,16 @@ export const projectsAPI = {
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({ value: projects }),
+    });
+    
+    // Also store project in shared location for member access
+    await fetch(`${API_BASE_URL}/api/kv/project:${newProject.id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ value: newProject }),
     });
 
     return newProject;
