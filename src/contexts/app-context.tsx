@@ -1,6 +1,6 @@
 import React from 'react';
 import { tasksAPI, projectsAPI, authAPI, teamAPI, userSettingsAPI, supabase, getAuthToken } from '../utils/supabase/client';
-import { projectId } from '../utils/supabase/info';
+// Removed: import { projectId } from '../utils/supabase/info';
 import { toast } from 'sonner@2.0.3';
 
 export interface TaskAttachment {
@@ -421,7 +421,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-d9879966/categories`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${API_BASE_URL}/api/kv/categories`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -432,8 +433,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       const data = await response.json();
-      setCategories(data.categories || []);
-      console.log('✅ Категории загружены:', data.categories?.length || 0);
+      const categoriesData = data.value || [];
+      setCategories(categoriesData);
+      console.log('✅ Категории загружены:', categoriesData.length);
     } catch (error: any) {
       if (!error.message?.includes('авторизован') && !error.message?.includes('Not authenticated')) {
         console.error('❌ Ошибка загрузки категорий:', error);
@@ -448,13 +450,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Необходима авторизация');
       }
       
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-d9879966/categories`, {
+      const newCategory = {
+        ...categoryData,
+        id: categoryData.id || `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const updatedCategories = [...categories, newCategory];
+      
+      const response = await fetch(`${API_BASE_URL}/api/kv/categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(categoryData),
+        body: JSON.stringify({ value: updatedCategories }),
       });
 
       if (!response.ok) {
@@ -462,12 +474,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error(error.error || 'Не удалось создать категорию');
       }
 
-      const data = await response.json();
-      const newCategory = data.category;
-      setCategories(prev => [...prev, newCategory]);
+      setCategories(updatedCategories);
       console.log('✅ Категория создана:', newCategory);
       toast.success('Категория создана');
-      return newCategory;
+      return newCategory as Category;
     } catch (error: any) {
       console.error('❌ Ошибка создания категории:', error);
       toast.error(error.message || 'Ошибка создания категории');
@@ -482,13 +492,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Необходима авторизация');
       }
       
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-d9879966/categories/${categoryId}`, {
-        method: 'PUT',
+      const updatedCategories = categories.map(c => 
+        c.id === categoryId 
+          ? { ...c, ...updates, updatedAt: new Date().toISOString() }
+          : c
+      );
+      
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${API_BASE_URL}/api/kv/categories`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({ value: updatedCategories }),
       });
 
       if (!response.ok) {
@@ -496,9 +513,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error(error.error || 'Не удалось обновить категорию');
       }
 
-      const data = await response.json();
-      const updatedCategory = data.category;
-      setCategories(prev => prev.map(c => c.id === categoryId ? updatedCategory : c));
+      const updatedCategory = updatedCategories.find(c => c.id === categoryId)!;
+      setCategories(updatedCategories);
       console.log('✅ Категория обновлена:', updatedCategory);
       toast.success('Категория обновлена');
       return updatedCategory;
@@ -507,7 +523,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast.error(error.message || 'Ошибка обновления категории');
       throw error;
     }
-  }, []);
+  }, [categories]);
 
   const deleteCategory = React.useCallback(async (categoryId: string): Promise<void> => {
     try {
@@ -516,11 +532,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Необходима авторизация');
       }
       
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-d9879966/categories/${categoryId}`, {
-        method: 'DELETE',
+      const updatedCategories = categories.filter(c => c.id !== categoryId);
+      
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${API_BASE_URL}/api/kv/categories`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
+        body: JSON.stringify({ value: updatedCategories }),
       });
 
       if (!response.ok) {
@@ -528,7 +549,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error(error.error || 'Не удалось удалить категорию');
       }
 
-      setCategories(prev => prev.filter(c => c.id !== categoryId));
+      setCategories(updatedCategories);
       console.log('✅ Категория удалена:', categoryId);
       toast.success('Категория удалена');
     } catch (error: any) {
@@ -536,7 +557,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast.error(error.message || 'Ошибка удаления категории');
       throw error;
     }
-  }, []);
+  }, [categories]);
 
   const updateCurrentUser = React.useCallback(async (updates: Partial<User>) => {
     try {

@@ -11,10 +11,10 @@ import { useApp } from '../contexts/app-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { toast } from 'sonner@2.0.3';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+// Removed: import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 export function ProfileView() {
-  const { currentUser, updateCurrentUser, uploadAvatar, deleteAvatar, refreshData } = useApp();
+  const { currentUser, updateCurrentUser, uploadAvatar, deleteAvatar, refreshData, tasks, deleteTask } = useApp();
   const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [notifications, setNotifications] = React.useState(true);
@@ -110,32 +110,39 @@ export function ProfileView() {
     
     setIsCleaningDuplicates(true);
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        toast.error('Необходима авторизация');
-        return;
-      }
-
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-d9879966/tasks/cleanup-duplicates`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+      // Find duplicate tasks (same title within same project/status)
+      const taskMap = new Map<string, any[]>();
+      const duplicates: string[] = [];
+      
+      tasks.forEach((task: any) => {
+        const key = `${task.title}-${task.projectId || 'none'}-${task.status}`;
+        const existing = taskMap.get(key);
+        
+        if (existing) {
+          // If we found a duplicate, keep the newer one
+          const existingDate = new Date(existing[0].createdAt || 0).getTime();
+          const currentDate = new Date(task.createdAt || 0).getTime();
+          
+          if (currentDate > existingDate) {
+            // Current task is newer, mark existing as duplicate
+            duplicates.push(...existing.map((t: any) => t.id));
+            taskMap.set(key, [task]);
+          } else {
+            // Existing task is newer, mark current as duplicate
+            duplicates.push(task.id);
+          }
+        } else {
+          taskMap.set(key, [task]);
         }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Ошибка очистки дубликатов');
-      }
-
-      if (data.totalCleaned > 0) {
-        toast.success(`${data.message}. Обновляем данные...`);
-        // Обновляем данные после очистки
+      });
+      
+      if (duplicates.length > 0) {
+        // Delete duplicates using existing API
+        for (const taskId of duplicates) {
+          await deleteTask(taskId);
+        }
+        
+        toast.success(`Удалено дубликатов: ${duplicates.length}. Обновляем данные...`);
         await refreshData();
       } else {
         toast.success('Дубликаты не найдены. Все задачи в порядке!');
