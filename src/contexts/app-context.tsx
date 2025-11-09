@@ -453,6 +453,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const newCategory = {
         ...categoryData,
         id: categoryData.id || `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId: currentUser?.id || '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -483,7 +484,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast.error(error.message || 'Ошибка создания категории');
       throw error;
     }
-  }, []);
+  }, [categories, currentUser]);
 
   const updateCategory = React.useCallback(async (categoryId: string, updates: Partial<Category>): Promise<Category> => {
     try {

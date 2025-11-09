@@ -277,22 +277,22 @@ export function ProjectMembersModal({
       return;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // Improved email validation
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
     if (!emailRegex.test(inviteEmail)) {
       toast.error('Введите корректный email адрес');
       return;
     }
 
     // Проверка на уже существующего участника
-    if (members.some((m) => m.email === inviteEmail)) {
+    if (members.some((m) => m.email.toLowerCase() === inviteEmail.toLowerCase())) {
       toast.error('Пользователь уже является участником проекта');
       return;
     }
 
     // Проверка на дубликат приглашения
     const existingInvite = invitations.find(
-      (inv) => inv.email === inviteEmail && inv.status === 'pending'
+      (inv) => inv.email.toLowerCase() === inviteEmail.toLowerCase() && inv.status === 'pending'
     );
 
     if (existingInvite) {

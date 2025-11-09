@@ -111,33 +111,35 @@ export function ProfileView() {
     setIsCleaningDuplicates(true);
     try {
       // Find duplicate tasks (same title within same project/status)
-      const taskMap = new Map<string, any[]>();
+      const taskMap = new Map<string, any>();
       const duplicates: string[] = [];
       
       tasks.forEach((task: any) => {
         const key = `${task.title}-${task.projectId || 'none'}-${task.status}`;
-        const existing = taskMap.get(key);
         
-        if (existing) {
-          // If we found a duplicate, keep the newer one
-          const existingDate = new Date(existing[0].createdAt || 0).getTime();
+        if (!taskMap.has(key)) {
+          // First task with this key
+          taskMap.set(key, task);
+        } else {
+          // Duplicate found - keep the newer one
+          const existing = taskMap.get(key)!;
+          const existingDate = new Date(existing.createdAt || 0).getTime();
           const currentDate = new Date(task.createdAt || 0).getTime();
           
           if (currentDate > existingDate) {
-            // Current task is newer, mark existing as duplicate
-            duplicates.push(...existing.map((t: any) => t.id));
-            taskMap.set(key, [task]);
+            // Current task is newer, mark existing as duplicate and replace
+            duplicates.push(existing.id);
+            taskMap.set(key, task);
           } else {
             // Existing task is newer, mark current as duplicate
             duplicates.push(task.id);
           }
-        } else {
-          taskMap.set(key, [task]);
         }
       });
       
       if (duplicates.length > 0) {
         // Delete duplicates using existing API
+        console.log(`Найдено дубликатов: ${duplicates.length}`);
         for (const taskId of duplicates) {
           await deleteTask(taskId);
         }
