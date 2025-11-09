@@ -217,6 +217,22 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
             </Badge>
           </div>
 
+          {/* Теги */}
+          {task.tags && task.tags.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {task.tags.slice(0, 3).map((tag, index) => (
+                <Badge key={index} variant="secondary" className="text-xs px-1.5 py-0 bg-gray-100 text-gray-700">
+                  {tag}
+                </Badge>
+              ))}
+              {task.tags.length > 3 && (
+                <Badge variant="secondary" className="text-xs px-1.5 py-0 bg-gray-200 text-gray-600">
+                  +{task.tags.length - 3}
+                </Badge>
+              )}
+            </div>
+          )}
+
           {/* Дедлайн, Файлы и Исполнитель */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
