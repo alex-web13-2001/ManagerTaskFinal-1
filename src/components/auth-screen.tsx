@@ -52,8 +52,8 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
       return;
     }
     
-    if (registerPassword.length < 6) {
-      toast.error('Пароль должен содержать минимум 6 символов');
+    if (registerPassword.length < 8) {
+      toast.error('Пароль должен содержать минимум 8 символов');
       return;
     }
     
@@ -218,9 +218,9 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
                         value={registerPassword}
                         onChange={(e) => setRegisterPassword(e.target.value)}
                         required
-                        minLength={6}
+                        minLength={8}
                       />
-                      <p className="text-xs text-gray-500">Минимум 6 символов</p>
+                      <p className="text-xs text-gray-500">Минимум 8 символов</p>
                     </div>
                     <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700" disabled={isLoading}>
                       {isLoading ? (

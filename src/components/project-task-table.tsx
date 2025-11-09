@@ -69,13 +69,22 @@ const statusLabels = {
 // Categories are now loaded from the app context
 
 export function ProjectTaskTable({ projectId, searchQuery, filters, onTaskClick }: ProjectTaskTableProps) {
-  const { tasks, updateTask, deleteTask, teamMembers, currentUser, canEditTask, canDeleteTask, categories } = useApp();
+  const { tasks, updateTask, deleteTask, teamMembers, currentUser, canEditTask, canDeleteTask, categories, canViewAllProjectTasks } = useApp();
 
   // Filter tasks for this project
   const filteredTasks = React.useMemo(() => {
     return tasks.filter((task) => {
       // Must be from this project
       if (task.projectId !== projectId) return false;
+
+      // Role-based access control: Members should only see tasks assigned to them
+      if (!canViewAllProjectTasks(projectId)) {
+        // Member role - only show tasks assigned to current user
+        const currentUserId = currentUser?.id;
+        if (!currentUserId || task.assigneeId !== currentUserId) {
+          return false;
+        }
+      }
 
       // Поиск
       if (searchQuery) {
@@ -132,7 +141,7 @@ export function ProjectTaskTable({ projectId, searchQuery, filters, onTaskClick 
 
       return true;
     });
-  }, [tasks, projectId, searchQuery, filters]);
+  }, [tasks, projectId, searchQuery, filters, canViewAllProjectTasks, currentUser]);
 
   const getInitials = (name?: string) => {
     if (!name) return '?';

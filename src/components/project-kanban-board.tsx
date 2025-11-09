@@ -320,7 +320,7 @@ export function ProjectKanbanBoard({
   filters,
   onTaskClick,
 }: ProjectKanbanBoardProps) {
-  const { tasks, updateTask, getUserRoleInProject, canViewAllProjectTasks } = useApp();
+  const { tasks, updateTask, getUserRoleInProject, canViewAllProjectTasks, currentUser } = useApp();
   const [isAddingColumn, setIsAddingColumn] = React.useState(false);
   const [newColumnName, setNewColumnName] = React.useState('');
   const [editingColumnId, setEditingColumnId] = React.useState<string | null>(null);
@@ -356,6 +356,15 @@ export function ProjectKanbanBoard({
     
     return tasks.filter((task) => {
       if (task.projectId !== projectId) return false;
+
+      // Role-based access control: Members should only see tasks assigned to them
+      if (!canViewAllProjectTasks(projectId)) {
+        // Member role - only show tasks assigned to current user
+        const currentUserId = currentUser?.id;
+        if (!currentUserId || task.assigneeId !== currentUserId) {
+          return false;
+        }
+      }
 
       // Поиск
       if (searchQuery) {
@@ -427,7 +436,7 @@ export function ProjectKanbanBoard({
 
       return true;
     });
-  }, [tasks, projectId, searchQuery, filters]);
+  }, [tasks, projectId, searchQuery, filters, canViewAllProjectTasks, currentUser]);
 
   // Clean up taskOrder - remove IDs that don't exist in current project tasks
   React.useEffect(() => {

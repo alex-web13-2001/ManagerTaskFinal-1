@@ -51,7 +51,7 @@ export function ProjectCalendarView({
   projectId,
   onBack,
 }: ProjectCalendarViewProps) {
-  const { tasks, projects, teamMembers, categories } = useApp();
+  const { tasks, projects, teamMembers, categories, canViewAllProjectTasks, currentUser } = useApp();
   const [dateRange, setDateRange] = React.useState<'1week' | '2weeks' | '1month' | '3months'>('2weeks');
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
   const [assigneeFilter, setAssigneeFilter] = React.useState<string>('all');
@@ -122,6 +122,15 @@ export function ProjectCalendarView({
     return tasks.filter(task => {
       if (task.projectId !== projectId) return false;
       
+      // Role-based access control: Members should only see tasks assigned to them
+      if (!canViewAllProjectTasks(projectId)) {
+        // Member role - only show tasks assigned to current user
+        const currentUserId = currentUser?.id;
+        if (!currentUserId || task.assigneeId !== currentUserId) {
+          return false;
+        }
+      }
+      
       // Status filter
       if (statusFilter !== 'all' && task.status !== statusFilter) return false;
       
@@ -142,7 +151,7 @@ export function ProjectCalendarView({
       
       return true;
     });
-  }, [tasks, projectId, statusFilter, assigneeFilter, priorityFilter, selectedCategories]);
+  }, [tasks, projectId, statusFilter, assigneeFilter, priorityFilter, selectedCategories, canViewAllProjectTasks, currentUser]);
 
   // Group tasks by category
   const categoryGroups = React.useMemo(() => {

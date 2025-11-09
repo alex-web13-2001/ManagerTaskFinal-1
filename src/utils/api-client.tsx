@@ -1124,6 +1124,15 @@ export const projectsAPI = {
           // Update project with new member
           project.members = members;
           
+          // Update invitation status in project's invitations array
+          if (project.invitations) {
+            const invIndex = project.invitations.findIndex((inv: any) => inv.id === invitationId);
+            if (invIndex !== -1) {
+              project.invitations[invIndex].status = 'accepted';
+              project.invitations[invIndex].acceptedAt = new Date().toISOString();
+            }
+          }
+          
           // Update in owner's projects
           const projectIndex = ownerProjects.findIndex((p: any) => p.id === invitation.projectId);
           if (projectIndex !== -1) {
