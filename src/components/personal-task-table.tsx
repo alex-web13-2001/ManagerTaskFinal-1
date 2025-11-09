@@ -11,11 +11,12 @@ import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import { MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, Flame, Paperclip } from 'lucide-react';
+import { MoreHorizontal, ArrowUpDown, ArrowUp, ArrowDown, Flame, Paperclip, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { useApp } from '../contexts/app-context';
@@ -61,9 +62,19 @@ type PersonalTaskTableProps = {
 };
 
 export function PersonalTaskTable({ filters, onTaskClick }: PersonalTaskTableProps) {
-  const { tasks, currentUser, teamMembers, customColumns } = useApp();
+  const { tasks, currentUser, teamMembers, customColumns, deleteTask, canDeleteTask } = useApp();
   const [sortColumn, setSortColumn] = React.useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = React.useState<SortDirection>(null);
+
+  const handleDelete = async (taskId: string) => {
+    if (window.confirm('Вы уверены, что хотите удалить эту задачу?')) {
+      try {
+        await deleteTask(taskId);
+      } catch (error) {
+        console.error('Failed to delete task:', error);
+      }
+    }
+  };
 
   // Build dynamic status colors and labels
   const statusColors = React.useMemo(() => {
@@ -260,12 +271,13 @@ export function PersonalTaskTable({ filters, onTaskClick }: PersonalTaskTablePro
                 <SortIcon column="updatedAt" />
               </button>
             </TableHead>
+            <TableHead className="w-[50px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {filteredAndSortedTasks.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+              <TableCell colSpan={8} className="text-center text-gray-500 py-8">
                 Задачи не найдены
               </TableCell>
             </TableRow>
@@ -352,6 +364,32 @@ export function PersonalTaskTable({ filters, onTaskClick }: PersonalTaskTablePro
                     ) : (
                       <span className="text-sm text-gray-400">—</span>
                     )}
+                  </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onTaskClick(task.id)}>
+                          Открыть
+                        </DropdownMenuItem>
+                        {canDeleteTask(task) && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(task.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Удалить
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               );

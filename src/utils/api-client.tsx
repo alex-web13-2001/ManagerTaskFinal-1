@@ -247,7 +247,7 @@ export const tasksAPI = {
     const userId = getUserIdFromToken();
     if (!userId) throw new Error('Invalid token');
 
-    // Tasks are stored in user-scoped KV store
+    // Fetch user's own tasks
     const response = await fetch(`${API_BASE_URL}/api/kv/tasks:${userId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -259,11 +259,55 @@ export const tasksAPI = {
     }
 
     const data = await response.json();
-    const tasks = data.value || [];
+    let allTasks = data.value || [];
+    
+    // Fetch tasks from shared projects
+    try {
+      const sharedProjectsResponse = await fetch(`${API_BASE_URL}/api/kv/shared_projects:${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (sharedProjectsResponse.ok) {
+        const sharedProjectsData = await sharedProjectsResponse.json();
+        const sharedProjects = sharedProjectsData.value || [];
+        
+        // For each shared project, fetch tasks from the project owner
+        for (const projectRef of sharedProjects) {
+          try {
+            const ownerTasksResponse = await fetch(`${API_BASE_URL}/api/kv/tasks:${projectRef.ownerId}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+            });
+            
+            if (ownerTasksResponse.ok) {
+              const ownerTasksData = await ownerTasksResponse.json();
+              const ownerTasks = ownerTasksData.value || [];
+              
+              // Filter tasks that belong to the shared project
+              const projectTasks = ownerTasks.filter((task: any) => task.projectId === projectRef.projectId);
+              
+              // Add project tasks to allTasks (avoid duplicates)
+              projectTasks.forEach((task: any) => {
+                if (!allTasks.find((t: any) => t.id === task.id)) {
+                  allTasks.push(task);
+                }
+              });
+            }
+          } catch (error) {
+            console.error(`Failed to fetch tasks from project owner ${projectRef.ownerId}:`, error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch shared project tasks:', error);
+    }
     
     // Load attachments for each task
     const tasksWithAttachments = await Promise.all(
-      tasks.map(async (task: any) => {
+      allTasks.map(async (task: any) => {
         try {
           const attachmentsResponse = await fetch(`${API_BASE_URL}/api/kv/task_attachments:${task.id}`, {
             headers: {
@@ -294,20 +338,58 @@ export const tasksAPI = {
     const userId = getUserIdFromToken();
     if (!userId) throw new Error('Invalid token');
 
-    // Get existing tasks
-    const tasks = await tasksAPI.getAll();
-    
     // Create new task
     const newTask = {
       ...taskData,
       id: taskData.id || `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId: taskData.userId || userId, // Set creator
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    
+    // Determine which user's task list to add to
+    let targetUserId = userId;
+    
+    // If task has a projectId, check if it's a shared project
+    if (newTask.projectId) {
+      try {
+        const sharedProjectsResponse = await fetch(`${API_BASE_URL}/api/kv/shared_projects:${userId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        
+        if (sharedProjectsResponse.ok) {
+          const sharedProjectsData = await sharedProjectsResponse.json();
+          const sharedProjects = sharedProjectsData.value || [];
+          const sharedProject = sharedProjects.find((ref: any) => ref.projectId === newTask.projectId);
+          
+          if (sharedProject) {
+            // This is a shared project, add task to owner's list
+            targetUserId = sharedProject.ownerId;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking shared projects:', error);
+      }
+    }
 
+    // Get existing tasks for target user
+    const tasksResponse = await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    let tasks = [];
+    if (tasksResponse.ok) {
+      const tasksData = await tasksResponse.json();
+      tasks = tasksData.value || [];
+    }
+    
     // Save updated tasks
     tasks.push(newTask);
-    await fetch(`${API_BASE_URL}/api/kv/tasks:${userId}`, {
+    await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -326,13 +408,59 @@ export const tasksAPI = {
     const userId = getUserIdFromToken();
     if (!userId) throw new Error('Invalid token');
 
-    // Get existing tasks
-    const tasks = await tasksAPI.getAll();
+    // Get all accessible tasks to find the task
+    const allTasks = await tasksAPI.getAll();
+    const taskToUpdate = allTasks.find((t: any) => t.id === taskId);
+    
+    if (!taskToUpdate) {
+      throw new Error('Task not found');
+    }
+    
+    // Determine which user's task list to update
+    let targetUserId = taskToUpdate.userId || userId;
+    
+    // If task has a projectId, check if it's a shared project
+    if (taskToUpdate.projectId) {
+      try {
+        const sharedProjectsResponse = await fetch(`${API_BASE_URL}/api/kv/shared_projects:${userId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        
+        if (sharedProjectsResponse.ok) {
+          const sharedProjectsData = await sharedProjectsResponse.json();
+          const sharedProjects = sharedProjectsData.value || [];
+          const sharedProject = sharedProjects.find((ref: any) => ref.projectId === taskToUpdate.projectId);
+          
+          if (sharedProject) {
+            // This is a shared project, update task in owner's list
+            targetUserId = sharedProject.ownerId;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking shared projects:', error);
+      }
+    }
+    
+    // Get tasks for target user
+    const tasksResponse = await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!tasksResponse.ok) {
+      throw new Error('Failed to fetch tasks');
+    }
+    
+    const tasksData = await tasksResponse.json();
+    const tasks = tasksData.value || [];
     
     // Find and update task
     const index = tasks.findIndex((t: any) => t.id === taskId);
     if (index === -1) {
-      throw new Error('Task not found');
+      throw new Error('Task not found in owner list');
     }
 
     tasks[index] = {
@@ -342,7 +470,7 @@ export const tasksAPI = {
     };
 
     // Save updated tasks
-    await fetch(`${API_BASE_URL}/api/kv/tasks:${userId}`, {
+    await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -361,14 +489,60 @@ export const tasksAPI = {
     const userId = getUserIdFromToken();
     if (!userId) throw new Error('Invalid token');
 
-    // Get existing tasks
-    const tasks = await tasksAPI.getAll();
+    // Get all accessible tasks to find the task
+    const allTasks = await tasksAPI.getAll();
+    const taskToDelete = allTasks.find((t: any) => t.id === taskId);
     
+    if (!taskToDelete) {
+      throw new Error('Task not found');
+    }
+    
+    // Determine which user's task list to delete from
+    let targetUserId = taskToDelete.userId || userId;
+    
+    // If task has a projectId, check if it's a shared project
+    if (taskToDelete.projectId) {
+      try {
+        const sharedProjectsResponse = await fetch(`${API_BASE_URL}/api/kv/shared_projects:${userId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        
+        if (sharedProjectsResponse.ok) {
+          const sharedProjectsData = await sharedProjectsResponse.json();
+          const sharedProjects = sharedProjectsData.value || [];
+          const sharedProject = sharedProjects.find((ref: any) => ref.projectId === taskToDelete.projectId);
+          
+          if (sharedProject) {
+            // This is a shared project, delete task from owner's list
+            targetUserId = sharedProject.ownerId;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking shared projects:', error);
+      }
+    }
+    
+    // Get tasks for target user
+    const tasksResponse = await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!tasksResponse.ok) {
+      throw new Error('Failed to fetch tasks');
+    }
+    
+    const tasksData = await tasksResponse.json();
+    const tasks = tasksData.value || [];
+
     // Filter out deleted task
     const updatedTasks = tasks.filter((t: any) => t.id !== taskId);
 
     // Save updated tasks
-    await fetch(`${API_BASE_URL}/api/kv/tasks:${userId}`, {
+    await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -489,6 +663,7 @@ export const projectsAPI = {
     const newProject = {
       ...projectData,
       id: projectData.id || `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId: userId, // Set the owner's userId
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -513,11 +688,23 @@ export const projectsAPI = {
     const userId = getUserIdFromToken();
     if (!userId) throw new Error('Invalid token');
 
-    const projects = await projectsAPI.getAll();
+    // Fetch only owner's projects, not shared projects
+    const ownerProjectsResponse = await fetch(`${API_BASE_URL}/api/kv/projects:${userId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!ownerProjectsResponse.ok) {
+      throw new Error('Failed to fetch projects');
+    }
+    
+    const ownerProjectsData = await ownerProjectsResponse.json();
+    const projects = ownerProjectsData.value || [];
     const index = projects.findIndex((p: any) => p.id === projectId);
     
     if (index === -1) {
-      throw new Error('Project not found');
+      throw new Error('Project not found or you do not have permission to update it');
     }
 
     projects[index] = {
@@ -533,6 +720,16 @@ export const projectsAPI = {
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({ value: projects }),
+    });
+    
+    // Also update the shared project data if it exists
+    await fetch(`${API_BASE_URL}/api/kv/project:${projectId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ value: projects[index] }),
     });
 
     return projects[index];
@@ -678,17 +875,40 @@ export const projectsAPI = {
       body: JSON.stringify({ value: allInvitations }),
     });
     
-    // Also update project with invitation
-    const projects = await projectsAPI.getAll();
-    const projectIndex = projects.findIndex((p: any) => p.id === projectId);
+    // Fetch owner's projects directly (not from getAll which includes shared projects)
+    const ownerProjectsResponse = await fetch(`${API_BASE_URL}/api/kv/projects:${userId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!ownerProjectsResponse.ok) {
+      throw new Error('Failed to fetch owner projects');
+    }
+    
+    const ownerProjectsData = await ownerProjectsResponse.json();
+    const ownerProjects = ownerProjectsData.value || [];
+    const projectIndex = ownerProjects.findIndex((p: any) => p.id === projectId);
     
     let projectName = 'Проект';
-    if (projectIndex !== -1) {
-      const project = projects[projectIndex];
-      projectName = project.name;
-      project.invitations = [...(project.invitations || []), invitation];
-      await projectsAPI.update(projectId, { invitations: project.invitations });
+    if (projectIndex === -1) {
+      throw new Error('Project not found in owner projects');
     }
+    
+    const project = ownerProjects[projectIndex];
+    projectName = project.name || 'Проект';
+    project.invitations = [...(project.invitations || []), invitation];
+    ownerProjects[projectIndex] = project;
+    
+    // Update owner's projects list
+    await fetch(`${API_BASE_URL}/api/kv/projects:${userId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ value: ownerProjects }),
+    });
     
     // Send invitation email
     try {

@@ -454,7 +454,8 @@ app.post('/api/upload-attachment', authenticate, upload.single('file'), async (r
     const attachment = {
       id: attachmentId,
       taskId,
-      filename: req.file.originalname,
+      name: req.file.originalname, // Changed from 'filename' to 'name' for UI consistency
+      filename: req.file.originalname, // Keep for backward compatibility
       url: fileUrl,
       size: req.file.size,
       mimeType: req.file.mimetype,

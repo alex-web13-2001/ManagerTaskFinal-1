@@ -613,9 +613,22 @@ export function ProjectMembersModal({
                           <SelectItem value="viewer">{roleLabels.viewer}</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button onClick={handleInvite} className="bg-purple-600 hover:bg-purple-700">
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Пригласить
+                      <Button 
+                        onClick={handleInvite} 
+                        disabled={isLoading}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Отправка...
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            Пригласить
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>
@@ -659,9 +672,20 @@ export function ProjectMembersModal({
                           </Select>
                           <Button
                             onClick={handleInvite}
+                            disabled={isLoading}
                             className="bg-purple-600 hover:bg-purple-700"
                           >
-                            Пригласить
+                            {isLoading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Отправка...
+                              </>
+                            ) : (
+                              <>
+                                <UserPlus className="w-4 h-4 mr-2" />
+                                Пригласить
+                              </>
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -761,9 +785,22 @@ export function ProjectMembersModal({
                           <SelectItem value="viewer">{roleLabels.viewer}</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Button onClick={handleInvite} className="bg-purple-600 hover:bg-purple-700">
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Пригласить
+                      <Button 
+                        onClick={handleInvite} 
+                        disabled={isLoading}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Отправка...
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            Пригласить
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>

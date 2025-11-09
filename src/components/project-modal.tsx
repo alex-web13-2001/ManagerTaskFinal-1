@@ -51,6 +51,7 @@ export function ProjectModal({
 }: ProjectModalProps) {
   const { projects, createProject, updateProject, categories } = useApp();
   const [isLoading, setIsLoading] = React.useState(false);
+  const prevOpenRef = React.useRef(false);
   
   const isEditMode = mode === 'edit';
   const existingProject = projectId && isEditMode ? projects.find(p => p.id === projectId) : null;
@@ -71,21 +72,28 @@ export function ProjectModal({
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
-    if (open && existingProject) {
-      // Загружаем данные существующего проекта
-      setName(existingProject.name || '');
-      setDescription(existingProject.description || '');
-      setSelectedColor(existingProject.color || 'purple');
-      setLinks(existingProject.links || []);
-      // Загружаем доступные категории проекта (availableCategories - массив ID)
-      const projectCategories = (existingProject as any).availableCategories || [];
-      setSelectedCategories(projectCategories);
-      setAttachments(existingProject.attachments || []);
-    } else if (open && !isEditMode) {
-      // Очищаем форму для создания нового проекта
-      resetForm();
+    // Only run when modal opens (transitions from closed to open)
+    if (open && !prevOpenRef.current) {
+      if (isEditMode && projectId) {
+        // Загружаем данные существующего проекта
+        const project = projects.find(p => p.id === projectId);
+        if (project) {
+          setName(project.name || '');
+          setDescription(project.description || '');
+          setSelectedColor(project.color || 'purple');
+          setLinks(project.links || []);
+          // Загружаем доступные категории проекта (availableCategories - массив ID)
+          const projectCategories = (project as any).availableCategories || [];
+          setSelectedCategories(projectCategories);
+          setAttachments(project.attachments || []);
+        }
+      } else if (!isEditMode) {
+        // Очищаем форму для создания нового проекта
+        resetForm();
+      }
     }
-  }, [open, existingProject, isEditMode]);
+    prevOpenRef.current = open;
+  }, [open, isEditMode, projectId, projects]);
 
   const resetForm = () => {
     setName('');
@@ -145,6 +153,7 @@ export function ProjectModal({
       onOpenChange(false);
     } catch (error) {
       console.error('Project save error:', error);
+      toast.error(error instanceof Error ? error.message : 'Ошибка сохранения проекта');
     } finally {
       setIsLoading(false);
     }
