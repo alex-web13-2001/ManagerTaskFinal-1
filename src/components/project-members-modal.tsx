@@ -41,8 +41,8 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { getAuthToken } from '../utils/supabase/client';
+import { projectsAPI } from '../utils/api-client';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
@@ -207,34 +207,27 @@ export function ProjectMembersModal({
         return;
       }
       
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-d9879966/projects/${prjId}/members`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Fetched members:', data.members);
-        
-        // Transform members to match expected format
-        const transformedMembers = (data.members || []).map((m: any) => ({
-          id: m.id || m.userId,
-          name: m.name || m.email,
-          email: m.email,
-          avatar: m.name ? m.name.split(' ').map((n: string) => n[0]).join('').toUpperCase() : m.email?.[0]?.toUpperCase() || '?',
-          role: m.role,
-          addedDate: m.addedDate ? new Date(m.addedDate).toLocaleDateString('ru-RU') : 'Недавно',
-        }));
-        
-        setMembers(transformedMembers);
-      } else {
-        console.error('Failed to fetch members');
+      // Fetch projects from KV store
+      const projects = await projectsAPI.getAll();
+      const project = projects.find((p: any) => p.id === prjId);
+      
+      if (!project) {
+        console.error('Project not found');
         setMembers([]);
+        return;
       }
+      
+      // Transform members to match expected format
+      const transformedMembers = (project.members || []).map((m: any) => ({
+        id: m.id || m.userId,
+        name: m.name || m.email,
+        email: m.email,
+        avatar: m.name ? m.name.split(' ').map((n: string) => n[0]).join('').toUpperCase() : m.email?.[0]?.toUpperCase() || '?',
+        role: m.role,
+        addedDate: m.addedDate ? new Date(m.addedDate).toLocaleDateString('ru-RU') : 'Недавно',
+      }));
+      
+      setMembers(transformedMembers);
     } catch (error) {
       console.error('Fetch members error:', error);
       setMembers([]);
@@ -252,19 +245,17 @@ export function ProjectMembersModal({
         return;
       }
       
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-d9879966/projects/${prjId}/invitations`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setInvitations(data.invitations || []);
+      // Fetch projects from KV store
+      const projects = await projectsAPI.getAll();
+      const project = projects.find((p: any) => p.id === prjId);
+      
+      if (!project) {
+        console.error('Project not found');
+        return;
       }
+      
+      // Get invitations from project
+      setInvitations(project.invitations || []);
     } catch (error) {
       console.error('Fetch invitations error:', error);
     }
@@ -321,39 +312,40 @@ export function ProjectMembersModal({
 
       console.log('Sending invitation for:', inviteEmail, 'role:', inviteRole);
       
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-d9879966/projects/${prjId}/invitations`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
-        }
-      );
-
-      console.log('Invitation response status:', response.status);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Invitation created:', data);
-        setInvitations([data.invitation, ...invitations]);
-        setInviteEmail('');
-        setInviteRole('member');
-        toast.success('Приглашение отправлено');
-        setActiveTab('invitations');
-      } else {
-        let errorMessage = 'Ошибка отправки приглашения';
-        try {
-          const error = await response.json();
-          console.error('Server error response:', error);
-          errorMessage = error.error || errorMessage;
-        } catch (e) {
-          console.error('Failed to parse error response:', e);
-        }
-        toast.error(errorMessage);
+      // Fetch current projects
+      const projects = await projectsAPI.getAll();
+      const projectIndex = projects.findIndex((p: any) => p.id === prjId);
+      
+      if (projectIndex === -1) {
+        toast.error('Проект не найден');
+        return;
       }
+      
+      const project = projects[projectIndex];
+      
+      // Create new invitation
+      const newInvitation: Invitation = {
+        id: `inv-${Date.now()}`,
+        email: inviteEmail,
+        role: inviteRole,
+        status: 'pending',
+        sentDate: new Date().toISOString(),
+        link: `${window.location.origin}/invite/${prjId}/${Date.now()}`,
+      };
+      
+      // Update project with new invitation
+      project.invitations = [...(project.invitations || []), newInvitation];
+      projects[projectIndex] = project;
+      
+      // Save to KV store
+      await projectsAPI.update(prjId, { invitations: project.invitations });
+      
+      console.log('Invitation created:', newInvitation);
+      setInvitations([newInvitation, ...invitations]);
+      setInviteEmail('');
+      setInviteRole('member');
+      toast.success('Приглашение отправлено');
+      setActiveTab('invitations');
     } catch (error) {
       console.error('Invite error (catch block):', error);
       toast.error(`Ошибка отправки приглашения: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
@@ -379,21 +371,27 @@ export function ProjectMembersModal({
         return;
       }
       
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-d9879966/projects/${prjId}/invitations/${invitation.id}/resend`,
-        {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      if (response.ok) {
+      // Fetch current projects
+      const projects = await projectsAPI.getAll();
+      const project = projects.find((p: any) => p.id === prjId);
+      
+      if (!project) {
+        toast.error('Проект не найден');
+        return;
+      }
+      
+      // Update invitation sent date
+      const invitations = project.invitations || [];
+      const inviteIndex = invitations.findIndex((inv: Invitation) => inv.id === invitation.id);
+      
+      if (inviteIndex !== -1) {
+        invitations[inviteIndex].sentDate = new Date().toISOString();
+        invitations[inviteIndex].status = 'pending';
+        await projectsAPI.update(prjId, { invitations });
         await fetchInvitations();
         toast.success('Приглашение повторно отправлено');
       } else {
-        toast.error('Ошибка повторной отправки');
+        toast.error('Приглашение не найдено');
       }
     } catch (error) {
       console.error('Resend invite error:', error);
@@ -416,21 +414,27 @@ export function ProjectMembersModal({
         return;
       }
       
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-d9879966/projects/${prjId}/invitations/${inviteToRevoke.id}/revoke`,
-        {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      if (response.ok) {
+      // Fetch current projects
+      const projects = await projectsAPI.getAll();
+      const project = projects.find((p: any) => p.id === prjId);
+      
+      if (!project) {
+        toast.error('Проект не найден');
+        setInviteToRevoke(null);
+        return;
+      }
+      
+      // Update invitation status
+      const invitations = project.invitations || [];
+      const inviteIndex = invitations.findIndex((inv: Invitation) => inv.id === inviteToRevoke.id);
+      
+      if (inviteIndex !== -1) {
+        invitations[inviteIndex].status = 'revoked';
+        await projectsAPI.update(prjId, { invitations });
         await fetchInvitations();
         toast.success('Приглашение отозвано');
       } else {
-        toast.error('Ошибка отзыва приглашения');
+        toast.error('Приглашение не найдено');
       }
     } catch (error) {
       console.error('Revoke invite error:', error);
@@ -463,25 +467,29 @@ export function ProjectMembersModal({
         return;
       }
       
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-d9879966/projects/${prjId}/members/${memberId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ role: newRole }),
-        }
-      );
-
-      if (response.ok) {
+      // Fetch current projects
+      const projects = await projectsAPI.getAll();
+      const project = projects.find((p: any) => p.id === prjId);
+      
+      if (!project) {
+        toast.error('Проект не найден');
+        return;
+      }
+      
+      // Update member role
+      const projectMembers = project.members || [];
+      const memberIndex = projectMembers.findIndex((m: any) => (m.id || m.userId) === memberId);
+      
+      if (memberIndex !== -1) {
+        projectMembers[memberIndex].role = newRole;
+        await projectsAPI.update(prjId, { members: projectMembers });
+        
         setMembers(
           members.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
         );
         toast.success('Роль обновлена');
       } else {
-        toast.error('Ошибка обновления роли');
+        toast.error('Участник не найден');
       }
     } catch (error) {
       console.error('Change role error:', error);
@@ -514,22 +522,23 @@ export function ProjectMembersModal({
         return;
       }
       
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-d9879966/projects/${prjId}/members/${memberToDelete.id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        setMembers(members.filter((m) => m.id !== memberToDelete.id));
-        toast.success('Участник удалён из проекта');
-      } else {
-        toast.error('Ошибка удаления участника');
+      // Fetch current projects
+      const projects = await projectsAPI.getAll();
+      const project = projects.find((p: any) => p.id === prjId);
+      
+      if (!project) {
+        toast.error('Проект не найден');
+        setMemberToDelete(null);
+        return;
       }
+      
+      // Remove member
+      const projectMembers = project.members || [];
+      const updatedMembers = projectMembers.filter((m: any) => (m.id || m.userId) !== memberToDelete.id);
+      
+      await projectsAPI.update(prjId, { members: updatedMembers });
+      setMembers(members.filter((m) => m.id !== memberToDelete.id));
+      toast.success('Участник удалён из проекта');
     } catch (error) {
       console.error('Delete member error:', error);
       toast.error('Ошибка удаления участника');
