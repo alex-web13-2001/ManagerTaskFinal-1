@@ -1077,12 +1077,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const project = projects.find(p => p.id === projectId);
     if (!project) return null;
     
-    // Check if user is project owner
-    if (project.userId === currentUser.id) {
+    // Check if user is project owner (prioritize ownership check)
+    // Owner check should happen first and take precedence
+    const isOwner = project.userId === currentUser.id && !(project as any).isShared;
+    if (isOwner) {
       return 'owner';
     }
     
-    // Check members list
+    // Check members list only if not owner
     if (project.members && Array.isArray(project.members)) {
       const member = project.members.find((m: any) => 
         m.userId === currentUser.id || m.email === currentUser.email

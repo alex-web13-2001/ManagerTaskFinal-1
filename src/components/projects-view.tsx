@@ -118,7 +118,12 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
 
       // Определяем роль текущего пользователя в проекте
       let userRole: 'owner' | 'collaborator' | 'member' | 'viewer' = 'viewer';
-      if (project.userId === currentUser?.id) {
+      
+      // First check if this is an owned project (not a shared one)
+      // Owner check: project.userId should match currentUser.id AND project should not be marked as shared
+      const isOwner = project.userId === currentUser?.id && !(project as any).isShared;
+      
+      if (isOwner) {
         userRole = 'owner';
       } else if (project.members && currentUser?.id) {
         const member = project.members.find((m: any) => 
