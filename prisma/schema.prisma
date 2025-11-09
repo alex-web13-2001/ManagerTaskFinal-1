@@ -12,13 +12,17 @@ datasource db {
 
 // User model - stores user authentication and profile data
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String   // bcrypt hashed
-  name      String
-  avatarUrl String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  password              String    // bcrypt hashed
+  name                  String
+  avatarUrl             String?
+  emailVerified         Boolean   @default(false)
+  emailVerificationToken String?
+  resetPasswordToken    String?
+  resetPasswordExpires  DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@map("users")
 }

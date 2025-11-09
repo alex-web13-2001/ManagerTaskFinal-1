@@ -85,10 +85,50 @@ export const authAPI = {
     return { error: null };
   },
 
-  resetPassword: async (email: string) => {
-    // TODO: Implement password reset functionality
-    console.warn('Password reset not yet implemented');
-    return { error: null };
+  forgotPassword: async (email: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to send password reset email');
+      }
+
+      const data = await response.json();
+      return { message: data.message };
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+      throw error;
+    }
+  },
+
+  resetPassword: async (token: string, password: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, password }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to reset password');
+      }
+
+      const data = await response.json();
+      return { message: data.message };
+    } catch (error: any) {
+      console.error('Reset password error:', error);
+      throw error;
+    }
   },
 
   getCurrentUser: async () => {
