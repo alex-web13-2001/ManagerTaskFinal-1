@@ -41,7 +41,7 @@ import {
   UserPlus,
   Loader2,
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { getAuthToken } from '../utils/supabase/client';
 import { projectsAPI } from '../utils/api-client';
 import { format } from 'date-fns';
@@ -615,6 +615,7 @@ export function ProjectMembersModal({
                         </SelectContent>
                       </Select>
                       <Button 
+                        type="button"
                         onClick={handleInvite} 
                         disabled={isLoading}
                         className="bg-purple-600 hover:bg-purple-700"
@@ -672,6 +673,7 @@ export function ProjectMembersModal({
                             </SelectContent>
                           </Select>
                           <Button
+                            type="button"
                             onClick={handleInvite}
                             disabled={isLoading}
                             className="bg-purple-600 hover:bg-purple-700"
@@ -787,6 +789,7 @@ export function ProjectMembersModal({
                         </SelectContent>
                       </Select>
                       <Button 
+                        type="button"
                         onClick={handleInvite} 
                         disabled={isLoading}
                         className="bg-purple-600 hover:bg-purple-700"

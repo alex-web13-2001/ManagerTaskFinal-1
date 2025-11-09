@@ -35,33 +35,6 @@ export function CreateTaskDialog({
 }) {
   const { categories, projects } = useApp();
   
-  // Get selected project to filter categories
-  const selectedProject = React.useMemo(() => {
-    return projects.find((p) => p.id === project);
-  }, [project, projects]);
-  
-  // Filter categories based on selected project
-  const availableCategories = React.useMemo(() => {
-    if (!project || project === 'personal') {
-      // Personal tasks can use all categories
-      return categories;
-    }
-    
-    if (!selectedProject) {
-      return categories;
-    }
-    
-    // Check if project has availableCategories defined
-    const projectAvailableCategories = (selectedProject as any).availableCategories;
-    
-    if (!projectAvailableCategories || !Array.isArray(projectAvailableCategories) || projectAvailableCategories.length === 0) {
-      // If no categories specified, allow all categories
-      return categories;
-    }
-    
-    // Filter to only show categories available in this project
-    return categories.filter(cat => projectAvailableCategories.includes(cat.id));
-  }, [project, selectedProject, categories]);
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [priority, setPriority] = React.useState('medium');
@@ -75,6 +48,34 @@ export function CreateTaskDialog({
   const [isRecurring, setIsRecurring] = React.useState(false);
   const [recurringStartDate, setRecurringStartDate] = React.useState<Date>();
   const [recurringIntervalDays, setRecurringIntervalDays] = React.useState<number>(1);
+  
+  // Get selected project to filter categories
+  const selectedProject = React.useMemo(() => {
+    return projects.find((p) => p.id === project);
+  }, [project, projects]);
+  
+  // Filter categories based on selected project
+  const availableCategories = React.useMemo(() => {
+    if (!project || project === 'personal') {
+      // Personal tasks can use all categories
+      return categories;
+    }
+    
+    if (!selectedProject) {
+      return [];
+    }
+    
+    // Check if project has availableCategories defined
+    const projectAvailableCategories = (selectedProject as any).availableCategories;
+    
+    if (!projectAvailableCategories || !Array.isArray(projectAvailableCategories) || projectAvailableCategories.length === 0) {
+      // If no categories specified for the project, return empty array (no categories available)
+      return [];
+    }
+    
+    // Filter to only show categories available in this project
+    return categories.filter(cat => projectAvailableCategories.includes(cat.id));
+  }, [project, selectedProject, categories]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,27 +179,40 @@ export function CreateTaskDialog({
               <Label>
                 Категория <span className="text-red-500">*</span>
               </Label>
-              <Select value={category} onValueChange={setCategory} required>
+              <Select 
+                value={category} 
+                onValueChange={setCategory} 
+                required
+                disabled={project !== 'personal' && project !== '' && availableCategories.length === 0}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Выберите категорию" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Без категории</SelectItem>
-                  {availableCategories.length === 0 && project !== 'personal' && (
-                    <SelectItem value="disabled" disabled>
+                  {availableCategories.length === 0 && project !== 'personal' && project !== '' ? (
+                    <SelectItem value="none" disabled>
                       В проекте нет доступных категорий
                     </SelectItem>
+                  ) : (
+                    <>
+                      <SelectItem value="none">Без категории</SelectItem>
+                      {availableCategories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${cat.color}`} />
+                            {cat.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </>
                   )}
-                  {availableCategories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${cat.color}`} />
-                        {cat.name}
-                      </div>
-                    </SelectItem>
-                  ))}
                 </SelectContent>
               </Select>
+              {project !== 'personal' && project !== '' && availableCategories.length === 0 && (
+                <p className="text-xs text-amber-600">
+                  В настройках проекта не привязаны категории. Добавьте категории к проекту, чтобы иметь возможность их выбрать.
+                </p>
+              )}
             </div>
           </div>
 
