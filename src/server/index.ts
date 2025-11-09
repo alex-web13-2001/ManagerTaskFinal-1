@@ -477,6 +477,43 @@ app.post('/api/upload-attachment', authenticate, upload.single('file'), async (r
   }
 });
 
+/**
+ * POST /api/upload-project-attachment
+ * Upload project attachment
+ */
+app.post('/api/upload-project-attachment', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const { projectId } = req.body;
+    if (!projectId) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const attachmentId = `proj_attachment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Return attachment metadata
+    const attachment = {
+      id: attachmentId,
+      name: req.file.originalname,
+      size: `${(req.file.size / 1024 / 1024).toFixed(2)} MB`,
+      url: fileUrl,
+      uploadedAt: new Date().toISOString(),
+    };
+
+    res.json({
+      attachment,
+      message: 'Project attachment uploaded successfully',
+    });
+  } catch (error: any) {
+    console.error('Upload project attachment error:', error);
+    res.status(500).json({ error: 'Failed to upload project attachment' });
+  }
+});
+
 // ========== KV STORE ENDPOINTS ==========
 
 /**
