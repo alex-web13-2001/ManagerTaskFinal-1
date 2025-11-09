@@ -311,24 +311,11 @@ export function ProjectMembersModal({
       
       console.log('Invitation created:', invitation);
       
-      // Transform to match UI format
-      const newInvitation: Invitation = {
-        id: invitation.id,
-        email: invitation.invitedEmail,
-        role: invitation.role,
-        status: invitation.status,
-        sentDate: invitation.sentDate,
-        link: invitation.inviteLink,
-      };
-      
-      // Update invitations list immediately
-      setInvitations([newInvitation, ...invitations]);
-      
-      // Clear input fields
+      // Clear input fields first
       setInviteEmail('');
       setInviteRole('member');
       
-      // Refresh invitation list from server to ensure sync
+      // Refresh invitation list from server to get latest data
       await fetchInvitations();
       
       toast.success('Приглашение отправлено! Пользователь получит уведомление на email.');
