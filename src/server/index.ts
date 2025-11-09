@@ -68,6 +68,101 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
   }
 }
 
+// ========== PERMISSION HELPERS ==========
+
+type UserRole = 'owner' | 'admin' | 'collaborator' | 'member' | 'viewer' | null;
+
+/**
+ * Get user's role in a project
+ */
+async function getUserRoleInProject(userId: string, projectId: string): Promise<UserRole> {
+  try {
+    // Check if user owns the project
+    const ownerProjects = await kv.get(`projects:${userId}`) || [];
+    const ownedProject = ownerProjects.find((p: any) => p.id === projectId);
+    if (ownedProject) {
+      return 'owner';
+    }
+    
+    // Check if user is a member of shared project
+    const sharedProjects = await kv.get(`shared_projects:${userId}`) || [];
+    const sharedRef = sharedProjects.find((ref: any) => ref.projectId === projectId);
+    if (sharedRef) {
+      return sharedRef.role || 'member';
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting user role:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if user can edit task
+ */
+async function canEditTask(userId: string, task: any): Promise<boolean> {
+  // Personal tasks - only owner can edit
+  if (!task.projectId) {
+    return task.userId === userId;
+  }
+  
+  const role = await getUserRoleInProject(userId, task.projectId);
+  
+  // Owner and Collaborator can edit any task
+  if (role === 'owner' || role === 'collaborator') {
+    return true;
+  }
+  
+  // Member can edit if assigned or created
+  if (role === 'member') {
+    return task.userId === userId || task.assigneeId === userId;
+  }
+  
+  // Viewer cannot edit
+  return false;
+}
+
+/**
+ * Check if user can delete task
+ */
+async function canDeleteTask(userId: string, task: any): Promise<boolean> {
+  // Personal tasks - only owner can delete
+  if (!task.projectId) {
+    return task.userId === userId;
+  }
+  
+  const role = await getUserRoleInProject(userId, task.projectId);
+  
+  // Owner and Collaborator can delete any task
+  if (role === 'owner' || role === 'collaborator') {
+    return true;
+  }
+  
+  // Member can delete if assigned or created
+  if (role === 'member') {
+    return task.userId === userId || task.assigneeId === userId;
+  }
+  
+  // Viewer cannot delete
+  return false;
+}
+
+/**
+ * Check if user can view task
+ */
+async function canViewTask(userId: string, task: any): Promise<boolean> {
+  // Personal tasks - only owner can view
+  if (!task.projectId) {
+    return task.userId === userId;
+  }
+  
+  const role = await getUserRoleInProject(userId, task.projectId);
+  
+  // All roles can view tasks in projects they're part of
+  return role !== null;
+}
+
 // ========== HEALTH CHECK ==========
 
 app.get('/health', (_req, res) => {
@@ -540,6 +635,133 @@ app.get('/api/invitations/:invitationId', async (req: Request, res: Response) =>
   } catch (error: any) {
     console.error('Get invitation error:', error);
     res.status(500).json({ error: 'Failed to get invitation' });
+  }
+});
+
+// ========== TASK PERMISSIONS VALIDATION ==========
+
+/**
+ * POST /api/tasks/validate-permission
+ * Validate if user has permission to perform action on task
+ */
+app.post('/api/tasks/validate-permission', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { taskId, action } = req.body; // action: 'view', 'edit', 'delete'
+    const userId = req.user!.sub;
+    
+    if (!taskId || !action) {
+      return res.status(400).json({ error: 'Task ID and action are required' });
+    }
+    
+    // Get task from KV store
+    const tasks = await kv.get(`tasks:${userId}`) || [];
+    let task = tasks.find((t: any) => t.id === taskId);
+    
+    // If not in user's tasks, check shared projects
+    if (!task) {
+      const sharedProjects = await kv.get(`shared_projects:${userId}`) || [];
+      
+      for (const ref of sharedProjects) {
+        // Get tasks from project owner
+        const ownerTasks = await kv.get(`tasks:${ref.ownerId}`) || [];
+        task = ownerTasks.find((t: any) => t.id === taskId && t.projectId === ref.projectId);
+        if (task) break;
+      }
+    }
+    
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found', hasPermission: false });
+    }
+    
+    let hasPermission = false;
+    
+    switch (action) {
+      case 'view':
+        hasPermission = await canViewTask(userId, task);
+        break;
+      case 'edit':
+        hasPermission = await canEditTask(userId, task);
+        break;
+      case 'delete':
+        hasPermission = await canDeleteTask(userId, task);
+        break;
+      default:
+        return res.status(400).json({ error: 'Invalid action' });
+    }
+    
+    res.json({
+      taskId,
+      action,
+      hasPermission,
+      task: hasPermission ? task : undefined, // Only return task if user can view it
+    });
+  } catch (error: any) {
+    console.error('Validate task permission error:', error);
+    res.status(500).json({ error: 'Failed to validate permission' });
+  }
+});
+
+/**
+ * POST /api/tasks/check-permissions
+ * Batch check permissions for multiple tasks
+ */
+app.post('/api/tasks/check-permissions', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { taskIds, action } = req.body;
+    const userId = req.user!.sub;
+    
+    if (!taskIds || !Array.isArray(taskIds) || !action) {
+      return res.status(400).json({ error: 'Task IDs array and action are required' });
+    }
+    
+    const results: Record<string, boolean> = {};
+    
+    // Get user's tasks
+    const userTasks = await kv.get(`tasks:${userId}`) || [];
+    
+    // Get shared project tasks
+    const sharedProjects = await kv.get(`shared_projects:${userId}`) || [];
+    let sharedTasks: any[] = [];
+    
+    for (const ref of sharedProjects) {
+      const ownerTasks = await kv.get(`tasks:${ref.ownerId}`) || [];
+      sharedTasks = sharedTasks.concat(
+        ownerTasks.filter((t: any) => t.projectId === ref.projectId)
+      );
+    }
+    
+    const allAccessibleTasks = [...userTasks, ...sharedTasks];
+    
+    // Check permission for each task
+    for (const taskId of taskIds) {
+      const task = allAccessibleTasks.find((t: any) => t.id === taskId);
+      
+      if (!task) {
+        results[taskId] = false;
+        continue;
+      }
+      
+      let hasPermission = false;
+      
+      switch (action) {
+        case 'view':
+          hasPermission = await canViewTask(userId, task);
+          break;
+        case 'edit':
+          hasPermission = await canEditTask(userId, task);
+          break;
+        case 'delete':
+          hasPermission = await canDeleteTask(userId, task);
+          break;
+      }
+      
+      results[taskId] = hasPermission;
+    }
+    
+    res.json({ results });
+  } catch (error: any) {
+    console.error('Check permissions error:', error);
+    res.status(500).json({ error: 'Failed to check permissions' });
   }
 });
 
