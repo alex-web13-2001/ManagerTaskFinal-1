@@ -328,6 +328,7 @@ function App() {
               onCreateTask={() => setIsCreateTaskOpen(true)}
               onNavigate={(view) => setCurrentView(view as View)}
               onLogout={handleLogout}
+              currentProject={currentProject}
             />
             <SidebarNav
               currentView={currentView}

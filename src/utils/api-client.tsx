@@ -992,11 +992,52 @@ export const projectsAPI = {
     const allInvitations = data.value || [];
     
     // Filter invitations for this user's email
-    return allInvitations.filter((inv: any) => 
+    const filteredInvitations = allInvitations.filter((inv: any) => 
       inv.invitedEmail.toLowerCase() === userEmail.toLowerCase() && 
       inv.status === 'pending' &&
       new Date(inv.expiresAt) > new Date() // Not expired
     );
+    
+    // Fetch project names for invitations
+    const invitationsWithProjectNames = await Promise.all(
+      filteredInvitations.map(async (inv: any) => {
+        try {
+          // Try to get project from owner's projects
+          const projectResponse = await fetch(`${API_BASE_URL}/api/kv/projects:${inv.projectOwnerId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          
+          if (projectResponse.ok) {
+            const projectData = await projectResponse.json();
+            const projects = projectData.value || [];
+            const project = projects.find((p: any) => p.id === inv.projectId);
+            
+            if (project) {
+              return {
+                ...inv,
+                projectName: project.name,
+              };
+            }
+          }
+          
+          // If project not found, return invitation with generic name
+          return {
+            ...inv,
+            projectName: 'Неизвестный проект',
+          };
+        } catch (error) {
+          console.error(`Failed to fetch project name for invitation ${inv.id}:`, error);
+          return {
+            ...inv,
+            projectName: 'Неизвестный проект',
+          };
+        }
+      })
+    );
+    
+    return invitationsWithProjectNames;
   },
   
   /**

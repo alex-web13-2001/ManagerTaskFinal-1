@@ -140,6 +140,8 @@ export function TaskModal({
     uploadTaskAttachment,
     deleteTaskAttachment,
     canDeleteTask,
+    canCreateTask,
+    getUserRoleInProject,
   } = useApp();
   const [mode, setMode] = React.useState<TaskModalMode>(initialMode);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -331,6 +333,15 @@ export function TaskModal({
     if (!validateForm()) {
       toast.error('Заполните обязательные поля');
       return;
+    }
+
+    // Проверка прав для создания задачи
+    if (isCreateMode && projectId !== 'personal') {
+      if (!canCreateTask(projectId)) {
+        const role = getUserRoleInProject(projectId);
+        toast.error(`У вас нет прав для создания задач в этом проекте (роль: ${role === 'viewer' ? 'Наблюдатель' : role})`);
+        return;
+      }
     }
 
     setIsLoading(true);
