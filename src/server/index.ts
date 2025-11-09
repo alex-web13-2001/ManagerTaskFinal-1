@@ -450,6 +450,99 @@ app.get('/api/kv-prefix/:prefix', authenticate, async (req: Request, res: Respon
   }
 });
 
+// ========== PROJECT INVITATION EMAIL ==========
+
+/**
+ * POST /api/invitations/send-email
+ * Send project invitation email
+ */
+app.post('/api/invitations/send-email', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { invitationId, email, projectName, role, expiresAt } = req.body;
+    
+    if (!invitationId || !email || !projectName || !role || !expiresAt) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const inviterName = req.user?.name || 'Пользователь';
+    
+    // Send email
+    const sent = await emailService.sendProjectInvitationEmail(
+      email,
+      projectName,
+      inviterName,
+      role,
+      invitationId,
+      expiresAt
+    );
+    
+    if (!sent) {
+      console.warn('Email not sent (service not configured), but invitation created');
+    }
+    
+    res.json({ 
+      message: sent ? 'Invitation email sent successfully' : 'Invitation created (email service not configured)',
+      emailSent: sent 
+    });
+  } catch (error: any) {
+    console.error('Send invitation email error:', error);
+    res.status(500).json({ error: 'Failed to send invitation email' });
+  }
+});
+
+/**
+ * GET /api/invitations/:invitationId
+ * Get invitation details by ID (for invite page)
+ */
+app.get('/api/invitations/:invitationId', async (req: Request, res: Response) => {
+  try {
+    const { invitationId } = req.params;
+    
+    // Get all pending invitations
+    const allInvitations = await kv.get('pending_invitations') || [];
+    
+    // Find the specific invitation
+    const invitation = allInvitations.find((inv: any) => inv.id === invitationId);
+    
+    if (!invitation) {
+      return res.status(404).json({ error: 'Invitation not found' });
+    }
+    
+    // Check if expired
+    const isExpired = new Date(invitation.expiresAt) < new Date();
+    
+    if (isExpired) {
+      return res.status(410).json({ error: 'Invitation has expired', invitation });
+    }
+    
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({ error: `Invitation is ${invitation.status}`, invitation });
+    }
+    
+    // Get project name
+    let projectName = 'Unknown Project';
+    try {
+      const ownerProjects = await kv.get(`projects:${invitation.projectOwnerId}`) || [];
+      const project = ownerProjects.find((p: any) => p.id === invitation.projectId);
+      if (project) {
+        projectName = project.name;
+      }
+    } catch (error) {
+      console.error('Failed to fetch project name:', error);
+    }
+    
+    res.json({
+      invitation: {
+        ...invitation,
+        projectName,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get invitation error:', error);
+    res.status(500).json({ error: 'Failed to get invitation' });
+  }
+});
+
 // ========== ERROR HANDLER ==========
 
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -13,6 +13,7 @@ import { TasksView } from './components/tasks-view';
 import { CategoriesView } from './components/categories-view';
 import { ArchiveView } from './components/archive-view';
 import { ProfileView } from './components/profile-view';
+import { InviteAcceptPage } from './components/invite-accept-page';
 import { TaskModal } from './components/task-modal';
 import { SidebarProvider, SidebarInset } from './components/ui/sidebar';
 import { Toaster } from './components/ui/sonner';
@@ -23,7 +24,7 @@ import { Loader2 } from 'lucide-react';
 import { DndProviderWrapper } from './components/dnd-provider-wrapper';
 import { generateFaviconDataURL } from './components/favicon-svg';
 
-type View = 'dashboard' | 'dashboard-calendar' | 'tasks' | 'projects' | 'project-calendar' | 'categories' | 'archive' | 'profile';
+type View = 'dashboard' | 'dashboard-calendar' | 'tasks' | 'projects' | 'project-calendar' | 'categories' | 'archive' | 'profile' | 'invite';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
@@ -136,6 +137,17 @@ function App() {
 
     const checkAuth = async () => {
       try {
+        // Check if URL is an invite link
+        const path = window.location.pathname;
+        if (path.startsWith('/invite/')) {
+          const invitationId = path.replace('/invite/', '');
+          if (invitationId) {
+            setCurrentView('invite');
+            setIsLoading(false);
+            return; // Don't check auth for invite page, it will handle its own
+          }
+        }
+
         const user = await authAPI.getCurrentUser();
         if (isMounted && user) {
           setIsAuthenticated(true);
@@ -256,6 +268,8 @@ function App() {
           return <ArchiveView key="archive" />;
         case 'profile':
           return <ProfileView key="profile" />;
+        case 'invite':
+          return <InviteAcceptPage key="invite" />;
         default:
           return <DashboardView key="dashboard-default" onCalendarView={handleDashboardCalendarView} />;
       }
@@ -286,6 +300,18 @@ function App() {
           <p className="text-gray-600">Загрузка...</p>
         </div>
       </div>
+    );
+  }
+
+  // Show invite page without authentication
+  if (currentView === 'invite') {
+    return (
+      <ErrorBoundary>
+        <AppProvider>
+          <InviteAcceptPage />
+          <Toaster richColors position="top-right" />
+        </AppProvider>
+      </ErrorBoundary>
     );
   }
 

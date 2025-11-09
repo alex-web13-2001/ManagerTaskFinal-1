@@ -254,6 +254,107 @@ class EmailService {
   }
 
   /**
+   * Send project invitation email
+   */
+  async sendProjectInvitationEmail(
+    email: string,
+    projectName: string,
+    inviterName: string,
+    role: string,
+    invitationId: string,
+    expiresAt: string
+  ): Promise<boolean> {
+    const appUrl = process.env.APP_URL || 'http://localhost:5173';
+    const inviteLink = `${appUrl}/invite/${invitationId}`;
+    
+    const roleLabels: Record<string, string> = {
+      owner: 'Владелец',
+      admin: 'Администратор',
+      collaborator: 'Участник с правами',
+      member: 'Участник',
+      viewer: 'Наблюдатель',
+    };
+    
+    const roleDescriptions: Record<string, string> = {
+      owner: 'Полный контроль над проектом',
+      admin: 'Управление участниками и приглашениями',
+      collaborator: 'Создание и редактирование задач',
+      member: 'Просмотр и редактирование своих задач',
+      viewer: 'Только просмотр проекта',
+    };
+    
+    const roleLabel = roleLabels[role] || role;
+    const roleDescription = roleDescriptions[role] || '';
+    const expiryDate = new Date(expiresAt).toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #7C3AED; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+          .content { background-color: #f9fafb; padding: 30px; border-radius: 0 0 5px 5px; }
+          .button { display: inline-block; padding: 14px 28px; background-color: #7C3AED; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
+          .project-info { background-color: white; border-left: 4px solid #7C3AED; padding: 15px; margin: 20px 0; border-radius: 5px; }
+          .role-badge { display: inline-block; background-color: #EDE9FE; color: #7C3AED; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+          .warning { background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin: 20px 0; border-radius: 5px; }
+          .footer { text-align: center; margin-top: 20px; color: #6b7280; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📩 Приглашение в проект</h1>
+          </div>
+          <div class="content">
+            <h2>Вас приглашают в проект!</h2>
+            <p><strong>${inviterName}</strong> приглашает вас присоединиться к проекту в Task Manager.</p>
+            
+            <div class="project-info">
+              <h3 style="margin-top: 0;">📁 ${projectName}</h3>
+              <p><strong>Ваша роль:</strong> <span class="role-badge">${roleLabel}</span></p>
+              <p style="color: #6b7280; font-size: 14px; margin-bottom: 0;">${roleDescription}</p>
+            </div>
+            
+            <p>Нажмите на кнопку ниже, чтобы принять приглашение:</p>
+            <div style="text-align: center;">
+              <a href="${inviteLink}" class="button">Принять приглашение</a>
+            </div>
+            
+            <p style="color: #6b7280; font-size: 14px;">Или скопируйте эту ссылку в браузер:<br><a href="${inviteLink}">${inviteLink}</a></p>
+            
+            <div class="warning">
+              <strong>⏰ Срок действия:</strong> Приглашение действительно до ${expiryDate}
+            </div>
+            
+            <p style="color: #6b7280; font-size: 14px;">После принятия приглашения вы сможете сразу начать работу над проектом в соответствии с вашими правами доступа.</p>
+          </div>
+          <div class="footer">
+            <p>© 2025 Task Manager. Все права защищены.</p>
+            <p style="font-size: 12px; color: #9ca3af;">Если вы не ожидали это приглашение, можете проигнорировать это письмо.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    return this.sendEmail({
+      to: email,
+      subject: `Приглашение в проект "${projectName}" - Task Manager`,
+      html,
+    });
+  }
+
+  /**
    * Strip HTML tags from text
    */
   private stripHtml(html: string): string {

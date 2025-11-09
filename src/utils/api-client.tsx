@@ -607,10 +607,33 @@ export const projectsAPI = {
     const projects = await projectsAPI.getAll();
     const projectIndex = projects.findIndex((p: any) => p.id === projectId);
     
+    let projectName = 'Проект';
     if (projectIndex !== -1) {
       const project = projects[projectIndex];
+      projectName = project.name;
       project.invitations = [...(project.invitations || []), invitation];
       await projectsAPI.update(projectId, { invitations: project.invitations });
+    }
+    
+    // Send invitation email
+    try {
+      await fetch(`${API_BASE_URL}/api/invitations/send-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          invitationId: invitation.id,
+          email: invitation.invitedEmail,
+          projectName: projectName,
+          role: invitation.role,
+          expiresAt: invitation.expiresAt,
+        }),
+      });
+      console.log('✅ Invitation email sent to:', email);
+    } catch (emailError) {
+      console.warn('⚠️ Failed to send invitation email (invitation still created):', emailError);
     }
     
     console.log('✅ Invitation sent:', invitation);
