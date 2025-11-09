@@ -1,149 +1,469 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import prisma from '../lib/prisma';
-import { hashPassword, comparePassword, signToken, verifyToken } from '../lib/auth';
+import { hashPassword, comparePassword, generateToken, verifyToken, JwtPayload } from '../lib/auth';
 import * as kv from './kv_store';
+import emailService from '../lib/email';
 
 const app = express();
-app.use(express.json());
+const PORT = process.env.PORT || 3001;
 
-// uploads -> local storage
-const uploadDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(uploadsDir));
+
+// Configure multer for file uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const name = `${Date.now()}-${Math.random().toString(36).slice(2,8)}${ext}`;
-    cb(null, name);
+  destination: (_req, _file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
   },
 });
-const upload = multer({ storage });
 
-// --- Auth endpoints ---
-app.post('/api/auth/signup', async (req, res) => {
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+});
+
+// ========== AUTH MIDDLEWARE ==========
+
+interface AuthRequest extends Request {
+  user?: JwtPayload;
+}
+
+async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing or invalid authorization header' });
+    }
+
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    const payload = verifyToken(token);
+    
+    req.user = payload;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
+// ========== HEALTH CHECK ==========
+
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// ========== AUTH ENDPOINTS ==========
+
+/**
+ * POST /api/auth/signup
+ * Register a new user
+ */
+app.post('/api/auth/signup', async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) return res.status(400).json({ error: 'User already exists' });
-    const hashed = await hashPassword(password);
-    const user = await prisma.user.create({ data: { email, password: hashed, name } });
-    const token = signToken({ sub: String(user.id), email: user.email });
-    return res.json({ accessToken: token, user: { id: user.id, email: user.email, name: user.name } });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: 'Server error' });
+
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: 'Email, password, and name are required' });
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User with this email already exists' });
+    }
+
+    // Hash password and create user
+    const hashedPassword = await hashPassword(password);
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+      },
+    });
+
+    // Send welcome email (async, don't wait for it)
+    emailService.sendWelcomeEmail(user.email, user.name).catch(err => {
+      console.error('Failed to send welcome email:', err);
+    });
+
+    // Generate token
+    const token = generateToken(user.id, user.email);
+
+    res.status(201).json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+      },
+      token,
+    });
+  } catch (error: any) {
+    console.error('Signup error:', error);
+    res.status(500).json({ error: 'Failed to create user' });
   }
 });
 
-app.post('/api/auth/signin', async (req, res) => {
+/**
+ * POST /api/auth/signin
+ * Sign in a user
+ */
+app.post('/api/auth/signin', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // Find user
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(400).json({ error: 'Invalid credentials' });
-    const ok = await comparePassword(password, user.password);
-    if (!ok) return res.status(400).json({ error: 'Invalid credentials' });
-    const token = signToken({ sub: String(user.id), email: user.email });
-    return res.json({ accessToken: token, user: { id: user.id, email: user.email, name: user.name } });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: 'Server error' });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Verify password
+    const isValid = await comparePassword(password, user.password);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Generate token
+    const token = generateToken(user.id, user.email);
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+      },
+      token,
+    });
+  } catch (error: any) {
+    console.error('Signin error:', error);
+    res.status(500).json({ error: 'Failed to sign in' });
   }
 });
 
-app.get('/api/auth/me', async (req, res) => {
+/**
+ * GET /api/auth/me
+ * Get current user
+ */
+app.get('/api/auth/me', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const auth = req.headers.authorization?.split(' ')[1];
-    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
-    const payload: any = verifyToken(auth);
-    const user = await prisma.user.findUnique({ where: { id: Number(payload.sub) } });
-    if (!user) return res.status(401).json({ error: 'Unauthorized' });
-    return res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
-  } catch (e) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    const userId = req.user!.sub;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Failed to get user' });
   }
 });
 
-// --- File uploads ---
-app.post('/api/upload-avatar', upload.single('file'), async (req, res) => {
+/**
+ * POST /api/auth/forgot-password
+ * Request password reset
+ */
+app.post('/api/auth/forgot-password', async (req: Request, res: Response) => {
   try {
-    const auth = req.headers.authorization?.split(' ')[1];
-    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
-    const payload: any = verifyToken(auth);
-    const userId = Number(payload.sub);
-    const file = req.file;
-    if (!file) return res.status(400).json({ error: 'No file' });
+    const { email } = req.body;
 
-    const url = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
-    const profile = (await kv.get(`user:${userId}`)) || {};
-    profile.avatarUrl = url;
-    profile.avatarPath = file.filename;
-    profile.updatedAt = new Date().toISOString();
-    await kv.set(`user:${userId}`, profile);
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
 
-    await prisma.user.update({ where: { id: userId }, data: {} });
+    // Find user
+    const user = await prisma.user.findUnique({ where: { email } });
+    
+    // Always return success (security: don't reveal if email exists)
+    if (!user) {
+      console.log('Password reset requested for non-existent email:', email);
+      return res.json({ 
+        message: 'If an account exists with this email, a password reset link has been sent.' 
+      });
+    }
 
-    return res.json({ success: true, avatarUrl: url });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: 'Upload failed' });
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Save reset token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetPasswordToken: resetTokenHash,
+        resetPasswordExpires,
+      },
+    });
+
+    // Send password reset email
+    await emailService.sendPasswordResetEmail(user.email, user.name, resetToken);
+
+    res.json({ 
+      message: 'If an account exists with this email, a password reset link has been sent.' 
+    });
+  } catch (error: any) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Failed to process password reset request' });
   }
 });
 
-app.post('/api/upload-attachment', upload.single('file'), async (req, res) => {
+/**
+ * POST /api/auth/reset-password
+ * Reset password using token
+ */
+app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
   try {
-    const auth = req.headers.authorization?.split(' ')[1];
-    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
-    const payload: any = verifyToken(auth);
-    const userId = Number(payload.sub);
-    const file = req.file;
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    // Hash the token to compare with stored hash
+    const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with valid reset token
+    const user = await prisma.user.findFirst({
+      where: {
+        resetPasswordToken: resetTokenHash,
+        resetPasswordExpires: {
+          gt: new Date(), // Token not expired
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    // Hash new password
+    const hashedPassword = await hashPassword(password);
+
+    // Update password and clear reset token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+      },
+    });
+
+    // Send confirmation email
+    emailService.sendPasswordChangedEmail(user.email, user.name).catch(err => {
+      console.error('Failed to send password changed email:', err);
+    });
+
+    res.json({ message: 'Password has been reset successfully' });
+  } catch (error: any) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+// ========== FILE UPLOAD ENDPOINTS ==========
+
+/**
+ * POST /api/upload-avatar
+ * Upload user avatar
+ */
+app.post('/api/upload-avatar', authenticate, upload.single('avatar'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const userId = req.user!.sub;
+    const avatarUrl = `/uploads/${req.file.filename}`;
+
+    // Update user avatar
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl },
+    });
+
+    res.json({
+      avatarUrl: user.avatarUrl,
+      message: 'Avatar uploaded successfully',
+    });
+  } catch (error: any) {
+    console.error('Upload avatar error:', error);
+    res.status(500).json({ error: 'Failed to upload avatar' });
+  }
+});
+
+/**
+ * POST /api/upload-attachment
+ * Upload task attachment
+ */
+app.post('/api/upload-attachment', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
     const { taskId } = req.body;
-    if (!file || !taskId) return res.status(400).json({ error: 'Missing file or taskId' });
+    if (!taskId) {
+      return res.status(400).json({ error: 'Task ID is required' });
+    }
 
-    const url = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const attachmentId = `attachment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Store attachment metadata in KV store
     const attachment = {
-      id: `attachment-${Date.now()}`,
-      name: file.originalname,
-      url,
-      size: file.size,
+      id: attachmentId,
+      taskId,
+      filename: req.file.originalname,
+      url: fileUrl,
+      size: req.file.size,
+      mimeType: req.file.mimetype,
       uploadedAt: new Date().toISOString(),
-      uploadedBy: userId,
-      path: file.filename,
     };
 
-    const key = `task:${taskId}`;
-    const task = (await kv.get(key)) || {};
-    task.attachments = [...(task.attachments || []), attachment];
-    task.updatedAt = new Date().toISOString();
-    await kv.set(key, task);
+    // Get existing attachments for this task
+    const taskAttachmentsKey = `task_attachments:${taskId}`;
+    const existingAttachments = (await kv.get(taskAttachmentsKey)) || [];
+    existingAttachments.push(attachment);
+    await kv.set(taskAttachmentsKey, existingAttachments);
 
-    return res.json({ success: true, attachment });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: 'Upload failed' });
+    res.json({
+      attachment,
+      message: 'Attachment uploaded successfully',
+    });
+  } catch (error: any) {
+    console.error('Upload attachment error:', error);
+    res.status(500).json({ error: 'Failed to upload attachment' });
   }
 });
 
-// serve uploads
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// ========== KV STORE ENDPOINTS ==========
 
-// --- KV endpoints (optional) ---
-app.get('/api/kv/:key', async (req, res) => {
-  const val = await kv.get(req.params.key);
-  return res.json({ value: val });
+/**
+ * GET /api/kv/:key
+ * Get value by key
+ */
+app.get('/api/kv/:key', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { key } = req.params;
+    const value = await kv.get(key);
+    
+    res.json({ key, value });
+  } catch (error: any) {
+    console.error('KV get error:', error);
+    res.status(500).json({ error: 'Failed to get value' });
+  }
 });
 
-app.post('/api/kv/:key', async (req, res) => {
-  await kv.set(req.params.key, req.body.value);
-  return res.json({ success: true });
+/**
+ * POST /api/kv/:key
+ * Set value by key
+ */
+app.post('/api/kv/:key', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { key } = req.params;
+    const { value } = req.body;
+    
+    await kv.set(key, value);
+    
+    res.json({ key, value, message: 'Value set successfully' });
+  } catch (error: any) {
+    console.error('KV set error:', error);
+    res.status(500).json({ error: 'Failed to set value' });
+  }
 });
 
-// Start
-const port = process.env.PORT ? Number(process.env.PORT) : 3000;
-app.listen(port, () => console.log(`API server listening on ${port}`));
+/**
+ * DELETE /api/kv/:key
+ * Delete value by key
+ */
+app.delete('/api/kv/:key', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { key } = req.params;
+    await kv.del(key);
+    
+    res.json({ message: 'Value deleted successfully' });
+  } catch (error: any) {
+    console.error('KV delete error:', error);
+    res.status(500).json({ error: 'Failed to delete value' });
+  }
+});
+
+/**
+ * GET /api/kv-prefix/:prefix
+ * Get all values with keys starting with prefix
+ */
+app.get('/api/kv-prefix/:prefix', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { prefix } = req.params;
+    const values = await kv.getByPrefix(prefix);
+    
+    res.json({ prefix, values });
+  } catch (error: any) {
+    console.error('KV get by prefix error:', error);
+    res.status(500).json({ error: 'Failed to get values' });
+  }
+});
+
+// ========== ERROR HANDLER ==========
+
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Server error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+// ========== START SERVER ==========
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📁 Serving uploads from: ${uploadsDir}`);
+  });
+}
 
 export default app;

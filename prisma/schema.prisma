@@ -1,3 +1,6 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,19 +10,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// User model - stores user authentication and profile data
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String?
-  role      String   @default("user")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  password              String    // bcrypt hashed
+  name                  String
+  avatarUrl             String?
+  emailVerified         Boolean   @default(false)
+  emailVerificationToken String?
+  resetPasswordToken    String?
+  resetPasswordExpires  DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("users")
 }
 
+// KvStore model - simple key-value store for application data
+// Replaces Supabase kv_store functionality
 model KvStore {
-  key       String  @id
+  key       String   @id
   value     Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("kv_store")
 }

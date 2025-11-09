@@ -1,44 +1,104 @@
 import prisma from '../lib/prisma';
 
-// Upsert key-value
-export const set = async (key: string, value: any): Promise<void> => {
+/**
+ * KV Store implementation using Prisma
+ * Replaces Supabase kv_store functionality
+ */
+
+/**
+ * Set a key-value pair in the store (upsert)
+ */
+export async function set(key: string, value: any): Promise<void> {
   await prisma.kvStore.upsert({
     where: { key },
+    update: { value, updatedAt: new Date() },
     create: { key, value },
-    update: { value },
   });
-};
+}
 
-export const get = async (key: string): Promise<any | null> => {
-  const row = await prisma.kvStore.findUnique({ where: { key } });
-  return row ? row.value : null;
-};
+/**
+ * Get a value by key
+ */
+export async function get(key: string): Promise<any> {
+  const record = await prisma.kvStore.findUnique({
+    where: { key },
+  });
+  return record?.value || null;
+}
 
-export const del = async (key: string): Promise<void> => {
-  await prisma.kvStore.deleteMany({ where: { key } });
-};
+/**
+ * Delete a key-value pair
+ */
+export async function del(key: string): Promise<void> {
+  await prisma.kvStore.delete({
+    where: { key },
+  }).catch(() => {
+    // Ignore if key doesn't exist
+  });
+}
 
-export const mset = async (keys: string[], values: any[]): Promise<void> => {
-  const ops = keys.map((k, i) =>
+/**
+ * Set multiple key-value pairs
+ */
+export async function mset(keys: string[], values: any[]): Promise<void> {
+  const operations = keys.map((key, index) =>
     prisma.kvStore.upsert({
-      where: { key: k },
-      create: { key: k, value: values[i] },
-      update: { value: values[i] },
-    }),
+      where: { key },
+      update: { value: values[index], updatedAt: new Date() },
+      create: { key, value: values[index] },
+    })
   );
-  await Promise.all(ops);
-};
+  await Promise.all(operations);
+}
 
-export const mget = async (keys: string[]): Promise<any[]> => {
-  const rows = await prisma.kvStore.findMany({ where: { key: { in: keys } } });
-  const map = new Map(rows.map(r => [r.key, r.value]));
-  return keys.map(k => map.get(k) ?? null);
-};
+/**
+ * Get multiple values by keys
+ */
+export async function mget(keys: string[]): Promise<any[]> {
+  const records = await prisma.kvStore.findMany({
+    where: { key: { in: keys } },
+  });
+  
+  // Return values in the same order as keys
+  return keys.map((key) => {
+    const record = records.find((r) => r.key === key);
+    return record?.value || null;
+  });
+}
 
-export const getByPrefix = async (prefix: string): Promise<any[]> => {
-  const rows: any = await prisma.$queryRawUnsafe(
-    `SELECT value FROM "KvStore" WHERE key LIKE $1`,
-    `${prefix}%`,
-  );
-  return rows.map((r: any) => r.value);
-};
+/**
+ * Delete multiple key-value pairs
+ */
+export async function mdel(keys: string[]): Promise<void> {
+  await prisma.kvStore.deleteMany({
+    where: { key: { in: keys } },
+  });
+}
+
+/**
+ * Get all key-value pairs with keys starting with a prefix
+ */
+export async function getByPrefix(prefix: string): Promise<any[]> {
+  const records = await prisma.kvStore.findMany({
+    where: {
+      key: {
+        startsWith: prefix,
+      },
+    },
+  });
+  return records.map((r) => r.value);
+}
+
+/**
+ * Get all keys with a prefix (returns key-value pairs)
+ */
+export async function getKeysByPrefix(prefix: string): Promise<{ key: string; value: any }[]> {
+  const records = await prisma.kvStore.findMany({
+    where: {
+      key: {
+        startsWith: prefix,
+      },
+    },
+  });
+  return records.map((r) => ({ key: r.key, value: r.value }));
+}
