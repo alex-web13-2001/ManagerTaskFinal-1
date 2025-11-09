@@ -2,6 +2,20 @@
 
 A modern task management application with Kanban boards, project management, and real-time updates.
 
+## ⚠️ Deployment & Updates
+
+**Having trouble seeing updates on your server?**
+- 📘 **[Quick Fix Guide (Russian)](QUICK_FIX_DEPLOYMENT_RU.md)** - Быстрое решение проблем с обновлением
+- 📗 **[Server Update Visibility Guide (English)](SERVER_UPDATE_VISIBILITY_GUIDE.md)** - Complete troubleshooting
+- 🔧 **[Run Deployment Check Script](check-deployment.sh)** - Automated verification tool
+- 📕 **[Full Deployment Guide](PRODUCTION_DEPLOYMENT.md)** - Complete production setup
+
+**Quick Command:**
+```bash
+# On server - verify deployment status
+bash check-deployment.sh
+```
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -104,8 +118,15 @@ A modern task management application with Kanban boards, project management, and
 
 ## 📚 Documentation
 
-- [Deployment Guide](src/DEPLOYMENT.md) - Complete deployment instructions
+### Deployment & Troubleshooting
+- **[Quick Fix Deployment (Russian)](QUICK_FIX_DEPLOYMENT_RU.md)** - ⚡ Быстрое решение проблем
+- **[Server Update Visibility Guide](SERVER_UPDATE_VISIBILITY_GUIDE.md)** - 🔍 Why changes aren't visible
+- **[Production Deployment Guide](PRODUCTION_DEPLOYMENT.md)** - 🚀 Complete deployment setup
+- **[Deployment Check Script](check-deployment.sh)** - 🔧 Automated verification
+
+### Development Guides
 - [Quick Start Guide](src/QUICK_START.md) - Quick setup instructions
+- [Local Deployment](src/DEPLOYMENT.md) - Local deployment instructions
 
 ## 🔒 Security
 
