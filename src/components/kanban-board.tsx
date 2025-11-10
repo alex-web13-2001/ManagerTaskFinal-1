@@ -29,6 +29,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   moveCard: (draggedId: string, targetId: string, position: 'before' | 'after') => void;
   allTasks: TaskType[];
   baseColumnDefinitions: { id: string; title: string; color: string }[];
+  isInitialMount: boolean;
 }>(({
   task,
   onClick,
@@ -37,6 +38,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   moveCard,
   allTasks,
   baseColumnDefinitions,
+  isInitialMount,
 }, forwardedRef) => {
   const { projects, teamMembers, categories } = useApp();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
@@ -155,15 +157,16 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
         id={`task-card-${task.id}`}
         ref={combinedRef}
         layoutId={task.id}
-        initial={{ opacity: 1 }}
+        initial={isInitialMount ? { opacity: 1 } : { opacity: 0, scale: 0.95 }}
         animate={{ 
           opacity: isDragging ? 0.5 : 1,
+          scale: 1,
         }}
         exit={{ opacity: 0, scale: 0.9 }}
         transition={{ 
-          opacity: { duration: 0.05 },
-          scale: { duration: 0.1 },
-          layout: { duration: 0.15, ease: 'easeOut' }
+          opacity: { duration: 0.15 },
+          scale: { duration: 0.2 },
+          layout: { duration: 0.2, ease: 'easeOut' }
         }}
         className="cursor-move"
       >
@@ -305,6 +308,7 @@ const DroppableColumn = ({
   isCustom = false,
   allTasks,
   baseColumnDefinitions,
+  isInitialMount,
 }: {
   columnId: string;
   title: string;
@@ -317,6 +321,7 @@ const DroppableColumn = ({
   isCustom?: boolean;
   allTasks: TaskType[];
   baseColumnDefinitions: { id: string; title: string; color: string }[];
+  isInitialMount: boolean;
 }) => {
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: ITEM_TYPE,
@@ -417,6 +422,7 @@ const DroppableColumn = ({
               moveCard={moveCardWithinColumn}
               allTasks={allTasks}
               baseColumnDefinitions={baseColumnDefinitions}
+              isInitialMount={isInitialMount}
             />
           ))}
         </AnimatePresence>
@@ -441,6 +447,13 @@ export function KanbanBoard({
   const { tasks, updateTask, customColumns } = useApp();
   const [groupBy, setGroupBy] = React.useState<GroupBy>('none');
   const [taskOrder, setTaskOrder] = React.useState<Record<string, string[]>>({});
+  const [isInitialMount, setIsInitialMount] = React.useState(true);
+
+  // Mark as no longer initial mount after first render
+  React.useEffect(() => {
+    const timer = setTimeout(() => setIsInitialMount(false), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Define base kanban columns
   const baseColumnDefinitions = React.useMemo(() => [
@@ -753,6 +766,7 @@ export function KanbanBoard({
                 isCustom={isCustom}
                 allTasks={tasks}
                 baseColumnDefinitions={baseColumnDefinitions}
+                isInitialMount={isInitialMount}
               />
             );
           })}

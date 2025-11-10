@@ -130,15 +130,16 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
         id={`task-card-${task.id}`}
         ref={combinedRef}
         layoutId={task.id}
-        initial={{ opacity: 1 }}
+        initial={isInitialRender ? { opacity: 1 } : { opacity: 0, scale: 0.95 }}
         animate={{ 
           opacity: isDragging ? 0.5 : 1,
+          scale: 1,
         }}
         exit={{ opacity: 0, scale: 0.9 }}
         transition={{ 
-          opacity: { duration: 0.05 },
-          scale: { duration: 0.1 },
-          layout: { duration: 0.15, ease: 'easeOut' }
+          opacity: { duration: 0.15 },
+          scale: { duration: 0.2 },
+          layout: { duration: 0.2, ease: 'easeOut' }
         }}
         className="cursor-move"
       >
