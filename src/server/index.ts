@@ -812,7 +812,10 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 
 // ========== START SERVER ==========
 
-if (require.main === module) {
+// ESM module entry point check
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+
+if (isMainModule) {
   app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📁 Serving uploads from: ${uploadsDir}`);
