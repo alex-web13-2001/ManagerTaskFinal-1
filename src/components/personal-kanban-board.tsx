@@ -39,12 +39,14 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   isOverdue: boolean;
   index: number;
   moveCard: (draggedId: string, targetId: string, position: 'before' | 'after') => void;
+  isInitialRender: boolean;
 }>(({
   task,
   onClick,
   isOverdue,
   index,
   moveCard,
+  isInitialRender,
 }, forwardedRef) => {
   const { teamMembers, currentUser } = useApp();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
@@ -127,15 +129,16 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
         id={`task-card-${task.id}`}
         ref={combinedRef}
         layout
-        initial={{ opacity: 0 }}
+        layoutId={task.id}
+        initial={isInitialRender ? { opacity: 1 } : { opacity: 0 }}
         animate={{ 
           opacity: isDragging ? 0.4 : 1,
         }}
         exit={{ opacity: 0 }}
         transition={{ 
-          duration: 0.1,
-          ease: 'linear',
-          layout: { duration: 0.2 }
+          duration: 0.05,
+          ease: 'easeOut',
+          layout: { duration: 0.15, ease: 'easeOut' }
         }}
         className="cursor-move"
       >
@@ -245,6 +248,7 @@ const DroppableColumn = ({
   isCustom,
   onEdit,
   onDelete,
+  isFirstRender,
 }: {
   columnId: string;
   title: string;
@@ -257,6 +261,7 @@ const DroppableColumn = ({
   isCustom?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
+  isFirstRender: boolean;
 }) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: ITEM_TYPE,
@@ -307,7 +312,7 @@ const DroppableColumn = ({
         animate={{
           backgroundColor: isOver ? 'rgba(243, 232, 255, 0.5)' : 'rgba(0, 0, 0, 0)',
         }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: 0.15 }}
       >
         <AnimatePresence mode="sync">
           {tasks.map((task, index) => (
@@ -318,6 +323,7 @@ const DroppableColumn = ({
               onClick={() => onTaskClick(task.id)}
               isOverdue={isOverdue(task.deadline)}
               moveCard={moveCardWithinColumn}
+              isInitialRender={isFirstRender}
             />
           ))}
         </AnimatePresence>
@@ -341,6 +347,14 @@ export function PersonalKanbanBoard({
   const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null);
   // Task order state to preserve drag-drop order
   const [taskOrder, setTaskOrder] = React.useState<Record<string, string[]>>({});
+  // Track if this is the first render to avoid fade-in animation on initial load
+  const [isFirstRender, setIsFirstRender] = React.useState(true);
+  
+  React.useEffect(() => {
+    if (!isInitialLoad && isFirstRender) {
+      setIsFirstRender(false);
+    }
+  }, [isInitialLoad, isFirstRender]);
 
   // Use custom columns from context
   const customColumns = contextCustomColumns;
@@ -524,17 +538,7 @@ export function PersonalKanbanBoard({
     
     console.log('[PersonalKanban] Moving card:', { draggedId, sourceStatus, targetStatus, position });
     
-    // If moving between columns, update status first and wait for it
-    if (sourceStatus !== targetStatus) {
-      try {
-        await handleTaskStatusChange(draggedId, targetStatus);
-      } catch (error) {
-        console.error('[PersonalKanban] Failed to update task status');
-        return; // Don't update order if status change failed
-      }
-    }
-    
-    // Update order state after status change completes
+    // Update order state IMMEDIATELY for instant visual feedback
     setTaskOrder(prev => {
       const updated = { ...prev };
       
@@ -573,6 +577,14 @@ export function PersonalKanbanBoard({
       console.log('[PersonalKanban] Updated taskOrder (deduplicated):', updated);
       return updated;
     });
+    
+    // If moving between columns, update status asynchronously (but don't await to avoid blocking UI)
+    if (sourceStatus !== targetStatus) {
+      handleTaskStatusChange(draggedId, targetStatus).catch(error => {
+        console.error('[PersonalKanban] Failed to update task status:', error);
+        // Optionally revert the taskOrder change here if status update fails
+      });
+    }
   };
 
   // Handle adding new column
@@ -654,6 +666,7 @@ export function PersonalKanbanBoard({
                 isOverdue={isOverdue}
                 moveCardWithinColumn={handleMoveCard}
                 isCustom={isCustom}
+                isFirstRender={isFirstRender}
                 onEdit={() => {
                   setEditingColumnId(column.id);
                   setEditingColumnTitle(column.title);

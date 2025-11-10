@@ -39,12 +39,14 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   isOverdue: boolean;
   index: number;
   moveCard: (draggedId: string, targetId: string, position: 'before' | 'after') => void;
+  isInitialRender: boolean;
 }>(({
   task,
   onClick,
   isOverdue,
   index,
   moveCard,
+  isInitialRender,
 }, forwardedRef) => {
   const { teamMembers, categories } = useApp();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
@@ -128,15 +130,16 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
         id={`task-card-${task.id}`}
         ref={combinedRef}
         layout
-        initial={{ opacity: 0 }}
+        layoutId={task.id}
+        initial={isInitialRender ? { opacity: 1 } : { opacity: 0 }}
         animate={{ 
           opacity: isDragging ? 0.4 : 1,
         }}
         exit={{ opacity: 0 }}
         transition={{ 
-          duration: 0.1,
-          ease: 'linear',
-          layout: { duration: 0.2 }
+          duration: 0.05,
+          ease: 'easeOut',
+          layout: { duration: 0.15, ease: 'easeOut' }
         }}
         className="cursor-move"
       >
@@ -249,6 +252,7 @@ const DroppableColumn = ({
   onTaskClick,
   isOverdue,
   moveCardWithinColumn,
+  isFirstRender,
 }: {
   columnId: string;
   title: string;
@@ -258,6 +262,7 @@ const DroppableColumn = ({
   onTaskClick: (taskId: string) => void;
   isOverdue: (deadline?: string) => boolean;
   moveCardWithinColumn: (draggedId: string, targetId: string, position: 'before' | 'after') => void;
+  isFirstRender: boolean;
 }) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: ITEM_TYPE,
@@ -289,7 +294,7 @@ const DroppableColumn = ({
         animate={{
           backgroundColor: isOver ? 'rgba(243, 232, 255, 0.5)' : 'rgba(0, 0, 0, 0)',
         }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: 0.15 }}
       >
         <AnimatePresence mode="sync">
           {tasks.map((task, index) => (
@@ -300,6 +305,7 @@ const DroppableColumn = ({
               onClick={() => onTaskClick(task.id)}
               isOverdue={isOverdue(task.deadline)}
               moveCard={moveCardWithinColumn}
+              isInitialRender={isFirstRender}
             />
           ))}
         </AnimatePresence>
@@ -329,6 +335,14 @@ export function ProjectKanbanBoard({
   const [columnToDelete, setColumnToDelete] = React.useState<string | null>(null);
   // Task order state to preserve drag-drop order
   const [taskOrder, setTaskOrder] = React.useState<Record<string, string[]>>({});
+  // Track if this is the first render to avoid fade-in animation on initial load
+  const [isFirstRender, setIsFirstRender] = React.useState(true);
+  
+  React.useEffect(() => {
+    if (!isInitialLoad && isFirstRender) {
+      setIsFirstRender(false);
+    }
+  }, [isInitialLoad, isFirstRender]);
 
   // Define kanban columns
   const columnDefinitions = [
@@ -537,17 +551,7 @@ export function ProjectKanbanBoard({
     
     console.log('[ProjectKanban] Moving card:', { draggedId, sourceStatus, targetStatus, position });
     
-    // If moving between columns, update status first and wait for it
-    if (sourceStatus !== targetStatus) {
-      try {
-        await handleTaskStatusChange(draggedId, targetStatus);
-      } catch (error) {
-        console.error('[ProjectKanban] Failed to update task status');
-        return; // Don't update order if status change failed
-      }
-    }
-    
-    // Update order state after status change completes
+    // Update order state IMMEDIATELY for instant visual feedback
     setTaskOrder(prev => {
       const updated = { ...prev };
       
@@ -586,6 +590,14 @@ export function ProjectKanbanBoard({
       console.log('[ProjectKanban] Updated taskOrder (deduplicated):', updated);
       return updated;
     });
+    
+    // If moving between columns, update status asynchronously (but don't await to avoid blocking UI)
+    if (sourceStatus !== targetStatus) {
+      handleTaskStatusChange(draggedId, targetStatus).catch(error => {
+        console.error('[ProjectKanban] Failed to update task status:', error);
+        // Optionally revert the taskOrder change here if status update fails
+      });
+    }
   };
 
   // Проверяем, является ли пользователь участником (member) с ограниченным доступом
@@ -631,6 +643,7 @@ export function ProjectKanbanBoard({
               onTaskClick={onTaskClick}
               isOverdue={isOverdue}
               moveCardWithinColumn={handleMoveCard}
+              isFirstRender={isFirstRender}
             />
           ))}
         </div>
