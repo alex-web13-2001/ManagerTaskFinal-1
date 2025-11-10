@@ -423,6 +423,279 @@ app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
   }
 });
 
+// ========== PROJECT CRUD ENDPOINTS ==========
+
+/**
+ * POST /api/projects
+ * Create a new project (any authenticated user can create)
+ */
+app.post('/api/projects', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, description, color } = req.body;
+    const ownerId = req.user!.sub;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Project name is required' });
+    }
+
+    // Create project in database
+    const project = await prisma.project.create({
+      data: {
+        name,
+        description: description || null,
+        color: color || '#3b82f6',
+        ownerId: ownerId,
+      },
+    });
+
+    // Immediately add owner as a member with 'owner' role
+    await prisma.projectMember.create({
+      data: {
+        userId: ownerId,
+        projectId: project.id,
+        role: 'owner',
+      },
+    });
+
+    res.status(201).json(project);
+  } catch (error: any) {
+    console.error('Create project error:', error);
+    res.status(500).json({ error: 'Failed to create project' });
+  }
+});
+
+/**
+ * GET /api/projects
+ * Get all projects accessible to the user (owned + member of)
+ */
+app.get('/api/projects', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+
+    // Get all projects where user is owner
+    const ownedProjects = await prisma.project.findMany({
+      where: {
+        ownerId: userId,
+        archived: false,
+      },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Get all projects where user is a member
+    const memberProjects = await prisma.project.findMany({
+      where: {
+        archived: false,
+        members: {
+          some: {
+            userId: userId,
+          },
+        },
+        ownerId: {
+          not: userId, // Exclude owned projects (already fetched above)
+        },
+      },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Combine and return all projects
+    const allProjects = [...ownedProjects, ...memberProjects];
+    res.json(allProjects);
+  } catch (error: any) {
+    console.error('Get projects error:', error);
+    res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
+/**
+ * GET /api/projects/:id
+ * Get a specific project by ID
+ */
+app.get('/api/projects/:id', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    const projectId = req.params.id;
+
+    // Check if user has access to the project
+    const role = await getUserRoleInProject(userId, projectId);
+    if (!role) {
+      return res.status(403).json({ error: 'You do not have access to this project' });
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json(project);
+  } catch (error: any) {
+    console.error('Get project error:', error);
+    res.status(500).json({ error: 'Failed to fetch project' });
+  }
+});
+
+/**
+ * PATCH /api/projects/:id
+ * Update a project (only Owner and Collaborator can edit)
+ */
+app.patch('/api/projects/:id', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    const projectId = req.params.id;
+
+    // Check edit permission
+    const role = await getUserRoleInProject(userId, projectId);
+    if (role !== 'owner' && role !== 'collaborator') {
+      return res.status(403).json({ error: 'You do not have permission to edit this project' });
+    }
+
+    const { name, description, color, archived } = req.body;
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (color !== undefined) updateData.color = color;
+    if (archived !== undefined && role === 'owner') updateData.archived = archived; // Only owner can archive
+
+    const updatedProject = await prisma.project.update({
+      where: { id: projectId },
+      data: updateData,
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    res.json(updatedProject);
+  } catch (error: any) {
+    console.error('Update project error:', error);
+    res.status(500).json({ error: 'Failed to update project' });
+  }
+});
+
+/**
+ * DELETE /api/projects/:id
+ * Delete a project (only Owner can delete)
+ */
+app.delete('/api/projects/:id', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    const projectId = req.params.id;
+
+    // Check delete permission
+    const role = await getUserRoleInProject(userId, projectId);
+    if (role !== 'owner') {
+      return res.status(403).json({ error: 'Only the project owner can delete the project' });
+    }
+
+    // Delete project (members and tasks will be cascade deleted)
+    await prisma.project.delete({
+      where: { id: projectId },
+    });
+
+    res.json({ message: 'Project deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete project error:', error);
+    res.status(500).json({ error: 'Failed to delete project' });
+  }
+});
+
+/**
+ * GET /api/projects/:projectId/tasks
+ * Get all tasks in a project (filtered by role)
+ */
+app.get('/api/projects/:projectId/tasks', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    const { projectId } = req.params;
+
+    // Check if user has access to the project
+    const role = await getUserRoleInProject(userId, projectId);
+    if (!role) {
+      return res.status(403).json({ error: 'You do not have access to this project' });
+    }
+
+    // Build query based on role
+    const whereClause: any = { projectId };
+
+    // Member can only see their own tasks
+    if (role === 'member') {
+      whereClause.OR = [
+        { assigneeId: userId },
+        { creatorId: userId },
+      ];
+    }
+
+    // Fetch tasks
+    const tasks = await prisma.task.findMany({
+      where: whereClause,
+      include: {
+        project: true,
+        creator: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        assignee: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        attachments: true,
+      },
+      orderBy: [
+        { status: 'asc' },
+        { orderKey: 'asc' },
+      ],
+    });
+
+    res.json(tasks);
+  } catch (error: any) {
+    console.error('Get project tasks error:', error);
+    res.status(500).json({ error: 'Failed to fetch project tasks' });
+  }
+});
+
 // ========== INVITATION ROUTES ==========
 // Mount invitation routes (handles /api/invitations/* and /api/projects/:projectId/invitations)
 app.use('/api/invitations', authenticate, invitationRoutes);

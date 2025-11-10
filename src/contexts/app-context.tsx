@@ -893,8 +893,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setTasks((prev) => prev.map((t) => (t.id === taskId ? originalTask : t)));
       }
       
-      // Check if it's an authentication error
-      if (error.message && error.message.includes('авторизован')) {
+      // Check if it's a permission error (403)
+      if (error.message && (error.message.includes('permission') || error.message.includes('do not have'))) {
+        toast.error('У вас недостаточно прав для выполнения этого действия', { duration: 5000 });
+      } else if (error.message && error.message.includes('авторизован')) {
+        // Check if it's an authentication error
         toast.error('Сессия истекла. Пожалуйста, войдите снова.', { duration: 5000 });
         // Trigger logout
         setTimeout(() => {
@@ -928,7 +931,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setTasks((prev) => [...prev, deletedTask]);
       }
       
-      toast.error(error.message || 'Ошибка удаления задачи');
+      // Check if it's a permission error (403)
+      if (error.message && (error.message.includes('permission') || error.message.includes('do not have'))) {
+        toast.error('У вас недостаточно прав для выполнения этого действия', { duration: 5000 });
+      } else {
+        toast.error(error.message || 'Ошибка удаления задачи');
+      }
       throw error;
     }
   };
