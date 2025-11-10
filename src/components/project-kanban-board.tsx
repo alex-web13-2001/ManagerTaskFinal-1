@@ -66,13 +66,13 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ITEM_TYPE,
-    item: { taskId: task.id, currentStatus: task.status, index },
+    item: () => {
+      setIsDragging(true);
+      return { taskId: task.id, currentStatus: task.status, index };
+    },
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
-    begin: () => {
-      setIsDragging(true);
-    },
     end: () => {
       setIsDragging(false);
     },
