@@ -10,6 +10,12 @@ import { hashPassword, comparePassword, generateToken, verifyToken, JwtPayload }
 import * as kv from './kv_store';
 import emailService from '../lib/email';
 import invitationRoutes from './routes/invitations.js';
+import { 
+  getUserRoleInProject as getUserRoleInProjectFromDB,
+  canEditTask as canEditTaskFromDB,
+  canDeleteTask as canDeleteTaskFromDB,
+  canViewTask as canViewTaskFromDB
+} from '../lib/permissions';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -76,37 +82,23 @@ type UserRole = 'owner' | 'admin' | 'collaborator' | 'member' | 'viewer' | null;
 
 /**
  * Get user's role in a project
+ * Uses Prisma to query database directly as single source of truth
  */
 async function getUserRoleInProject(userId: string, projectId: string): Promise<UserRole> {
-  try {
-    // Check if user owns the project
-    const ownerProjects = await kv.get(`projects:${userId}`) || [];
-    const ownedProject = ownerProjects.find((p: any) => p.id === projectId);
-    if (ownedProject) {
-      return 'owner';
-    }
-    
-    // Check if user is a member of shared project
-    const sharedProjects = await kv.get(`shared_projects:${userId}`) || [];
-    const sharedRef = sharedProjects.find((ref: any) => ref.projectId === projectId);
-    if (sharedRef) {
-      return sharedRef.role || 'member';
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Error getting user role:', error);
-    return null;
-  }
+  return await getUserRoleInProjectFromDB(userId, projectId);
 }
 
+/**
+ * Check if user can edit task
+ */
 /**
  * Check if user can edit task
  */
 async function canEditTask(userId: string, task: any): Promise<boolean> {
   // Personal tasks - only owner can edit
   if (!task.projectId) {
-    return task.userId === userId;
+    const creatorId = task.creatorId || task.userId;
+    return creatorId === userId;
   }
   
   const role = await getUserRoleInProject(userId, task.projectId);
@@ -118,7 +110,8 @@ async function canEditTask(userId: string, task: any): Promise<boolean> {
   
   // Member can edit if assigned or created
   if (role === 'member') {
-    return task.userId === userId || task.assigneeId === userId;
+    const creatorId = task.creatorId || task.userId;
+    return creatorId === userId || task.assigneeId === userId;
   }
   
   // Viewer cannot edit
@@ -131,7 +124,8 @@ async function canEditTask(userId: string, task: any): Promise<boolean> {
 async function canDeleteTask(userId: string, task: any): Promise<boolean> {
   // Personal tasks - only owner can delete
   if (!task.projectId) {
-    return task.userId === userId;
+    const creatorId = task.creatorId || task.userId;
+    return creatorId === userId;
   }
   
   const role = await getUserRoleInProject(userId, task.projectId);
@@ -141,9 +135,9 @@ async function canDeleteTask(userId: string, task: any): Promise<boolean> {
     return true;
   }
   
-  // Member can delete if assigned or created
+  // Member cannot delete tasks
   if (role === 'member') {
-    return task.userId === userId || task.assigneeId === userId;
+    return false;
   }
   
   // Viewer cannot delete
@@ -156,13 +150,24 @@ async function canDeleteTask(userId: string, task: any): Promise<boolean> {
 async function canViewTask(userId: string, task: any): Promise<boolean> {
   // Personal tasks - only owner can view
   if (!task.projectId) {
-    return task.userId === userId;
+    const creatorId = task.creatorId || task.userId;
+    return creatorId === userId;
   }
   
   const role = await getUserRoleInProject(userId, task.projectId);
   
-  // All roles can view tasks in projects they're part of
-  return role !== null;
+  if (!role) {
+    return false;
+  }
+  
+  // Member can only view their own tasks (created or assigned)
+  if (role === 'member') {
+    const creatorId = task.creatorId || task.userId;
+    return creatorId === userId || task.assigneeId === userId;
+  }
+  
+  // All other roles can view all tasks in projects they're part of
+  return true;
 }
 
 // ========== HEALTH CHECK ==========
@@ -543,10 +548,45 @@ app.post('/api/upload-project-attachment', authenticate, upload.single('file'), 
  * GET /api/kv/:key
  * Get value by key
  */
-app.get('/api/kv/:key', authenticate, async (req: Request, res: Response) => {
+app.get('/api/kv/:key', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { key } = req.params;
-    const value = await kv.get(key);
+    const userId = req.user!.sub;
+    let value = await kv.get(key);
+    
+    // Special handling for task retrieval - filter by role
+    if (key.startsWith('tasks:')) {
+      const tasks = value || [];
+      
+      // Filter tasks based on user role for project tasks
+      const filteredTasks = [];
+      for (const task of tasks) {
+        if (!task.projectId) {
+          // Personal tasks - include if user is the creator
+          const creatorId = task.creatorId || task.userId;
+          if (creatorId === userId) {
+            filteredTasks.push(task);
+          }
+        } else {
+          // Project tasks - check role and filter for members
+          const role = await getUserRoleInProject(userId, task.projectId);
+          
+          if (role === 'member') {
+            // Members only see tasks they created or are assigned to
+            const creatorId = task.creatorId || task.userId;
+            if (creatorId === userId || task.assigneeId === userId) {
+              filteredTasks.push(task);
+            }
+          } else if (role) {
+            // Other roles see all project tasks
+            filteredTasks.push(task);
+          }
+          // If no role, don't include the task
+        }
+      }
+      
+      value = filteredTasks;
+    }
     
     res.json({ key, value });
   } catch (error: any) {
@@ -559,10 +599,51 @@ app.get('/api/kv/:key', authenticate, async (req: Request, res: Response) => {
  * POST /api/kv/:key
  * Set value by key
  */
-app.post('/api/kv/:key', authenticate, async (req: Request, res: Response) => {
+app.post('/api/kv/:key', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { key } = req.params;
     const { value } = req.body;
+    const userId = req.user!.sub;
+    
+    // Special handling for task updates - enforce permissions
+    if (key.startsWith('tasks:')) {
+      const targetUserId = key.split(':')[1];
+      
+      // Get old tasks to check what changed
+      const oldTasks = await kv.get(key) || [];
+      const newTasks = value || [];
+      
+      // Check for deleted tasks
+      for (const oldTask of oldTasks) {
+        const stillExists = newTasks.find((t: any) => t.id === oldTask.id);
+        if (!stillExists && oldTask.projectId) {
+          // Task was deleted - check permission
+          const canDelete = await canDeleteTask(userId, oldTask);
+          if (!canDelete) {
+            return res.status(403).json({ 
+              error: 'Forbidden: You do not have permission to delete this task.' 
+            });
+          }
+        }
+      }
+      
+      // Check for updated tasks
+      for (const newTask of newTasks) {
+        const oldTask = oldTasks.find((t: any) => t.id === newTask.id);
+        if (oldTask && newTask.projectId) {
+          // Task was updated - check if any fields changed
+          const hasChanges = JSON.stringify(oldTask) !== JSON.stringify(newTask);
+          if (hasChanges) {
+            const canEdit = await canEditTask(userId, newTask);
+            if (!canEdit) {
+              return res.status(403).json({ 
+                error: 'Forbidden: You do not have permission to edit this task.' 
+              });
+            }
+          }
+        }
+      }
+    }
     
     await kv.set(key, value);
     
