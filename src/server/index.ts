@@ -166,9 +166,13 @@ async function canViewTask(userId: string, task: any): Promise<boolean> {
 
 // ========== HEALTH CHECK ==========
 
-app.get('/health', (_req, res) => {
+// Health check endpoint (both /health and /api/health for compatibility)
+const healthHandler = (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+};
+
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 // ========== AUTH ENDPOINTS ==========
 

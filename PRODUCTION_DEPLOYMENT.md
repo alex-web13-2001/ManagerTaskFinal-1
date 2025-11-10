@@ -390,8 +390,10 @@ server {
     }
 
     # Backend API
-    location /api {
-        proxy_pass http://localhost:3001;
+    # IMPORTANT: Do NOT use trailing slashes in both location and proxy_pass
+    # OR use them in both. This configuration passes the full /api/* path to backend.
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
