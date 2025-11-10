@@ -224,12 +224,23 @@ export function ProjectMembersModal({
     if (open) {
       fetchMembers();
       fetchInvitations();
+      
+      // Set up polling to refresh member list every 10 seconds (silent refresh)
+      const pollInterval = setInterval(() => {
+        fetchMembers(false); // Silent refresh without loading spinner
+        fetchInvitations();
+      }, 10000);
+      
+      // Clean up interval on unmount or when modal closes
+      return () => clearInterval(pollInterval);
     }
   }, [open, prjId]);
 
-  const fetchMembers = async () => {
+  const fetchMembers = async (showLoading = true) => {
     try {
-      setIsLoading(true);
+      if (showLoading) {
+        setIsLoading(true);
+      }
       const accessToken = await getAuthToken();
       
       if (!accessToken) {
@@ -345,7 +356,9 @@ export function ProjectMembersModal({
       console.error('Fetch members error:', error);
       setMembers([]);
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   };
 
