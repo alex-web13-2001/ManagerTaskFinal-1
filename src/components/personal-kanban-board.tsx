@@ -509,7 +509,7 @@ export function PersonalKanbanBoard({
   };
 
   // Handle moving card within or between columns
-  const handleMoveCard = (draggedId: string, targetId: string, position: 'before' | 'after') => {
+  const handleMoveCard = async (draggedId: string, targetId: string, position: 'before' | 'after') => {
     const draggedTask = tasks.find(t => t.id === draggedId);
     const targetTask = tasks.find(t => t.id === targetId);
     
@@ -523,12 +523,17 @@ export function PersonalKanbanBoard({
     
     console.log('[PersonalKanban] Moving card:', { draggedId, sourceStatus, targetStatus, position });
     
-    // Update task status immediately if moving between columns
+    // If moving between columns, update status first and wait for it
     if (sourceStatus !== targetStatus) {
-      handleTaskStatusChange(draggedId, targetStatus);
+      try {
+        await handleTaskStatusChange(draggedId, targetStatus);
+      } catch (error) {
+        console.error('[PersonalKanban] Failed to update task status');
+        return; // Don't update order if status change failed
+      }
     }
     
-    // Update order state
+    // Update order state after status change completes
     setTaskOrder(prev => {
       const updated = { ...prev };
       

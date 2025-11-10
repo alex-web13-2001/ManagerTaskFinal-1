@@ -255,8 +255,18 @@ export function ProjectMembersModal({
         return;
       }
       
-      // Get invitations from project
-      setInvitations(project.invitations || []);
+      // Get invitations from project and transform them to match expected structure
+      const rawInvitations = project.invitations || [];
+      const transformedInvitations = rawInvitations.map((inv: any) => ({
+        id: inv.id,
+        email: inv.invitedEmail || inv.email, // Support both field names
+        role: inv.role,
+        status: inv.status,
+        sentDate: inv.sentDate ? formatDate(inv.sentDate) : 'Недавно',
+        link: inv.inviteLink || inv.link,
+      }));
+      
+      setInvitations(transformedInvitations);
     } catch (error) {
       console.error('Fetch invitations error:', error);
     }
@@ -267,8 +277,8 @@ export function ProjectMembersModal({
     const query = searchQuery.toLowerCase();
     return members.filter(
       (m) =>
-        m.name.toLowerCase().includes(query) ||
-        m.email.toLowerCase().includes(query)
+        (m.name && m.name.toLowerCase().includes(query)) ||
+        (m.email && m.email.toLowerCase().includes(query))
     );
   }, [members, searchQuery]);
 
@@ -286,14 +296,14 @@ export function ProjectMembersModal({
     }
 
     // Проверка на уже существующего участника
-    if (members.some((m) => m.email.toLowerCase() === inviteEmail.toLowerCase())) {
+    if (members.some((m) => m.email && m.email.toLowerCase() === inviteEmail.toLowerCase())) {
       toast.error('Пользователь уже является участником проекта');
       return;
     }
 
     // Проверка на дубликат приглашения
     const existingInvite = invitations.find(
-      (inv) => inv.email.toLowerCase() === inviteEmail.toLowerCase() && inv.status === 'pending'
+      (inv) => inv.email && inv.email.toLowerCase() === inviteEmail.toLowerCase() && inv.status === 'pending'
     );
 
     if (existingInvite) {
@@ -518,8 +528,8 @@ export function ProjectMembersModal({
                       </Avatar>
 
                       <div className="flex-1 min-w-0">
-                        <p className="truncate">{member.name}</p>
-                        <p className="text-sm text-gray-500 truncate">{member.email}</p>
+                        <p className="truncate">{member.name || 'Без имени'}</p>
+                        <p className="text-sm text-gray-500 truncate">{member.email || 'Нет email'}</p>
                       </div>
 
                       <div className="flex items-center gap-3">
@@ -699,7 +709,7 @@ export function ProjectMembersModal({
                       <Mail className="w-8 h-8 text-gray-400" />
 
                       <div className="flex-1 min-w-0">
-                        <p className="truncate">{invitation.email}</p>
+                        <p className="truncate">{invitation.email || 'Нет email'}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="secondary" className="text-xs">
                             {roleLabels[invitation.role]}
