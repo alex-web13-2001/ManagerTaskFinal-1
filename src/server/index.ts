@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
@@ -812,10 +813,27 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 
 // ========== START SERVER ==========
 
-// ESM module entry point check
-const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+// ESM module entry point check - robust version that works with PM2 and tsx
+// This handles cases where process.argv[1] might be relative or have path inconsistencies
+function isMainModule(): boolean {
+  try {
+    // Convert import.meta.url to file path
+    const currentFilePath = fileURLToPath(import.meta.url);
+    
+    // Resolve the entry point file path (handles relative paths, symlinks, etc.)
+    const entryFilePath = process.argv[1] ? path.resolve(process.argv[1]) : '';
+    
+    // Compare resolved absolute paths
+    return currentFilePath === entryFilePath;
+  } catch (error) {
+    // If there's any error in path resolution, assume we should start the server
+    // This ensures the server starts even if path comparison fails
+    console.warn('Could not determine if module is main, defaulting to starting server');
+    return true;
+  }
+}
 
-if (isMainModule) {
+if (isMainModule()) {
   const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📁 Serving uploads from: ${uploadsDir}`);
