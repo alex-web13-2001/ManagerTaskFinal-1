@@ -89,6 +89,9 @@ export interface Task {
   recurringStartDate?: string;
   recurringIntervalDays?: number;
   parentRecurringTaskId?: string; // ID родительской повторяющейся задачи
+  // Поле для стабильного упорядочивания без переиндексации
+  orderKey?: string; // Лексикографический ключ для сортировки (Base36)
+  version?: number; // Монотонный счетчик для оптимистичной конкурентности
 }
 
 export interface ProjectLink {

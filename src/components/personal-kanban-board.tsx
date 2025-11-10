@@ -28,6 +28,7 @@ import { ru } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner@2.0.3';
 import { KanbanBoardSkeleton } from './kanban-skeleton';
+import { generateOrderKey, compareOrderKeys } from '../utils/orderKey';
 import type { Task as TaskType, CustomColumn } from '../contexts/app-context';
 
 const ITEM_TYPE = 'PERSONAL_TASK_CARD';
@@ -144,7 +145,12 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
         transition={{ 
           opacity: { duration: 0.15 },
           scale: { duration: 0.2 },
-          layout: { duration: 0.2, ease: 'easeOut' }
+          layout: { 
+            type: 'spring',
+            stiffness: 500,
+            damping: 35,
+            mass: 0.5
+          }
         }}
         className="cursor-move"
       >
@@ -447,29 +453,32 @@ export function PersonalKanbanBoard({
   }, [tasks, filters]);
 
   // Clean up taskOrder - remove IDs that don't exist in current personal tasks
+  // Используем startTransition для низкоприоритетного обновления
   React.useEffect(() => {
     const currentTaskIds = new Set(personalTasks.map(t => t.id));
     
-    setTaskOrder(prev => {
-      let needsCleanup = false;
-      const cleanedOrder: Record<string, string[]> = {};
-      
-      Object.entries(prev).forEach(([status, ids]) => {
-        const cleanedIds = ids.filter(id => currentTaskIds.has(id));
-        if (cleanedIds.length !== ids.length) {
-          needsCleanup = true;
+    React.startTransition(() => {
+      setTaskOrder(prev => {
+        let needsCleanup = false;
+        const cleanedOrder: Record<string, string[]> = {};
+        
+        Object.entries(prev).forEach(([status, ids]) => {
+          const cleanedIds = ids.filter(id => currentTaskIds.has(id));
+          if (cleanedIds.length !== ids.length) {
+            needsCleanup = true;
+          }
+          if (cleanedIds.length > 0) {
+            cleanedOrder[status] = cleanedIds;
+          }
+        });
+        
+        if (needsCleanup) {
+          console.log('[PersonalKanban] Cleaning up taskOrder, removed stale IDs');
+          return cleanedOrder;
         }
-        if (cleanedIds.length > 0) {
-          cleanedOrder[status] = cleanedIds;
-        }
+        
+        return prev;
       });
-      
-      if (needsCleanup) {
-        console.log('[PersonalKanban] Cleaning up taskOrder, removed stale IDs');
-        return cleanedOrder;
-      }
-      
-      return prev;
     });
   }, [personalTasks]);
 
@@ -479,37 +488,33 @@ export function PersonalKanbanBoard({
       // Все задачи (и обычные и повторяющиеся) показываем по их статусу
       const columnTasks = personalTasks.filter((task) => task.status === colDef.id);
       
-      // Apply custom order if exists
-      if (taskOrder[colDef.id]) {
-        const orderedTasks: TaskType[] = [];
-        const orderMap = new Map(columnTasks.map(t => [t.id, t]));
-        const seenIds = new Set<string>();
-        
-        // First add tasks in the specified order (with deduplication)
-        taskOrder[colDef.id].forEach(taskId => {
-          if (seenIds.has(taskId)) return; // Skip duplicates
-          const task = orderMap.get(taskId);
-          if (task) {
-            orderedTasks.push(task);
-            orderMap.delete(taskId);
-            seenIds.add(taskId);
+      // Сортируем по orderKey для стабильного порядка
+      // Используем локальный taskOrder только для оптимистичного отображения до подтверждения сервером
+      const sortedTasks = [...columnTasks].sort((a, b) => {
+        // Если есть локальный порядок, используем его (оптимистичное обновление)
+        if (taskOrder[colDef.id]) {
+          const orderA = taskOrder[colDef.id].indexOf(a.id);
+          const orderB = taskOrder[colDef.id].indexOf(b.id);
+          
+          // Оба есть в локальном порядке
+          if (orderA !== -1 && orderB !== -1) {
+            return orderA - orderB;
           }
-        });
+          // Только A в локальном порядке
+          if (orderA !== -1) return -1;
+          // Только B в локальном порядке
+          if (orderB !== -1) return 1;
+        }
         
-        // Then add any remaining tasks (with deduplication)
-        orderMap.forEach(task => {
-          if (!seenIds.has(task.id)) {
-            orderedTasks.push(task);
-            seenIds.add(task.id);
-          }
-        });
-        
-        return { ...colDef, tasks: orderedTasks };
-      }
+        // Используем orderKey как основной источник правды
+        const keyA = a.orderKey || 'n';
+        const keyB = b.orderKey || 'n';
+        return compareOrderKeys(keyA, keyB);
+      });
       
-      // Deduplicate tasks even without custom order
+      // Deduplicate tasks
       const seenIds = new Set<string>();
-      const uniqueTasks = columnTasks.filter(task => {
+      const uniqueTasks = sortedTasks.filter(task => {
         if (seenIds.has(task.id)) return false;
         seenIds.add(task.id);
         return true;
@@ -544,26 +549,55 @@ export function PersonalKanbanBoard({
     
     console.log('[PersonalKanban] Moving card:', { draggedId, sourceStatus, targetStatus, position });
     
-    // Update order state IMMEDIATELY for instant visual feedback
+    // Получаем все задачи целевого столбца, отсортированные по orderKey
+    const targetColumnTasks = personalTasks
+      .filter(t => t.status === targetStatus)
+      .sort((a, b) => compareOrderKeys(a.orderKey || 'n', b.orderKey || 'n'));
+    
+    // Находим индекс целевой задачи
+    const targetIndex = targetColumnTasks.findIndex(t => t.id === targetId);
+    
+    // Вычисляем новый orderKey на основе соседей
+    let newOrderKey: string;
+    let beforeTask: TaskType | undefined;
+    let afterTask: TaskType | undefined;
+    
+    if (position === 'before') {
+      // Вставляем перед целевой задачей
+      afterTask = targetTask;
+      beforeTask = targetIndex > 0 ? targetColumnTasks[targetIndex - 1] : undefined;
+    } else {
+      // Вставляем после целевой задачи
+      beforeTask = targetTask;
+      afterTask = targetIndex < targetColumnTasks.length - 1 ? targetColumnTasks[targetIndex + 1] : undefined;
+    }
+    
+    // Генерируем новый orderKey между соседями
+    newOrderKey = generateOrderKey(beforeTask?.orderKey, afterTask?.orderKey);
+    
+    console.log('[PersonalKanban] Generated orderKey:', {
+      newOrderKey,
+      beforeKey: beforeTask?.orderKey,
+      afterKey: afterTask?.orderKey,
+      position
+    });
+    
+    // Оптимистичное обновление: сразу обновляем локальное состояние для мгновенной визуальной обратной связи
     setTaskOrder(prev => {
       const updated = { ...prev };
       
       // Get tasks for target column
-      const targetColumnTasks = personalTasks
-        .filter(t => t.id === draggedId || t.status === targetStatus)
-        .map(t => t.id);
-      
-      const currentOrder = prev[targetStatus] || targetColumnTasks;
+      const targetColumnTaskIds = targetColumnTasks.map(t => t.id);
       
       // Remove ALL instances of dragged task from order (deduplication)
-      let newOrder = currentOrder.filter(id => id !== draggedId);
+      let newOrder = targetColumnTaskIds.filter(id => id !== draggedId);
       
       // Find target index
-      const targetIndex = newOrder.indexOf(targetId);
+      const targetIdx = newOrder.indexOf(targetId);
       
       // Insert at the correct position
-      if (targetIndex !== -1) {
-        const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
+      if (targetIdx !== -1) {
+        const insertIndex = position === 'before' ? targetIdx : targetIdx + 1;
         newOrder.splice(insertIndex, 0, draggedId);
       } else {
         // If target not found, add to end
@@ -580,17 +614,26 @@ export function PersonalKanbanBoard({
         updated[sourceStatus] = cleanedSource;
       }
       
-      console.log('[PersonalKanban] Updated taskOrder (deduplicated):', updated);
+      console.log('[PersonalKanban] Updated taskOrder (optimistic, deduplicated):', updated);
       return updated;
     });
     
-    // If moving between columns, update status asynchronously (but don't await to avoid blocking UI)
+    // Обновляем задачу на сервере с новым orderKey и статусом
+    const updates: Partial<TaskType> = {
+      orderKey: newOrderKey,
+    };
+    
+    // Если меняется статус, добавляем его в обновления
     if (sourceStatus !== targetStatus) {
-      handleTaskStatusChange(draggedId, targetStatus).catch(error => {
-        console.error('[PersonalKanban] Failed to update task status:', error);
-        // Optionally revert the taskOrder change here if status update fails
-      });
+      updates.status = targetStatus;
     }
+    
+    // Отправляем обновление на сервер (не ждем ответа для плавности UI)
+    updateTask(draggedId, updates, { silent: true }).catch(error => {
+      console.error('[PersonalKanban] Failed to update task:', error);
+      // При ошибке можно реализовать откат (revert), но пока оставляем как есть
+      // для минимальных изменений
+    });
   };
 
   // Handle adding new column

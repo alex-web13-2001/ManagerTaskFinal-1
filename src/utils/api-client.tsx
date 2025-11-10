@@ -343,6 +343,8 @@ export const tasksAPI = {
       ...taskData,
       id: taskData.id || `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       userId: taskData.userId || userId, // Set creator
+      orderKey: taskData.orderKey || 'n', // Начальное значение orderKey
+      version: 1, // Начальная версия
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -463,9 +465,13 @@ export const tasksAPI = {
       throw new Error('Task not found in owner list');
     }
 
+    // Инкрементируем версию при обновлении для оптимистичной конкурентности
+    const currentVersion = tasks[index].version || 1;
+    
     tasks[index] = {
       ...tasks[index],
       ...updates,
+      version: currentVersion + 1, // Инкрементируем версию
       updatedAt: new Date().toISOString(),
     };
 

@@ -104,6 +104,8 @@ model Task {
   tags        String[]  @default([])
   dueDate     DateTime?
   attachments Json?     // Array of file attachments
+  orderKey    String?   @default("n") // Лексикографический ключ для сортировки (Base36)
+  version     Int       @default(1) // Монотонный счетчик для оптимистичной конкурентности
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
@@ -118,6 +120,7 @@ model Task {
   @@index([projectId])
   @@index([creatorId])
   @@index([assigneeId])
+  @@index([status, orderKey]) // Индекс для быстрой сортировки по колонкам
   @@map("tasks")
 }
 
