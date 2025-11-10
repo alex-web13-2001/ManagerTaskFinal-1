@@ -816,9 +816,31 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 const isMainModule = import.meta.url === `file://${process.argv[1]}`;
 
 if (isMainModule) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📁 Serving uploads from: ${uploadsDir}`);
+  });
+
+  server.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Error: Port ${PORT} is already in use`);
+      console.error('Please check if another process is using this port or set a different PORT in environment variables');
+    } else if (error.code === 'EACCES') {
+      console.error(`❌ Error: Permission denied to bind to port ${PORT}`);
+      console.error('Try using a port number above 1024 or run with appropriate permissions');
+    } else {
+      console.error(`❌ Server error:`, error);
+    }
+    process.exit(1);
+  });
+
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM signal received: closing HTTP server');
+    server.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
   });
 }
 
