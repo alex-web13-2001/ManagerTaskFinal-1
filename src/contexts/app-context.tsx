@@ -1,5 +1,5 @@
 import React from 'react';
-import { tasksAPI, projectsAPI, authAPI, teamAPI, userSettingsAPI, supabase, getAuthToken } from '../utils/supabase/client';
+import { tasksAPI, projectsAPI, authAPI, teamAPI, userSettingsAPI, categoriesAPI, supabase, getAuthToken } from '../utils/supabase/client';
 // Removed: import { projectId } from '../utils/supabase/info';
 import { toast } from 'sonner@2.0.3';
 
@@ -476,25 +476,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
-      const userId = getUserIdFromToken();
-      if (!userId) {
-        console.error('❌ Не удалось получить userId из токена');
-        return;
-      }
-      
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-      const response = await fetch(`${API_BASE_URL}/api/kv/categories:${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Не удалось загрузить категории');
-      }
-
-      const data = await response.json();
-      const categoriesData = data.value || [];
+      const categoriesData = await categoriesAPI.getCategories();
       setCategories(categoriesData);
       console.log('✅ Категории загружены:', categoriesData.length);
     } catch (error: any) {
@@ -524,22 +506,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updatedAt: new Date().toISOString(),
       };
       
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
       const updatedCategories = [...categories, newCategory];
-      
-      const response = await fetch(`${API_BASE_URL}/api/kv/categories:${userId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ value: updatedCategories }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Не удалось создать категорию');
-      }
+      await categoriesAPI.saveCategories(updatedCategories);
 
       setCategories(updatedCategories);
       console.log('✅ Категория создана:', newCategory);
@@ -559,31 +527,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Необходима авторизация');
       }
       
-      const userId = getUserIdFromToken();
-      if (!userId) {
-        throw new Error('Не удалось получить userId из токена');
-      }
-      
       const updatedCategories = categories.map(c => 
         c.id === categoryId 
           ? { ...c, ...updates, updatedAt: new Date().toISOString() }
           : c
       );
       
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-      const response = await fetch(`${API_BASE_URL}/api/kv/categories:${userId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ value: updatedCategories }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Не удалось обновить категорию');
-      }
+      await categoriesAPI.saveCategories(updatedCategories);
 
       const updatedCategory = updatedCategories.find(c => c.id === categoryId)!;
       setCategories(updatedCategories);
@@ -604,27 +554,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Необходима авторизация');
       }
       
-      const userId = getUserIdFromToken();
-      if (!userId) {
-        throw new Error('Не удалось получить userId из токена');
-      }
-      
       const updatedCategories = categories.filter(c => c.id !== categoryId);
-      
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-      const response = await fetch(`${API_BASE_URL}/api/kv/categories:${userId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ value: updatedCategories }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Не удалось удалить категорию');
-      }
+      await categoriesAPI.saveCategories(updatedCategories);
 
       setCategories(updatedCategories);
       console.log('✅ Категория удалена:', categoryId);

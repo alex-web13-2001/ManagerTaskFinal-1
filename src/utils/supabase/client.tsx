@@ -21,6 +21,7 @@ export {
   teamAPI,
   diagnosticsAPI,
   userSettingsAPI,
+  categoriesAPI,
 } from '../api-client';
 
 // Export a dummy supabase object for compatibility

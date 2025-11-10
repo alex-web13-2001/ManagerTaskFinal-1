@@ -496,6 +496,93 @@ export const projectsAPI = {
     const tasks = await response.json();
     return tasks;
   },
+
+  /**
+   * Get project members
+   */
+  getProjectMembers: async (projectId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/members`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch project members');
+    }
+
+    const members = await response.json();
+    return members;
+  },
+
+  /**
+   * Get pending invitations for current user
+   */
+  getMyPendingInvitations: async () => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/my/pending_invitations`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch pending invitations');
+    }
+
+    const invitations = await response.json();
+    return invitations;
+  },
+
+  /**
+   * Accept an invitation
+   */
+  acceptInvitation: async (token: string) => {
+    const authToken = getAuthToken();
+    if (!authToken) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/invitations/${token}/accept`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to accept invitation');
+    }
+
+    const result = await response.json();
+    return result;
+  },
+
+  /**
+   * Reject an invitation (revoke)
+   */
+  rejectInvitation: async (invitationId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/invitations/${invitationId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to reject invitation');
+    }
+
+    return true;
+  },
 };
 // ========== INVITATIONS API ==========
 
@@ -525,14 +612,11 @@ export const invitationsAPI = {
 // ========== TEAM MEMBERS API ==========
 
 export const teamAPI = {
-  getMembers: async () => {
+  getMembers: async (projectId: string) => {
     const token = getAuthToken();
     if (!token) throw new Error('Not authenticated');
-    
-    const userId = getUserIdFromToken();
-    if (!userId) throw new Error('Invalid token');
 
-    const response = await fetch(`${API_BASE_URL}/api/kv/members:${userId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/members`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -542,8 +626,8 @@ export const teamAPI = {
       throw new Error('Failed to fetch members');
     }
 
-    const data = await response.json();
-    return data.value || [];
+    const members = await response.json();
+    return members;
   },
 };
 
@@ -571,7 +655,7 @@ export const userSettingsAPI = {
     const userId = getUserIdFromToken();
     if (!userId) throw new Error('Invalid token');
 
-    const response = await fetch(`${API_BASE_URL}/api/kv/custom_columns:${userId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/users/${userId}/custom_columns`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -581,8 +665,8 @@ export const userSettingsAPI = {
       throw new Error('Failed to fetch custom columns');
     }
 
-    const data = await response.json();
-    return data.value || [];
+    const columns = await response.json();
+    return columns;
   },
 
   saveCustomColumns: async (customColumns: Array<{ id: string; title: string; color: string }>) => {
@@ -592,15 +676,67 @@ export const userSettingsAPI = {
     const userId = getUserIdFromToken();
     if (!userId) throw new Error('Invalid token');
 
-    await fetch(`${API_BASE_URL}/api/kv/custom_columns:${userId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/users/${userId}/custom_columns`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ value: customColumns }),
+      body: JSON.stringify({ columns: customColumns }),
     });
 
+    if (!response.ok) {
+      throw new Error('Failed to save custom columns');
+    }
+
     return customColumns;
+  },
+};
+
+// ========== CATEGORIES API ==========
+
+export const categoriesAPI = {
+  getCategories: async () => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+    
+    const userId = getUserIdFromToken();
+    if (!userId) throw new Error('Invalid token');
+
+    const response = await fetch(`${API_BASE_URL}/api/users/${userId}/categories`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch categories');
+    }
+
+    const categories = await response.json();
+    return categories;
+  },
+
+  saveCategories: async (categories: Array<{ id: string; name: string; color: string }>) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+    
+    const userId = getUserIdFromToken();
+    if (!userId) throw new Error('Invalid token');
+
+    const response = await fetch(`${API_BASE_URL}/api/users/${userId}/categories`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ categories }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to save categories');
+    }
+
+    return categories;
   },
 };
