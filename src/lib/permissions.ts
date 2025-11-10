@@ -165,17 +165,18 @@ export async function canViewTask(
 
 /**
  * Check if user can create a task in project
- * - Owner, Collaborator, Member can create tasks
- * - Member can only create tasks assigned to themselves
+ * - Personal tasks: user can only create for themselves or without assignee
+ * - Owner, Collaborator, Member can create tasks in projects
+ * - Member can only create tasks assigned to themselves or without assignee
  */
 export async function canCreateTask(
   userId: string,
   projectId: string | null,
   assigneeId?: string | null
 ): Promise<boolean> {
-  // Personal tasks - user can always create
+  // Personal tasks (no project) - user can only create for themselves or without assignee
   if (!projectId) {
-    return true;
+    return !assigneeId || assigneeId === userId;
   }
 
   const role = await getUserRoleInProject(userId, projectId);
@@ -189,7 +190,7 @@ export async function canCreateTask(
     return false;
   }
 
-  // Member can only create tasks assigned to themselves
+  // Member can only create tasks assigned to themselves or without assignee
   if (role === 'member') {
     return assigneeId === userId || assigneeId === null;
   }
