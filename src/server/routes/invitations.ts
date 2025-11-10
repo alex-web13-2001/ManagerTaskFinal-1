@@ -52,9 +52,10 @@ router.post('/:projectId/invitations', async (req: AuthRequest, res: Response) =
       await emailService.sendProjectInvitationEmail(
         invitation.email,
         invitation.project.name,
-        invitation.role,
         invitation.invitedByUser?.name || 'A team member',
-        invitationLink
+        invitation.role,
+        invitation.token,
+        invitation.expiresAt.toISOString()
       );
     } catch (emailError) {
       console.error('Failed to send invitation email:', emailError);
@@ -274,9 +275,10 @@ router.post('/:invitationId/resend', async (req: AuthRequest, res: Response) => 
       await emailService.sendProjectInvitationEmail(
         invitation.email,
         invitation.project.name,
-        invitation.role,
         invitation.invitedByUser?.name || 'A team member',
-        invitationLink
+        invitation.role,
+        invitation.token,
+        invitation.expiresAt.toISOString()
       );
     } catch (emailError) {
       console.error('Failed to send invitation email:', emailError);

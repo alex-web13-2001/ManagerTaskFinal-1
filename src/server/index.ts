@@ -9,6 +9,7 @@ import prisma from '../lib/prisma';
 import { hashPassword, comparePassword, generateToken, verifyToken, JwtPayload } from '../lib/auth';
 import * as kv from './kv_store';
 import emailService from '../lib/email';
+import invitationRoutes from './routes/invitations.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -416,6 +417,11 @@ app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to reset password' });
   }
 });
+
+// ========== INVITATION ROUTES ==========
+// Mount invitation routes (handles /api/invitations/* and /api/projects/:projectId/invitations)
+app.use('/api/invitations', authenticate, invitationRoutes);
+app.use('/api/projects', authenticate, invitationRoutes);
 
 // ========== FILE UPLOAD ENDPOINTS ==========
 
