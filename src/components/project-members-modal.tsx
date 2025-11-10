@@ -56,6 +56,7 @@ type Member = {
   avatar: string;
   role: Role;
   addedDate: string;
+  status?: 'active' | 'invited';
 };
 
 type Invitation = {
@@ -102,6 +103,16 @@ const statusColors: Record<Invitation['status'], string> = {
   expired: 'bg-gray-100 text-gray-700',
   revoked: 'bg-red-100 text-red-700',
   accepted: 'bg-green-100 text-green-700',
+};
+
+const memberStatusLabels: Record<NonNullable<Member['status']>, string> = {
+  active: 'Активный',
+  invited: 'Приглашён',
+};
+
+const memberStatusColors: Record<NonNullable<Member['status']>, string> = {
+  active: 'bg-green-100 text-green-700',
+  invited: 'bg-blue-100 text-blue-700',
 };
 
 // Helper function to format dates
@@ -263,6 +274,7 @@ export function ProjectMembersModal({
                 name: currentUser.name || currentUser.email,
                 email: currentUser.email,
                 role: 'owner',
+                status: 'active',
                 addedDate: project.createdAt || new Date().toISOString(),
               },
               ...projectMembers
@@ -276,6 +288,7 @@ export function ProjectMembersModal({
                 name: 'Владелец проекта',
                 email: '',
                 role: 'owner',
+                status: 'active',
                 addedDate: project.createdAt || new Date().toISOString(),
               },
               ...projectMembers
@@ -291,6 +304,7 @@ export function ProjectMembersModal({
               name: 'Владелец проекта',
               email: '',
               role: 'owner',
+              status: 'active',
               addedDate: project.createdAt || new Date().toISOString(),
             },
             ...projectMembers
@@ -298,13 +312,31 @@ export function ProjectMembersModal({
         }
       }
       
+      // Add pending invitations as "invited" members
+      const pendingInvitations = project.invitations || [];
+      const invitedMembers = pendingInvitations
+        .filter((inv: any) => inv.status === 'pending')
+        .map((inv: any) => ({
+          id: `inv_${inv.id}`,
+          userId: inv.id,
+          name: inv.email,
+          email: inv.email,
+          role: inv.role,
+          status: 'invited' as const,
+          addedDate: inv.sentDate || new Date().toISOString(),
+        }));
+      
+      // Combine accepted members with pending invitations
+      const allMembersWithInvited = [...allMembers, ...invitedMembers];
+      
       // Transform members to match expected format
-      const transformedMembers = allMembers.map((m: any) => ({
+      const transformedMembers = allMembersWithInvited.map((m: any) => ({
         id: m.id || m.userId,
         name: m.name || m.email || 'Без имени',
         email: m.email,
         avatar: m.name ? m.name.split(' ').map((n: string) => n[0]).join('').toUpperCase() : m.email?.[0]?.toUpperCase() || '?',
         role: m.role,
+        status: m.status || 'active',
         addedDate: m.addedDate ? new Date(m.addedDate).toLocaleDateString('ru-RU') : 'Недавно',
       }));
       
@@ -620,13 +652,14 @@ export function ProjectMembersModal({
 
                       <div className="flex items-center gap-3">
                         <div className="text-right min-w-[200px]">
-                          {canManage && member.role !== 'owner' ? (
+                          {canManage && member.role !== 'owner' && member.status !== 'invited' ? (
                             <>
                               <Select
                                 value={member.role}
                                 onValueChange={(value) =>
                                   handleChangeRole(member.id, value as Role)
                                 }
+                                disabled={member.status === 'invited'}
                               >
                                 <SelectTrigger className="w-full">
                                   <SelectValue />
@@ -646,15 +679,29 @@ export function ProjectMembersModal({
                               <p className="text-xs text-gray-500 mt-1">
                                 {roleDescriptions[member.role]}
                               </p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                Добавлен {member.addedDate}
-                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-xs text-gray-500">
+                                  Добавлен {member.addedDate}
+                                </p>
+                                {member.status && (
+                                  <Badge variant="outline" className={`text-xs ${memberStatusColors[member.status]}`}>
+                                    {memberStatusLabels[member.status]}
+                                  </Badge>
+                                )}
+                              </div>
                             </>
                           ) : (
                             <>
-                              <Badge variant="outline" className="bg-purple-100 text-purple-700">
-                                {roleLabels[member.role]}
-                              </Badge>
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className="bg-purple-100 text-purple-700">
+                                  {roleLabels[member.role]}
+                                </Badge>
+                                {member.status && (
+                                  <Badge variant="outline" className={`text-xs ${memberStatusColors[member.status]}`}>
+                                    {memberStatusLabels[member.status]}
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-xs text-gray-500 mt-1">
                                 Добавлен {member.addedDate}
                               </p>
@@ -662,7 +709,7 @@ export function ProjectMembersModal({
                           )}
                         </div>
 
-                        {canManage && member.role !== 'owner' && (
+                        {canManage && member.role !== 'owner' && member.status !== 'invited' && (
                           <Button
                             variant="ghost"
                             size="icon"

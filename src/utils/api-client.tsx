@@ -662,6 +662,7 @@ export const projectsAPI = {
               name: currentUser?.name || currentUser?.email || 'Владелец',
               email: currentUser?.email || '',
               role: 'owner',
+              status: 'active',
               addedDate: project.createdAt || new Date().toISOString(),
             },
             ...(project.members || [])
@@ -712,6 +713,7 @@ export const projectsAPI = {
           name: currentUser?.name || currentUser?.email || 'Владелец',
           email: currentUser?.email || '',
           role: 'owner',
+          status: 'active',
           addedDate: new Date().toISOString(),
         },
         ...(projectData.members || [])
@@ -1199,6 +1201,7 @@ export const projectsAPI = {
             name: userData.user.name,
             email: userData.user.email,
             role: invitation.role,
+            status: 'active',
             addedDate: new Date().toISOString(),
           });
           
