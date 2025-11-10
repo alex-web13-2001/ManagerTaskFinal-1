@@ -528,8 +528,8 @@ export function ProjectMembersModal({
                       </Avatar>
 
                       <div className="flex-1 min-w-0">
-                        <p className="truncate">{member.name}</p>
-                        <p className="text-sm text-gray-500 truncate">{member.email}</p>
+                        <p className="truncate">{member.name || 'Без имени'}</p>
+                        <p className="text-sm text-gray-500 truncate">{member.email || 'Нет email'}</p>
                       </div>
 
                       <div className="flex items-center gap-3">
@@ -709,7 +709,7 @@ export function ProjectMembersModal({
                       <Mail className="w-8 h-8 text-gray-400" />
 
                       <div className="flex-1 min-w-0">
-                        <p className="truncate">{invitation.email}</p>
+                        <p className="truncate">{invitation.email || 'Нет email'}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="secondary" className="text-xs">
                             {roleLabels[invitation.role]}
