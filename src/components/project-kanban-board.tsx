@@ -48,7 +48,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   moveCard,
   isInitialRender,
 }, forwardedRef) => {
-  const { teamMembers, categories } = useApp();
+  const { teamMembers, categories, setIsDragging } = useApp();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
   
   const assignee = teamMembers?.find((m) => m.id === task.assigneeId);
@@ -70,6 +70,12 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
+    begin: () => {
+      setIsDragging(true);
+    },
+    end: () => {
+      setIsDragging(false);
+    },
   }));
 
   const [{ isOver }, drop] = useDrop(() => ({
@@ -129,17 +135,17 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
       <motion.div
         id={`task-card-${task.id}`}
         ref={combinedRef}
-        layout
         layoutId={task.id}
-        initial={isInitialRender ? { opacity: 1 } : { opacity: 0 }}
+        initial={isInitialRender ? { opacity: 1 } : { opacity: 0, scale: 0.95 }}
         animate={{ 
-          opacity: isDragging ? 0.4 : 1,
+          opacity: isDragging ? 0.5 : 1,
+          scale: 1,
         }}
-        exit={{ opacity: 0 }}
+        exit={{ opacity: 0, scale: 0.9 }}
         transition={{ 
-          duration: 0.05,
-          ease: 'easeOut',
-          layout: { duration: 0.15, ease: 'easeOut' }
+          opacity: { duration: 0.15 },
+          scale: { duration: 0.2 },
+          layout: { duration: 0.2, ease: 'easeOut' }
         }}
         className="cursor-move"
       >
@@ -296,7 +302,7 @@ const DroppableColumn = ({
         }}
         transition={{ duration: 0.15 }}
       >
-        <AnimatePresence mode="sync">
+        <AnimatePresence mode="popLayout">
           {tasks.map((task, index) => (
             <DraggableTaskCard
               key={task.id}

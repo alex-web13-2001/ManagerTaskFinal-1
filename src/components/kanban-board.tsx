@@ -29,6 +29,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   moveCard: (draggedId: string, targetId: string, position: 'before' | 'after') => void;
   allTasks: TaskType[];
   baseColumnDefinitions: { id: string; title: string; color: string }[];
+  isInitialMount: boolean;
 }>(({
   task,
   onClick,
@@ -37,8 +38,9 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   moveCard,
   allTasks,
   baseColumnDefinitions,
+  isInitialMount,
 }, forwardedRef) => {
-  const { projects, teamMembers, categories } = useApp();
+  const { projects, teamMembers, categories, setIsDragging } = useApp();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
   const [canDropHere, setCanDropHere] = React.useState(true);
   
@@ -48,6 +50,12 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
+    begin: () => {
+      setIsDragging(true);
+    },
+    end: () => {
+      setIsDragging(false);
+    },
   }));
 
   const [{ isOver }, drop] = useDrop(() => ({
@@ -154,16 +162,17 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
       <motion.div
         id={`task-card-${task.id}`}
         ref={combinedRef}
-        layout
-        initial={{ opacity: 0 }}
+        layoutId={task.id}
+        initial={isInitialMount ? { opacity: 1 } : { opacity: 0, scale: 0.95 }}
         animate={{ 
-          opacity: isDragging ? 0.4 : 1,
+          opacity: isDragging ? 0.5 : 1,
+          scale: 1,
         }}
-        exit={{ opacity: 0 }}
+        exit={{ opacity: 0, scale: 0.9 }}
         transition={{ 
-          duration: 0.1,
-          ease: 'linear',
-          layout: { duration: 0.2 }
+          opacity: { duration: 0.15 },
+          scale: { duration: 0.2 },
+          layout: { duration: 0.2, ease: 'easeOut' }
         }}
         className="cursor-move"
       >
@@ -305,6 +314,7 @@ const DroppableColumn = ({
   isCustom = false,
   allTasks,
   baseColumnDefinitions,
+  isInitialMount,
 }: {
   columnId: string;
   title: string;
@@ -317,6 +327,7 @@ const DroppableColumn = ({
   isCustom?: boolean;
   allTasks: TaskType[];
   baseColumnDefinitions: { id: string; title: string; color: string }[];
+  isInitialMount: boolean;
 }) => {
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: ITEM_TYPE,
@@ -398,14 +409,15 @@ const DroppableColumn = ({
         </Badge>
       </div>
 
-      <div
+      <motion.div
+        layout="position"
         className={`flex-1 space-y-3 overflow-y-auto p-3 rounded-lg transition-colors duration-150 ${
           isOver && canDrop ? 'bg-purple-50 ring-2 ring-purple-300' : 
           isOver && !canDrop ? 'bg-red-50 ring-2 ring-red-300' : 
           'bg-transparent'
         }`}
       >
-        <AnimatePresence mode="sync">
+        <AnimatePresence mode="popLayout">
           {tasks.map((task, index) => (
             <DraggableTaskCard
               key={task.id}
@@ -416,10 +428,11 @@ const DroppableColumn = ({
               moveCard={moveCardWithinColumn}
               allTasks={allTasks}
               baseColumnDefinitions={baseColumnDefinitions}
+              isInitialMount={isInitialMount}
             />
           ))}
         </AnimatePresence>
-      </div>
+      </motion.div>
     </div>
   );
 };
@@ -440,6 +453,13 @@ export function KanbanBoard({
   const { tasks, updateTask, customColumns } = useApp();
   const [groupBy, setGroupBy] = React.useState<GroupBy>('none');
   const [taskOrder, setTaskOrder] = React.useState<Record<string, string[]>>({});
+  const [isInitialMount, setIsInitialMount] = React.useState(true);
+
+  // Mark as no longer initial mount after first render
+  React.useEffect(() => {
+    const timer = setTimeout(() => setIsInitialMount(false), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Define base kanban columns
   const baseColumnDefinitions = React.useMemo(() => [
@@ -667,21 +687,11 @@ export function KanbanBoard({
       }
     }
     
-    // If moving between columns, update status first and wait for it
-    if (sourceStatus !== targetStatus) {
-      try {
-        await handleTaskStatusChange(draggedId, targetStatus);
-      } catch (error) {
-        console.error('[KanbanBoard] Failed to update task status');
-        return; // Don't update order if status change failed
-      }
-    }
-    
-    // Update order state after status change completes
+    // Update order state IMMEDIATELY for instant visual feedback
     setTaskOrder(prev => {
       const updated = { ...prev };
       
-      // Get tasks for target column (будет включать перемещенную задачу после обновления статуса)
+      // Get tasks for target column
       const targetColumnTasks = filteredTasks
         .filter(t => t.id === draggedId || t.status === targetStatus)
         .map(t => t.id);
@@ -716,6 +726,14 @@ export function KanbanBoard({
       console.log('[KanbanBoard] Updated taskOrder (deduplicated):', updated);
       return updated;
     });
+    
+    // If moving between columns, update status asynchronously (but don't await to avoid blocking UI)
+    if (sourceStatus !== targetStatus) {
+      handleTaskStatusChange(draggedId, targetStatus).catch(error => {
+        console.error('[KanbanBoard] Failed to update task status:', error);
+        // Optionally revert the taskOrder change here if status update fails
+      });
+    }
   };
 
   return (
@@ -754,6 +772,7 @@ export function KanbanBoard({
                 isCustom={isCustom}
                 allTasks={tasks}
                 baseColumnDefinitions={baseColumnDefinitions}
+                isInitialMount={isInitialMount}
               />
             );
           })}

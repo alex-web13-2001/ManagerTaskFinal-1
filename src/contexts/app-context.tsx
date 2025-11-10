@@ -191,6 +191,8 @@ interface AppContextType {
   restoreProject: (projectId: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
   refreshData: () => Promise<void>;
+  // Drag state management
+  setIsDragging: (isDragging: boolean) => void;
   // Permission helpers
   getUserRoleInProject: (projectId: string) => UserRole;
   canViewAllProjectTasks: (projectId: string) => boolean;
@@ -214,6 +216,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isInitialLoad, setIsInitialLoad] = React.useState(true);
   const [isRealtimeConnected, setIsRealtimeConnected] = React.useState(false);
+  
+  // Use ref to track drag state without causing re-renders
+  const isDraggingRef = React.useRef(false);
+  
+  // Function to set drag state
+  const setIsDragging = React.useCallback((isDragging: boolean) => {
+    isDraggingRef.current = isDragging;
+    console.log('[AppContext] Drag state:', isDragging);
+  }, []);
 
   const fetchTasks = React.useCallback(async () => {
     try {
@@ -745,13 +756,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Use polling instead of realtime for KV store compatibility
     const intervalId = setInterval(async () => {
       try {
-        // Обновляем данные каждые 5 секунд используя существующие API функции
-        await Promise.all([
-          fetchTasks(),
-          fetchProjects(),
-          fetchCustomColumns(), // Также обновляем кастомные колонки
-          fetchCategories(), // Также обновляем категории
-        ]);
+        // Skip fetchTasks if currently dragging to prevent conflicts
+        const shouldFetchTasks = !isDraggingRef.current;
+        
+        if (shouldFetchTasks) {
+          // Обновляем данные каждые 5 секунд используя существующие API функции
+          await Promise.all([
+            fetchTasks(),
+            fetchProjects(),
+            fetchCustomColumns(), // Также обновляем кастомные колонки
+            fetchCategories(), // Также обновляем категории
+          ]);
+        } else {
+          // If dragging, only update non-task data
+          console.log('[Polling] Skipping fetchTasks during drag operation');
+          await Promise.all([
+            fetchProjects(),
+            fetchCustomColumns(),
+            fetchCategories(),
+          ]);
+        }
 
         // Если успешно получили данные, считаем что подключение активно
         setIsRealtimeConnected(true);
@@ -1255,6 +1279,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     restoreProject,
     deleteProject,
     refreshData,
+    setIsDragging,
     // Permission helpers
     getUserRoleInProject,
     canViewAllProjectTasks,
