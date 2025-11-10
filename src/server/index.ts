@@ -885,9 +885,9 @@ app.get('/api/users/:userId/custom_columns', authenticate, async (req: AuthReque
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // For now, return empty array as custom columns are not yet in Prisma schema
-    // This would need to be added to the schema later
-    const columns: Array<{ id: string; title: string; color: string }> = [];
+    // Use KV store for now (temporary until added to Prisma schema)
+    const kvStore = await import('./kv_store.js');
+    const columns = await kvStore.get(`custom_columns:${userId}`) || [];
     
     res.json(columns);
   } catch (error: any) {
@@ -910,8 +910,10 @@ app.post('/api/users/:userId/custom_columns', authenticate, async (req: AuthRequ
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // For now, just return the columns back
-    // This would need proper storage in Prisma schema later
+    // Use KV store for now (temporary until added to Prisma schema)
+    const kvStore = await import('./kv_store.js');
+    await kvStore.set(`custom_columns:${userId}`, columns);
+    
     res.json(columns);
   } catch (error: any) {
     console.error('Save custom columns error:', error);
@@ -932,9 +934,9 @@ app.get('/api/users/:userId/categories', authenticate, async (req: AuthRequest, 
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // For now, return empty array as categories are not yet in Prisma schema
-    // This would need to be added to the schema later
-    const categories: Array<{ id: string; name: string; color: string }> = [];
+    // Use KV store for now (temporary until added to Prisma schema)
+    const kvStore = await import('./kv_store.js');
+    const categories = await kvStore.get(`categories:${userId}`) || [];
     
     res.json(categories);
   } catch (error: any) {
@@ -957,8 +959,10 @@ app.post('/api/users/:userId/categories', authenticate, async (req: AuthRequest,
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // For now, just return the categories back
-    // This would need proper storage in Prisma schema later
+    // Use KV store for now (temporary until added to Prisma schema)
+    const kvStore = await import('./kv_store.js');
+    await kvStore.set(`categories:${userId}`, categories);
+    
     res.json(categories);
   } catch (error: any) {
     console.error('Save categories error:', error);
