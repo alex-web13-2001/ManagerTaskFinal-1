@@ -8,7 +8,7 @@ import { invitationsAPI, getAuthToken } from '../utils/supabase/client';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 type InvitationStatus = 'loading' | 'found' | 'expired' | 'not-found' | 'already-accepted' | 'error';
 

@@ -468,7 +468,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
       const response = await fetch(`${API_BASE_URL}/api/kv/categories:${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -510,7 +510,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updatedAt: new Date().toISOString(),
       };
       
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
       const updatedCategories = [...categories, newCategory];
       
       const response = await fetch(`${API_BASE_URL}/api/kv/categories:${userId}`, {
@@ -556,7 +556,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           : c
       );
       
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
       const response = await fetch(`${API_BASE_URL}/api/kv/categories:${userId}`, {
         method: 'POST',
         headers: {
@@ -597,7 +597,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       const updatedCategories = categories.filter(c => c.id !== categoryId);
       
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
       const response = await fetch(`${API_BASE_URL}/api/kv/categories:${userId}`, {
         method: 'POST',
         headers: {
