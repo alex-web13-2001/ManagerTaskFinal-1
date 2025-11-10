@@ -188,10 +188,15 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email, password, and name are required' });
     }
 
+    // Validate password length
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Пароль должен содержать минимум 8 символов' });
+    }
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ error: 'User with this email already exists' });
+      return res.status(400).json({ error: 'Пользователь с таким e-mail уже существует' });
     }
 
     // Hash password and create user
@@ -223,7 +228,13 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Signup error:', error);
-    res.status(500).json({ error: 'Failed to create user' });
+    
+    // Handle unique constraint violation (in case of race condition)
+    if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+      return res.status(400).json({ error: 'Пользователь с таким e-mail уже существует' });
+    }
+    
+    res.status(500).json({ error: 'Не удалось создать пользователя' });
   }
 });
 
@@ -236,19 +247,19 @@ app.post('/api/auth/signin', async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({ error: 'Необходимо указать email и пароль' });
     }
 
     // Find user
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Неверный email или пароль' });
     }
 
     // Verify password
     const isValid = await comparePassword(password, user.password);
     if (!isValid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Неверный email или пароль' });
     }
 
     // Generate token
@@ -265,7 +276,7 @@ app.post('/api/auth/signin', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Signin error:', error);
-    res.status(500).json({ error: 'Failed to sign in' });
+    res.status(500).json({ error: 'Ошибка входа в систему' });
   }
 });
 
