@@ -268,6 +268,7 @@ const DroppableColumn = ({
   isOverdue,
   moveCardWithinColumn,
   isFirstRender,
+  canDrag,
 }: {
   columnId: string;
   title: string;

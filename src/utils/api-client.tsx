@@ -391,7 +391,7 @@ export const tasksAPI = {
     
     // Save updated tasks
     tasks.push(newTask);
-    await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
+    const saveResponse = await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -399,6 +399,11 @@ export const tasksAPI = {
       },
       body: JSON.stringify({ value: tasks }),
     });
+
+    if (!saveResponse.ok) {
+      const errorData = await saveResponse.json().catch(() => ({ error: 'Failed to save task' }));
+      throw new Error(errorData.error || `Failed to save task: ${saveResponse.status} ${saveResponse.statusText}`);
+    }
 
     return newTask;
   },
@@ -476,7 +481,7 @@ export const tasksAPI = {
     };
 
     // Save updated tasks
-    await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
+    const saveResponse = await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -484,6 +489,11 @@ export const tasksAPI = {
       },
       body: JSON.stringify({ value: tasks }),
     });
+
+    if (!saveResponse.ok) {
+      const errorData = await saveResponse.json().catch(() => ({ error: 'Failed to update task' }));
+      throw new Error(errorData.error || `Failed to update task: ${saveResponse.status} ${saveResponse.statusText}`);
+    }
 
     return tasks[index];
   },
@@ -548,7 +558,7 @@ export const tasksAPI = {
     const updatedTasks = tasks.filter((t: any) => t.id !== taskId);
 
     // Save updated tasks
-    await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
+    const saveResponse = await fetch(`${API_BASE_URL}/api/kv/tasks:${targetUserId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -556,6 +566,11 @@ export const tasksAPI = {
       },
       body: JSON.stringify({ value: updatedTasks }),
     });
+
+    if (!saveResponse.ok) {
+      const errorData = await saveResponse.json().catch(() => ({ error: 'Failed to delete task' }));
+      throw new Error(errorData.error || `Failed to delete task: ${saveResponse.status} ${saveResponse.statusText}`);
+    }
 
     return true;
   },
