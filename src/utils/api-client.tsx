@@ -647,8 +647,32 @@ export const projectsAPI = {
       }
     }
     
+    // Get current user info for adding as owner if needed
+    const currentUser = await authAPI.getCurrentUser();
+    
+    // Ensure owned projects have owner in members list
+    const ownedProjectsWithOwner = ownedProjects.map((project: any) => {
+      if (!project.members || !project.members.find((m: any) => m.role === 'owner')) {
+        return {
+          ...project,
+          members: [
+            {
+              id: userId,
+              userId: userId,
+              name: currentUser?.name || currentUser?.email || 'Владелец',
+              email: currentUser?.email || '',
+              role: 'owner',
+              addedDate: project.createdAt || new Date().toISOString(),
+            },
+            ...(project.members || [])
+          ]
+        };
+      }
+      return project;
+    });
+    
     // Combine owned and shared projects
-    return [...ownedProjects, ...sharedProjects];
+    return [...ownedProjectsWithOwner, ...sharedProjects];
   },
 
   create: async (projectData: any) => {
