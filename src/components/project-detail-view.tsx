@@ -7,7 +7,7 @@ import { Badge } from './ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Checkbox } from './ui/checkbox';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ProjectKanbanBoard } from './project-kanban-board';
 import { ProjectTaskTable } from './project-task-table';
 import { TaskModal } from './task-modal';

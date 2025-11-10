@@ -11,7 +11,7 @@ import { useDrag, useDrop } from 'react-dnd';
 import { useApp } from '../contexts/app-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { Filters } from './filters-panel';
 import type { Task as TaskType } from '../contexts/app-context';
 

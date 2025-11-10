@@ -25,7 +25,7 @@ import { useDrag, useDrop } from 'react-dnd';
 import { useApp } from '../contexts/app-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner@2.0.3';
 import { KanbanBoardSkeleton } from './kanban-skeleton';
 import type { Task as TaskType, CustomColumn } from '../contexts/app-context';

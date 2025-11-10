@@ -11,7 +11,7 @@ import { Checkbox } from './ui/checkbox';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Input } from './ui/input';
 import { Switch } from './ui/switch';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../contexts/app-context';
 
 type Filters = {
