@@ -14,7 +14,8 @@ import {
   getUserRoleInProject as getUserRoleInProjectFromDB,
   canEditTask as canEditTaskFromDB,
   canDeleteTask as canDeleteTaskFromDB,
-  canViewTask as canViewTaskFromDB
+  canViewTask as canViewTaskFromDB,
+  canCreateTask as canCreateTaskFromDB
 } from '../lib/permissions';
 
 const app = express();
@@ -630,15 +631,49 @@ app.post('/api/kv/:key', authenticate, async (req: AuthRequest, res: Response) =
       // Check for updated tasks
       for (const newTask of newTasks) {
         const oldTask = oldTasks.find((t: any) => t.id === newTask.id);
-        if (oldTask && newTask.projectId) {
-          // Task was updated - check if any fields changed
-          const hasChanges = JSON.stringify(oldTask) !== JSON.stringify(newTask);
-          if (hasChanges) {
-            const canEdit = await canEditTask(userId, newTask);
-            if (!canEdit) {
+        
+        // Case 1: New task being created with a projectId
+        if (!oldTask && newTask.projectId) {
+          const canCreate = await canCreateTaskFromDB(userId, newTask.projectId, newTask.assigneeId);
+          if (!canCreate) {
+            return res.status(403).json({ 
+              error: 'Forbidden: You do not have permission to create tasks in this project.' 
+            });
+          }
+        }
+        
+        // Case 2: Existing task - check if projectId changed or task updated
+        if (oldTask) {
+          // Case 2a: Task moved from personal to project (projectId changed from null/undefined to a value)
+          if (!oldTask.projectId && newTask.projectId) {
+            const canCreate = await canCreateTaskFromDB(userId, newTask.projectId, newTask.assigneeId);
+            if (!canCreate) {
               return res.status(403).json({ 
-                error: 'Forbidden: You do not have permission to edit this task.' 
+                error: 'Forbidden: You do not have permission to add tasks to this project.' 
               });
+            }
+          }
+          // Case 2b: Task moved between projects (projectId changed from one project to another)
+          else if (oldTask.projectId && newTask.projectId && oldTask.projectId !== newTask.projectId) {
+            // Need permission to create in new project
+            const canCreate = await canCreateTaskFromDB(userId, newTask.projectId, newTask.assigneeId);
+            if (!canCreate) {
+              return res.status(403).json({ 
+                error: 'Forbidden: You do not have permission to add tasks to this project.' 
+              });
+            }
+          }
+          // Case 2c: Task updated within same project
+          else if (newTask.projectId) {
+            // Check if any fields changed
+            const hasChanges = JSON.stringify(oldTask) !== JSON.stringify(newTask);
+            if (hasChanges) {
+              const canEdit = await canEditTask(userId, newTask);
+              if (!canEdit) {
+                return res.status(403).json({ 
+                  error: 'Forbidden: You do not have permission to edit this task.' 
+                });
+              }
             }
           }
         }

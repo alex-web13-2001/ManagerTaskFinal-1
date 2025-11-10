@@ -41,6 +41,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   index: number;
   moveCard: (draggedId: string, targetId: string, position: 'before' | 'after') => void;
   isInitialRender: boolean;
+  canDrag?: boolean;
 }>(({
   task,
   onClick,
@@ -48,6 +49,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   index,
   moveCard,
   isInitialRender,
+  canDrag = true,
 }, forwardedRef) => {
   const { teamMembers, currentUser, setIsDragging } = useApp();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
@@ -66,6 +68,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ITEM_TYPE,
+    canDrag: () => canDrag,
     item: () => {
       setIsDragging(true);
       return { taskId: task.id, currentStatus: task.status, index };
@@ -76,7 +79,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
     end: () => {
       setIsDragging(false);
     },
-  }));
+  }), [canDrag, task.id, task.status, index]);
 
   const [{ isOver }, drop] = useDrop(() => ({
     accept: ITEM_TYPE,
@@ -261,6 +264,7 @@ const DroppableColumn = ({
   onEdit,
   onDelete,
   isFirstRender,
+  canDrag,
 }: {
   columnId: string;
   title: string;
@@ -274,6 +278,7 @@ const DroppableColumn = ({
   onEdit?: () => void;
   onDelete?: () => void;
   isFirstRender: boolean;
+  canDrag?: boolean;
 }) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: ITEM_TYPE,
@@ -336,6 +341,7 @@ const DroppableColumn = ({
               isOverdue={isOverdue(task.deadline)}
               moveCard={moveCardWithinColumn}
               isInitialRender={isFirstRender}
+              canDrag={canDrag}
             />
           ))}
         </AnimatePresence>
@@ -716,6 +722,7 @@ export function PersonalKanbanBoard({
                 moveCardWithinColumn={handleMoveCard}
                 isCustom={isCustom}
                 isFirstRender={isFirstRender}
+                canDrag={true}
                 onEdit={() => {
                   setEditingColumnId(column.id);
                   setEditingColumnTitle(column.title);
