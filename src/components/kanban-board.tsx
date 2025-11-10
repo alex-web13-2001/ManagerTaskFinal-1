@@ -40,7 +40,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   baseColumnDefinitions,
   isInitialMount,
 }, forwardedRef) => {
-  const { projects, teamMembers, categories } = useApp();
+  const { projects, teamMembers, categories, setIsDragging } = useApp();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
   const [canDropHere, setCanDropHere] = React.useState(true);
   
@@ -50,6 +50,12 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
+    begin: () => {
+      setIsDragging(true);
+    },
+    end: () => {
+      setIsDragging(false);
+    },
   }));
 
   const [{ isOver }, drop] = useDrop(() => ({
