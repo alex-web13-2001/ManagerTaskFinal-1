@@ -875,8 +875,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const createProject = async (projectData: Partial<Project>): Promise<Project> => {
     try {
       const newProject = await projectsAPI.create(projectData);
-      // Добавляем проект сразу в локальное состояние
-      setProjects((prev) => [...prev, newProject]);
+      // Immediately refetch projects to ensure we have the correct role and membership data
+      await fetchProjects();
       toast.success('Проект создан');
       return newProject;
     } catch (error: any) {

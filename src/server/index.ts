@@ -55,7 +55,9 @@ const upload = multer({
 // ========== AUTH MIDDLEWARE ==========
 
 interface AuthRequest extends Request {
-  user?: JwtPayload;
+  user?: JwtPayload & {
+    roleInProject?: UserRole;
+  };
 }
 
 async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
@@ -73,6 +75,39 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
+/**
+ * Middleware to check if user has access to a project
+ * This middleware should be used after authenticate middleware
+ * It checks if the user is a member of the project and enriches the request with role information
+ */
+async function canAccessProject(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    // 1. Get project ID and user ID
+    const { projectId } = req.params;
+    const userId = req.user!.sub;
+
+    // 2. Basic validation - ensure projectId is provided
+    if (!projectId) {
+      return res.status(400).json({ error: 'Bad Request: Project ID is required.' });
+    }
+
+    // 3. Check user's role in the project
+    const role = await getUserRoleInProject(userId, projectId);
+
+    // 4. If no role found, user is not a member of the project
+    if (!role) {
+      return res.status(403).json({ error: 'Forbidden: You are not a member of this project.' });
+    }
+
+    // 5. Enrich request object with role information for use in route handlers
+    req.user!.roleInProject = role;
+    next();
+  } catch (error: any) {
+    console.error('Access check error:', error);
+    res.status(500).json({ error: 'Failed to check project access' });
   }
 }
 
@@ -655,16 +690,11 @@ app.delete('/api/projects/:id', authenticate, async (req: AuthRequest, res: Resp
  * GET /api/projects/:projectId/tasks
  * Get all tasks in a project (filtered by role)
  */
-app.get('/api/projects/:projectId/tasks', authenticate, async (req: AuthRequest, res: Response) => {
+app.get('/api/projects/:projectId/tasks', authenticate, canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
     const { projectId } = req.params;
-
-    // Check if user has access to the project
-    const role = await getUserRoleInProject(userId, projectId);
-    if (!role) {
-      return res.status(403).json({ error: 'You do not have access to this project' });
-    }
+    const role = req.user!.roleInProject!; // Role is already checked by canAccessProject middleware
 
     // Build query based on role
     const whereClause: any = { projectId };
@@ -707,16 +737,9 @@ app.get('/api/projects/:projectId/tasks', authenticate, async (req: AuthRequest,
  * GET /api/projects/:projectId/members
  * Get all members of a project
  */
-app.get('/api/projects/:projectId/members', authenticate, async (req: AuthRequest, res: Response) => {
+app.get('/api/projects/:projectId/members', authenticate, canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.sub;
     const { projectId } = req.params;
-
-    // Check if user has access to the project
-    const role = await getUserRoleInProject(userId, projectId);
-    if (!role) {
-      return res.status(403).json({ error: 'You do not have access to this project' });
-    }
 
     // Fetch project members
     const members = await prisma.projectMember.findMany({
