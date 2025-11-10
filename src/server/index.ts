@@ -438,28 +438,35 @@ app.post('/api/projects', authenticate, async (req: AuthRequest, res: Response) 
       return res.status(400).json({ error: 'Project name is required' });
     }
 
-    // Create project in database
-    const project = await prisma.project.create({
-      data: {
-        name,
-        description: description || null,
-        color: color || '#3b82f6',
-        ownerId: ownerId,
-      },
-    });
+    // Use transaction to ensure both project and project member are created together
+    // This prevents "orphan projects" without owner members in case of errors
+    const project = await prisma.$transaction(async (tx) => {
+      // Step 1: Create project
+      const newProject = await tx.project.create({
+        data: {
+          name,
+          description: description || null,
+          color: color || '#3b82f6',
+          ownerId: ownerId,
+        },
+      });
 
-    // Immediately add owner as a member with 'owner' role
-    await prisma.projectMember.create({
-      data: {
-        userId: ownerId,
-        projectId: project.id,
-        role: 'owner',
-      },
+      // Step 2: Immediately add owner as a member with 'owner' role
+      // This links ownership with the access control system
+      await tx.projectMember.create({
+        data: {
+          userId: ownerId,
+          projectId: newProject.id,
+          role: 'owner',
+        },
+      });
+
+      return newProject;
     });
 
     res.status(201).json(project);
   } catch (error: any) {
-    console.error('Create project error:', error);
+    console.error('Failed to create project or project member entry:', error);
     res.status(500).json({ error: 'Failed to create project' });
   }
 });
