@@ -2,6 +2,7 @@ import React from 'react';
 import { LayoutGrid, List, X, Search, User, Users, Calendar } from 'lucide-react';
 import { Button } from './ui/button';
 import { KanbanBoard } from './kanban-board';
+import { KanbanBoardSkeleton } from './kanban-skeleton';
 import { TaskTable } from './task-table';
 import { TaskModal } from './task-modal';
 import { Badge } from './ui/badge';
@@ -44,7 +45,7 @@ type DashboardViewProps = {
 };
 
 export function DashboardView({ onCalendarView }: DashboardViewProps = {}) {
-  const { projects, teamMembers, currentUser, categories } = useApp();
+  const { projects, teamMembers, currentUser, categories, tasks, customColumns, isLoading, isInitialLoad } = useApp();
   const [viewMode, setViewMode] = React.useState<'kanban' | 'table'>('kanban');
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
   const [searchQuery, setSearchQuery] = React.useState('');
@@ -591,7 +592,10 @@ export function DashboardView({ onCalendarView }: DashboardViewProps = {}) {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        {viewMode === 'kanban' ? (
+        {/* Show loading skeleton during initial load or when data is being fetched */}
+        {(isInitialLoad || isLoading) && viewMode === 'kanban' ? (
+          <KanbanBoardSkeleton columnCount={showCustomColumns && customColumns.length > 0 ? 4 + customColumns.length : 4} />
+        ) : viewMode === 'kanban' ? (
           <KanbanBoard 
             searchQuery={searchQuery} 
             filters={effectiveFilters} 

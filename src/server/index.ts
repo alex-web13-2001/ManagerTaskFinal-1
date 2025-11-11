@@ -1291,14 +1291,16 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
     }
 
     // Update task
-    const { title, description, status, priority, category, tags, dueDate, assigneeId, orderKey, version } = req.body;
+    const { title, description, status, priority, category, categoryId, tags, dueDate, assigneeId, orderKey, version } = req.body;
     
     const updateData: any = {};
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (status !== undefined) updateData.status = status;
     if (priority !== undefined) updateData.priority = priority;
+    // Handle both category and categoryId for backward compatibility
     if (category !== undefined) updateData.category = category;
+    if (categoryId !== undefined) updateData.category = categoryId;
     if (tags !== undefined) updateData.tags = tags;
     if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
     if (assigneeId !== undefined) updateData.assigneeId = assigneeId;
