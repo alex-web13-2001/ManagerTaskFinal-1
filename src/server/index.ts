@@ -84,10 +84,15 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
  * It checks if the user is a member of the project and enriches the request with role information
  */
 async function canAccessProject(req: AuthRequest, res: Response, next: NextFunction) {
+  // ПРОВЕРКА НА СЛУЧАЙ, ЕСЛИ AUTHENTICATE НЕ СРАБОТАЛ
+  if (!req.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   try {
-    // 1. Get project ID and user ID
-    const { projectId } = req.params;
-    const userId = req.user!.sub;
+    // 1. Get project ID and user ID - support both :projectId and :id parameters
+    const projectId = req.params.projectId || req.params.id;
+    const userId = req.user.sub; // Теперь TypeScript не будет ругаться
 
     // 2. Basic validation - ensure projectId is provided
     if (!projectId) {
@@ -103,7 +108,7 @@ async function canAccessProject(req: AuthRequest, res: Response, next: NextFunct
     }
 
     // 5. Enrich request object with role information for use in route handlers
-    req.user!.roleInProject = role;
+    req.user.roleInProject = role;
     next();
   } catch (error: any) {
     console.error('Access check error:', error);
@@ -574,16 +579,9 @@ app.get('/api/projects', authenticate, async (req: AuthRequest, res: Response) =
  * GET /api/projects/:id
  * Get a specific project by ID
  */
-app.get('/api/projects/:id', authenticate, async (req: AuthRequest, res: Response) => {
+app.get('/api/projects/:id', authenticate, canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.sub;
     const projectId = req.params.id;
-
-    // Check if user has access to the project
-    const role = await getUserRoleInProject(userId, projectId);
-    if (!role) {
-      return res.status(403).json({ error: 'You do not have access to this project' });
-    }
 
     const project = await prisma.project.findUnique({
       where: { id: projectId },
@@ -616,13 +614,12 @@ app.get('/api/projects/:id', authenticate, async (req: AuthRequest, res: Respons
  * PATCH /api/projects/:id
  * Update a project (only Owner and Collaborator can edit)
  */
-app.patch('/api/projects/:id', authenticate, async (req: AuthRequest, res: Response) => {
+app.patch('/api/projects/:id', authenticate, canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.sub;
     const projectId = req.params.id;
+    const role = req.user!.roleInProject!; // Role is already checked by canAccessProject middleware
 
     // Check edit permission
-    const role = await getUserRoleInProject(userId, projectId);
     if (role !== 'owner' && role !== 'collaborator') {
       return res.status(403).json({ error: 'You do not have permission to edit this project' });
     }
@@ -663,13 +660,12 @@ app.patch('/api/projects/:id', authenticate, async (req: AuthRequest, res: Respo
  * DELETE /api/projects/:id
  * Delete a project (only Owner can delete)
  */
-app.delete('/api/projects/:id', authenticate, async (req: AuthRequest, res: Response) => {
+app.delete('/api/projects/:id', authenticate, canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user!.sub;
     const projectId = req.params.id;
+    const role = req.user!.roleInProject!; // Role is already checked by canAccessProject middleware
 
     // Check delete permission
-    const role = await getUserRoleInProject(userId, projectId);
     if (role !== 'owner') {
       return res.status(403).json({ error: 'Only the project owner can delete the project' });
     }
