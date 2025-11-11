@@ -515,8 +515,11 @@ export function ProjectMembersModal({
       setInviteEmail('');
       setInviteRole('member');
       
-      // Refresh invitation list from server to get latest data
-      await fetchInvitations();
+      // FIX Problem #2: Refresh both invitation list AND members to show new invited member
+      await Promise.all([
+        fetchInvitations(),
+        fetchMembers(false), // Silent refresh to update member list with invited status
+      ]);
       
       toast.success('Приглашение успешно отправлено');
       setActiveTab('invitations');
@@ -615,10 +618,9 @@ export function ProjectMembersModal({
       // Update role using new API
       await projectsAPI.updateMemberRole(prjId, memberId, newRole);
       
-      // Update local state
-      setMembers(
-        members.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
-      );
+      // FIX Problem #2: Refresh members from server instead of just updating local state
+      await fetchMembers(false);
+      
       toast.success('Роль обновлена');
     } catch (error) {
       console.error('Change role error:', error);
@@ -647,8 +649,9 @@ export function ProjectMembersModal({
       // Remove member using new API
       await projectsAPI.removeMember(prjId, memberToDelete.id);
       
-      // Update local state
-      setMembers(members.filter((m) => m.id !== memberToDelete.id));
+      // FIX Problem #2: Refresh members from server
+      await fetchMembers(false);
+      
       toast.success('Участник удалён из проекта');
     } catch (error) {
       console.error('Delete member error:', error);

@@ -76,7 +76,15 @@ export function InvitationsModal({
       setIsLoading(true);
       const data = await invitationsAPI.getMyInvitations();
       console.log('📩 Received invitations:', data);
-      setInvitations(data);
+      
+      // FIX Problem #2: Map project.name to projectName for display
+      const mappedInvitations = data.map((inv: any) => ({
+        ...inv,
+        projectName: inv.project?.name || inv.projectName || 'Без названия',
+        projectId: inv.project?.id || inv.projectId,
+      }));
+      
+      setInvitations(mappedInvitations);
     } catch (error) {
       console.error('Fetch invitations error:', error);
       toast.error('Ошибка загрузки приглашений');
