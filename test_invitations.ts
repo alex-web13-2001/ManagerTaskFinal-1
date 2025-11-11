@@ -1,9 +1,7 @@
 import { config } from 'dotenv';
 config();
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from './src/server/db';
 
 async function main() {
   // Создаем проект

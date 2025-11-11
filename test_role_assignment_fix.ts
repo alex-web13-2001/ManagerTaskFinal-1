@@ -7,7 +7,7 @@
  * - Fix: role is hardcoded as 'owner' for project creators
  */
 
-import prisma from './src/lib/prisma.js';
+import prisma from './src/server/db';
 import { getUserRoleInProject } from './src/lib/permissions.js';
 
 async function testRoleAssignmentFix() {

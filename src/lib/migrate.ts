@@ -3,7 +3,7 @@
  * Migrates data from KV store to Prisma models
  */
 
-import prisma from './prisma';
+import prisma from '../server/db';
 import * as kv from '../server/kv_store';
 
 interface KVProject {

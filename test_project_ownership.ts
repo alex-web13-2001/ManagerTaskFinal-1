@@ -3,7 +3,7 @@
  * Tests that when a project is created, the owner is automatically added as a ProjectMember
  */
 
-import prisma from './src/lib/prisma';
+import prisma from './src/server/db';
 import { getUserRoleInProject } from './src/lib/permissions';
 
 async function testProjectOwnershipSync() {

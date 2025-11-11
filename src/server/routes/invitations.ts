@@ -15,7 +15,7 @@ import {
   resendInvitation,
 } from '../../lib/invitations';
 import emailService from '../../lib/email';
-import prisma from '../../lib/prisma';
+import prisma from '../db';
 
 const router = Router();
 

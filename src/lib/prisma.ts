@@ -1,3 +1,7 @@
+// DEPRECATED: This file is deprecated. Use src/server/db.ts instead.
+// This file is kept for backwards compatibility only.
+// All new code should import from '../server/db' instead of './prisma'
+
 import { PrismaClient } from '@prisma/client';
 
 // PrismaClient is attached to the `global` object in development to prevent

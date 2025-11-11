@@ -7,7 +7,7 @@
  * 3. Что обе операции выполняются в одной транзакции
  */
 
-import prisma from './src/lib/prisma';
+import prisma from './src/server/db';
 
 async function testCreateProjectHandler() {
   console.log('🧪 Тестирование обработчика createProject\n');

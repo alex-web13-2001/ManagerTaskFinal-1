@@ -3,7 +3,7 @@
  * Implements requirements from the access control specification
  */
 
-import prisma from './prisma';
+import prisma from '../server/db';
 
 export type UserRole = 'owner' | 'collaborator' | 'member' | 'viewer';
 
