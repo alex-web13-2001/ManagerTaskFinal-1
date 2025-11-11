@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Badge } from './ui/badge';
 import { Loader2, Check, X, Mail, Calendar, AlertCircle, Users } from 'lucide-react';
 import { toast } from 'sonner';
-import { invitationsAPI, getAuthToken } from '../utils/supabase/client';
+import { invitationsAPI, getAuthToken } from '../utils/api-client';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 

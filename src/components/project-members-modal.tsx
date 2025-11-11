@@ -42,8 +42,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getAuthToken, authAPI } from '../utils/supabase/client';
-import { projectsAPI } from '../utils/api-client';
+import { getAuthToken, authAPI, projectsAPI } from '../utils/api-client';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
@@ -124,6 +123,31 @@ const formatDate = (dateString: string): string => {
     return dateString; // Return original if parsing fails
   }
 };
+
+/**
+ * Safely generate avatar initials from name or email
+ * Handles null/undefined/non-string values
+ */
+function getAvatarSafely(name: unknown, email: unknown): string {
+  // Try to use name first
+  if (name && typeof name === 'string' && name.trim()) {
+    const parts = name.trim().split(/\s+/).filter(p => p.length > 0);
+    if (parts.length > 0) {
+      return parts
+        .slice(0, 2)  // Take first 2 words
+        .map(p => p[0].toUpperCase())
+        .join('');
+    }
+  }
+  
+  // Fallback to email
+  if (email && typeof email === 'string' && email.trim()) {
+    return email[0].toUpperCase();
+  }
+  
+  // Last resort
+  return '?';
+}
 
 // Mock data
 const getMockMembers = (): Member[] => [
@@ -282,8 +306,14 @@ export function ProjectMembersModal({
               {
                 id: ownerId,
                 userId: ownerId,
-                name: currentUser.name || currentUser.email,
-                email: currentUser.email,
+                name: (currentUser && typeof currentUser.name === 'string') 
+                  ? currentUser.name 
+                  : (currentUser && typeof currentUser.email === 'string')
+                    ? currentUser.email
+                    : 'Владелец проекта',
+                email: (currentUser && typeof currentUser.email === 'string')
+                  ? currentUser.email
+                  : 'owner@placeholder.local',
                 role: 'owner',
                 status: 'active',
                 addedDate: project.createdAt || new Date().toISOString(),
@@ -297,7 +327,7 @@ export function ProjectMembersModal({
                 id: ownerId,
                 userId: ownerId,
                 name: 'Владелец проекта',
-                email: '',
+                email: 'owner@placeholder.local',
                 role: 'owner',
                 status: 'active',
                 addedDate: project.createdAt || new Date().toISOString(),
@@ -313,7 +343,7 @@ export function ProjectMembersModal({
               id: ownerId,
               userId: ownerId,
               name: 'Владелец проекта',
-              email: '',
+              email: 'owner@placeholder.local',
               role: 'owner',
               status: 'active',
               addedDate: project.createdAt || new Date().toISOString(),
@@ -340,16 +370,40 @@ export function ProjectMembersModal({
       // Combine accepted members with pending invitations
       const allMembersWithInvited = [...allMembers, ...invitedMembers];
       
-      // Transform members to match expected format
-      const transformedMembers = allMembersWithInvited.map((m: any) => ({
-        id: m.id || m.userId,
-        name: m.name || m.email || 'Без имени',
-        email: m.email,
-        avatar: m.name ? m.name.split(' ').map((n: string) => n[0]).join('').toUpperCase() : m.email?.[0]?.toUpperCase() || '?',
-        role: m.role,
-        status: m.status || 'active',
-        addedDate: m.addedDate ? new Date(m.addedDate).toLocaleDateString('ru-RU') : 'Недавно',
-      }));
+      // Transform members to match expected format with validation
+      const transformedMembers = allMembersWithInvited
+        .filter((m: any) => {
+          // Remove invalid entries
+          if (!m.id && !m.userId) {
+            console.warn('Member without ID:', m);
+            return false;
+          }
+          if (!m.email && !m.name) {
+            console.warn('Member without email and name:', m);
+            return false;
+          }
+          return true;
+        })
+        .map((m: any) => {
+          const safeName = (typeof m.name === 'string' && m.name.trim()) 
+            ? m.name.trim() 
+            : '';
+          const safeEmail = (typeof m.email === 'string' && m.email.trim()) 
+            ? m.email.trim() 
+            : '';
+          
+          return {
+            id: m.id || m.userId,
+            name: safeName || safeEmail || 'Без имени',
+            email: safeEmail,
+            avatar: getAvatarSafely(safeName, safeEmail),
+            role: m.role,
+            status: m.status || 'active',
+            addedDate: m.addedDate 
+              ? new Date(m.addedDate).toLocaleDateString('ru-RU') 
+              : 'Недавно',
+          };
+        });
       
       setMembers(transformedMembers);
     } catch (error) {

@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Alert, AlertDescription } from './ui/alert';
 import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
-import { authAPI } from '../utils/supabase/client';
+import { authAPI } from '../utils/api-client';
 import { AnimatedLogo } from './logo';
 
 export function AuthScreen({ onLogin }: { onLogin: () => void }) {
@@ -78,7 +78,7 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
     setIsLoading(true);
     
     try {
-      await authAPI.resetPassword(resetEmail);
+      await authAPI.forgotPassword(resetEmail);
       setResetEmailSent(true);
       toast.success('Письмо с инструкциями отправлено на ' + resetEmail);
     } catch (error: any) {

@@ -583,6 +583,98 @@ export const projectsAPI = {
 
     return true;
   },
+
+  /**
+   * Send invitation to project
+   */
+  sendInvitation: async (projectId: string, email: string, role: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/invitations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ email, role }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to send invitation');
+    }
+
+    return await response.json();
+  },
+
+  /**
+   * Revoke invitation
+   */
+  revokeInvitation: async (projectId: string, invitationId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/invitations/${invitationId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to revoke invitation');
+    }
+
+    return true;
+  },
+
+  /**
+   * Update member role
+   */
+  updateMemberRole: async (projectId: string, memberId: string, role: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/members/${memberId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ role }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to update member role');
+    }
+
+    return await response.json();
+  },
+
+  /**
+   * Remove member from project
+   */
+  removeMember: async (projectId: string, memberId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/members/${memberId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to remove member');
+    }
+
+    return true;
+  },
 };
 // ========== INVITATIONS API ==========
 

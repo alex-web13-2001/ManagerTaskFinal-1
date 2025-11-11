@@ -85,6 +85,31 @@ const roleColors: Record<string, string> = {
   viewer: 'bg-gray-100 text-gray-700',
 };
 
+/**
+ * Safely generate avatar initials from name or email
+ * Handles null/undefined/non-string values
+ */
+function getAvatarSafely(name: unknown, email: unknown): string {
+  // Try to use name first
+  if (name && typeof name === 'string' && name.trim()) {
+    const parts = name.trim().split(/\s+/).filter(p => p.length > 0);
+    if (parts.length > 0) {
+      return parts
+        .slice(0, 2)  // Take first 2 words
+        .map(p => p[0].toUpperCase())
+        .join('');
+    }
+  }
+  
+  // Fallback to email
+  if (email && typeof email === 'string' && email.trim()) {
+    return email[0].toUpperCase();
+  }
+  
+  // Last resort
+  return '?';
+}
+
 type ProjectsViewProps = {
   onProjectClick?: (projectId: string) => void;
 };
@@ -391,7 +416,7 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
                         {project.members.slice(0, 4).map((member: any, idx: number) => (
                           <Avatar key={idx} className="w-7 h-7 border-2 border-white">
                             <AvatarFallback className="text-xs">
-                              {member.name?.split(' ').map((n: string) => n[0]).join('') || member.email?.[0]?.toUpperCase() || '?'}
+                              {getAvatarSafely(member.name, member.email)}
                             </AvatarFallback>
                           </Avatar>
                         ))}

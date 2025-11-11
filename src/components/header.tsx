@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { useApp } from '../contexts/app-context';
-import { invitationsAPI, getAuthToken } from '../utils/supabase/client';
+import { invitationsAPI, getAuthToken } from '../utils/api-client';
 import { toast } from 'sonner';
 import { RealtimeIndicator } from './realtime-indicator';
 import { Logo } from './logo';
