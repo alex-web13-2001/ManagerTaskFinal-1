@@ -584,7 +584,7 @@ export function TaskModal({
   // Filter categories to show only categories available in the selected project
   const availableCategories = React.useMemo(() => {
     if (projectId === 'personal') {
-      // Personal tasks can use all categories
+      // Personal tasks can use all user's categories
       return categories;
     }
     
@@ -596,8 +596,9 @@ export function TaskModal({
     const projectAvailableCategories = (selectedProject as any).availableCategories;
     
     if (!projectAvailableCategories || !Array.isArray(projectAvailableCategories) || projectAvailableCategories.length === 0) {
-      // If no categories specified, allow all categories
-      return categories;
+      // If no categories are assigned to the project, show empty list
+      // Only project owner can assign categories via project modal
+      return [];
     }
     
     // Filter to only show categories available in this project
