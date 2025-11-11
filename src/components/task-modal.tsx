@@ -669,6 +669,18 @@ export function TaskModal({
       });
     }
     
+    // FIX Problem #4: ALWAYS include current user if they have access to the project
+    // This ensures the current user can assign tasks to themselves
+    if (currentUser && !membersMap.has(currentUser.id)) {
+      console.log(`✅ Adding current user ${currentUser.name} to available assignees (Problem #4 fix)`);
+      membersMap.set(currentUser.id, {
+        id: currentUser.id,
+        name: currentUser.name,
+        email: currentUser.email,
+        avatarUrl: currentUser.avatarUrl,
+      });
+    }
+    
     // Also include existing task assignee (from existingTask, not current assigneeId state)
     // This prevents re-renders when assigneeId changes
     if (existingTask?.assigneeId && !membersMap.has(existingTask.assigneeId)) {

@@ -67,7 +67,9 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
 
   const handleInvitationAccepted = async () => {
     await fetchInvitations();
-    await refreshData(); // Refresh projects list
+    // FIX Problem #3: Refresh all data including tasks and projects after accepting invitation
+    // This ensures invited members can see their assigned tasks immediately
+    await refreshData(); // Refresh projects list and tasks
   };
 
   return (
