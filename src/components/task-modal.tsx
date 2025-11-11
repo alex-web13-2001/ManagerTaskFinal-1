@@ -138,6 +138,7 @@ export function TaskModal({
     updateTask, 
     deleteTask,
     uploadTaskAttachment,
+    uploadMultipleTaskAttachments,
     deleteTaskAttachment,
     canDeleteTask,
     canCreateTask,
@@ -445,34 +446,20 @@ export function TaskModal({
         setIsUploadingFiles(true);
         console.log(`📎 Uploading ${pendingFiles.length} file(s) for task ${savedTask.id}`);
         
-        let successCount = 0;
-        let failCount = 0;
-        
-        for (const file of pendingFiles) {
-          try {
-            console.log(`⬆️ Uploading file: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-            await uploadTaskAttachment(savedTask.id, file);
-            successCount++;
-            console.log(`✅ File uploaded: ${file.name}`);
-          } catch (uploadError: any) {
-            failCount++;
-            console.error(`❌ File upload error for ${file.name}:`, uploadError);
-            toast.error(`Ошибка загрузки файла ${file.name}: ${uploadError.message || 'Неизвестная ошибка'}`);
-            // Continue with other files even if one fails
-          }
+        try {
+          // Upload all files at once instead of one by one
+          const uploadedAttachments = await uploadMultipleTaskAttachments(savedTask.id, pendingFiles);
+          console.log(`✅ Successfully uploaded ${uploadedAttachments.length} files`);
+          toast.success(`Загружено файлов: ${uploadedAttachments.length}`);
+        } catch (uploadError: any) {
+          console.error(`❌ File upload error:`, uploadError);
+          toast.error(`Ошибка загрузки файлов: ${uploadError.message || 'Неизвестная ошибка'}`);
+        } finally {
+          setIsUploadingFiles(false);
+          setPendingFiles([]);
         }
         
-        setIsUploadingFiles(false);
-        setPendingFiles([]);
-        
-        if (successCount > 0) {
-          toast.success(`Загружено файлов: ${successCount}`);
-        }
-        if (failCount > 0) {
-          toast.warning(`Не удалось загрузить файлов: ${failCount}`);
-        }
-        
-        console.log(`📎 Upload complete: ${successCount} success, ${failCount} failed`);
+        console.log(`📎 Upload complete`);
       }
       
       if (isCreateMode) {
