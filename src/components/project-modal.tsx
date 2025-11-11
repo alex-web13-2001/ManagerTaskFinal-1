@@ -49,8 +49,9 @@ export function ProjectModal({
   onSave,
   onManageMembers,
 }: ProjectModalProps) {
-  const { projects, createProject, updateProject, categories } = useApp();
+  const { projects, createProject, updateProject, categories, uploadProjectAttachment } = useApp();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [isUploadingFile, setIsUploadingFile] = React.useState(false);
   const prevOpenRef = React.useRef(false);
   
   const isEditMode = mode === 'edit';
@@ -187,16 +188,25 @@ export function ProjectModal({
     );
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files) {
-      const newAttachments = Array.from(files).map((file) => ({
-        id: `file-${Date.now()}-${Math.random()}`,
-        name: file.name,
-        size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-        url: URL.createObjectURL(file),
-      }));
-      setAttachments([...attachments, ...newAttachments]);
+    if (!files || files.length === 0 || !projectId || !isEditMode) return;
+
+    setIsUploadingFile(true);
+    try {
+      // Upload files one by one
+      for (const file of Array.from(files)) {
+        const attachment = await uploadProjectAttachment(projectId, file);
+        setAttachments(prev => [...prev, attachment]);
+      }
+      toast.success('Файлы загружены успешно');
+    } catch (error: any) {
+      console.error('File upload error:', error);
+      toast.error(error.message || 'Ошибка загрузки файлов');
+    } finally {
+      setIsUploadingFile(false);
+      // Reset file input
+      e.target.value = '';
     }
   };
 
@@ -364,22 +374,40 @@ export function ProjectModal({
           {/* Файлы */}
           <div className="space-y-2">
             <Label>Файлы</Label>
-            <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-purple-500 transition-colors cursor-pointer">
-              <input
-                type="file"
-                multiple
-                onChange={handleFileUpload}
-                className="hidden"
-                id="project-file-upload"
-              />
-              <label htmlFor="project-file-upload" className="cursor-pointer">
-                <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-600">
-                  Перетащите файлы сюда или нажмите для выбора
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Документы, изображения, архивы</p>
-              </label>
-            </div>
+            {isEditMode && projectId ? (
+              <>
+                <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-purple-500 transition-colors cursor-pointer">
+                  <input
+                    type="file"
+                    multiple
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="project-file-upload"
+                    disabled={isUploadingFile}
+                  />
+                  <label htmlFor="project-file-upload" className="cursor-pointer">
+                    {isUploadingFile ? (
+                      <>
+                        <Loader2 className="w-8 h-8 text-gray-400 mx-auto mb-2 animate-spin" />
+                        <p className="text-sm text-gray-600">Загрузка файлов...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-600">
+                          Перетащите файлы сюда или нажмите для выбора
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">Документы, изображения, архивы</p>
+                      </>
+                    )}
+                  </label>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 p-4 bg-gray-50 rounded-lg">
+                Загрузка файлов доступна после создания проекта
+              </p>
+            )}
             {attachments.length > 0 && (
               <div className="space-y-2 mt-3">
                 {attachments.map((attachment) => (

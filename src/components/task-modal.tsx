@@ -146,6 +146,7 @@ export function TaskModal({
   } = useApp();
   const [mode, setMode] = React.useState<TaskModalMode>(initialMode);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [projectCategories, setProjectCategories] = React.useState<any[]>([]);
   
   const isEditMode = mode === 'edit';
   const isViewMode = mode === 'view';
@@ -568,7 +569,28 @@ export function TaskModal({
     return categories.find((c) => c.id === categoryId);
   }, [categories, categoryId]);
   
+  // Load project categories when project changes
+  React.useEffect(() => {
+    if (projectId && projectId !== 'personal' && selectedProject) {
+      // Fetch categories for this project (owner's categories filtered by availableCategories)
+      const loadProjectCategories = async () => {
+        try {
+          const { projectsAPI } = await import('../utils/api-client');
+          const cats = await projectsAPI.getProjectCategories(projectId);
+          setProjectCategories(cats);
+        } catch (error) {
+          console.error('Failed to load project categories:', error);
+          setProjectCategories([]);
+        }
+      };
+      loadProjectCategories();
+    } else {
+      setProjectCategories([]);
+    }
+  }, [projectId, selectedProject]);
+  
   // Filter categories to show only categories available in the selected project
+  // For project tasks, use categories from the project owner (filtered by availableCategories)
   const availableCategories = React.useMemo(() => {
     if (projectId === 'personal') {
       // Personal tasks can use all user's categories
@@ -579,18 +601,11 @@ export function TaskModal({
       return categories;
     }
     
-    // Check if project has availableCategories defined
-    const projectAvailableCategories = (selectedProject as any).availableCategories;
-    
-    if (!projectAvailableCategories || !Array.isArray(projectAvailableCategories) || projectAvailableCategories.length === 0) {
-      // If no categories are assigned to the project, show empty list
-      // Only project owner can assign categories via project modal
-      return [];
-    }
-    
-    // Filter to only show categories available in this project
-    return categories.filter(cat => projectAvailableCategories.includes(cat.id));
-  }, [projectId, selectedProject, categories]);
+    // For project tasks: ONLY use project categories from the owner
+    // These are already filtered by project.availableCategories on the server
+    // Do NOT fallback to current user's categories - members should only see owner's categories
+    return projectCategories;
+  }, [projectId, selectedProject, categories, projectCategories]);
   
   // Reset category if it's not available in the selected project
   React.useEffect(() => {
@@ -1456,7 +1471,14 @@ export function TaskModal({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => window.open(attachment.url, '_blank')}
+                            onClick={() => {
+                              // FIX: Build full URL for attachment download
+                              const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+                              const fullUrl = attachment.url.startsWith('http') 
+                                ? attachment.url 
+                                : `${API_BASE_URL}${attachment.url}`;
+                              window.open(fullUrl, '_blank');
+                            }}
                           >
                             <Download className="w-4 h-4" />
                           </Button>

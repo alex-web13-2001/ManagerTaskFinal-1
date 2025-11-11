@@ -58,7 +58,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
     end: () => {
       setIsDragging(false);
     },
-  }));
+  }), [task.id, task.status, task.projectId, index]);
 
   const [{ isOver }, drop] = useDrop(() => ({
     accept: ITEM_TYPE,
@@ -103,7 +103,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
     collect: (monitor) => ({
       isOver: monitor.isOver(),
     }),
-  }), [dropPosition, allTasks, baseColumnDefinitions, canDropHere]);
+  }), [task.id, task.status, dropPosition, allTasks, baseColumnDefinitions, canDropHere, moveCard]);
 
   const combinedRef = (node: HTMLDivElement | null) => {
     drag(node);
@@ -386,7 +386,7 @@ const DroppableColumn = ({
       isOver: monitor.isOver({ shallow: true }),
       canDrop: monitor.canDrop(),
     }),
-  }), [isCustom, allTasks]);
+  }), [columnId, isCustom, allTasks, onDrop]);
 
   // Проверяем, является ли этот столбец недоступным для личных задач
   const isProjectOnlyColumn = !isCustom && !PERSONAL_TASK_ALLOWED_STATUSES.includes(columnId);

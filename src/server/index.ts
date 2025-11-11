@@ -908,6 +908,46 @@ apiRouter.delete('/projects/:projectId/members/:memberId', canAccessProject, asy
   }
 });
 
+/**
+ * GET /api/projects/:projectId/categories
+ * Get categories available for a specific project
+ * FIX Problem #3: Returns owner's categories that are assigned to this project
+ * Members see these categories and can use them for tasks
+ */
+apiRouter.get('/projects/:projectId/categories', canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId } = req.params;
+
+    // Get project with owner and available categories
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { 
+        ownerId: true,
+        availableCategories: true,
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Get owner's categories (not current user's categories!)
+    const kvStore = await import('./kv_store.js');
+    const ownerCategories = await kvStore.get(`categories:${project.ownerId}`) || [];
+
+    // Filter owner's categories by project's availableCategories
+    const projectCategories = ownerCategories.filter((cat: any) => 
+      Array.isArray(project.availableCategories) && 
+      project.availableCategories.includes(cat.id)
+    );
+
+    res.json(projectCategories);
+  } catch (error: any) {
+    console.error('Get project categories error:', error);
+    res.status(500).json({ error: 'Failed to fetch project categories' });
+  }
+});
+
 // ========== INVITATION ROUTES (PROTECTED) ==========
 // Mount invitation routes (handles /api/invitations/* and /api/projects/:projectId/invitations)
 apiRouter.use('/invitations', invitationRoutes);
@@ -1122,12 +1162,13 @@ apiRouter.post('/upload-project-attachment', uploadRateLimiter, upload.single('f
     }
 
     const fileUrl = `/uploads/${req.file.filename}`;
+    const decodedFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
     const attachmentId = `proj_attachment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Return attachment metadata
     const attachment = {
       id: attachmentId,
-      name: req.file.originalname,
+      name: decodedFileName,
       size: `${(req.file.size / 1024 / 1024).toFixed(2)} MB`,
       url: fileUrl,
       uploadedAt: new Date().toISOString(),
