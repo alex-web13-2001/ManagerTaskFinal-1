@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
-import prisma from '../lib/prisma';
+import prisma from './db';
 import { hashPassword, comparePassword, generateToken } from '../lib/auth';
 import emailService from '../lib/email';
 import invitationRoutes from './routes/invitations.js';

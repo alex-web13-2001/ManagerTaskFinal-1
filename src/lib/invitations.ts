@@ -4,7 +4,7 @@
  */
 
 import crypto from 'crypto';
-import prisma from './prisma';
+import prisma from '../server/db';
 import { canInviteUsers } from './permissions';
 
 export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked';
