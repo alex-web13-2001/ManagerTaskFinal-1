@@ -302,6 +302,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.warn(`⚠️ Показано ${limitedProjects.length} из ${activeProjects.length} проектов для оптимизации производительности`);
       }
       
+      // Extract team members from all projects
+      const membersMap = new Map<string, TeamMember>();
+      limitedProjects.forEach(project => {
+        if (project.members && Array.isArray(project.members)) {
+          project.members.forEach((member: any) => {
+            // Handle both flat and nested user structures
+            const memberId = member.userId || member.id;
+            const memberName = member.user?.name || member.name || member.user?.email || member.email || 'Без имени';
+            const memberEmail = member.user?.email || member.email || '';
+            const memberAvatar = member.user?.avatarUrl || member.avatarUrl;
+            
+            if (memberId && !membersMap.has(memberId)) {
+              membersMap.set(memberId, {
+                id: memberId,
+                name: memberName,
+                email: memberEmail,
+                avatarUrl: memberAvatar,
+              });
+            }
+          });
+        }
+      });
+      
+      // Update team members if changed
+      const extractedMembers = Array.from(membersMap.values());
+      setTeamMembers(prevMembers => {
+        const prevIds = new Set(prevMembers.map(m => m.id));
+        const newIds = new Set(extractedMembers.map(m => m.id));
+        
+        // Check if members have changed
+        if (prevMembers.length !== extractedMembers.length ||
+            !Array.from(newIds).every(id => prevIds.has(id))) {
+          console.log('✅ Участники команды обновлены:', { было: prevMembers.length, стало: extractedMembers.length });
+          return extractedMembers;
+        }
+        return prevMembers;
+      });
+      
       // Only update state if data actually changed - prevents unnecessary re-renders
       setProjects(prevProjects => {
         if (!areArraysDifferent(prevProjects, limitedProjects)) {
@@ -379,23 +417,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
-      const members = await teamAPI.getMembers();
-      console.log('✅ Участники команды загружены:', members.length);
-      
-      // Deduplicate members by id to prevent display issues
-      const uniqueMembersMap = new Map();
-      members.forEach((member: TeamMember) => {
-        if (!uniqueMembersMap.has(member.id)) {
-          uniqueMembersMap.set(member.id, member);
-        }
-      });
-      const uniqueMembers = Array.from(uniqueMembersMap.values());
-      
-      if (uniqueMembers.length !== members.length) {
-        console.warn(`⚠️ Дубликаты участников удалены: ${members.length} -> ${uniqueMembers.length}`);
-      }
-      
-      setTeamMembers(uniqueMembers);
+      // Instead of calling teamAPI.getMembers() which requires a projectId,
+      // we'll build the team members list from all project members
+      // This happens automatically when projects are loaded
+      console.log('✅ Участники команды будут загружены из проектов');
     } catch (error: any) {
       console.error('❌ Ошибка загрузки участников команды:', error);
       // Don't show error toast - team members are optional
