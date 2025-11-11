@@ -3,7 +3,7 @@
  * Tests the corrected access control logic
  */
 
-import prisma from './src/lib/prisma';
+import prisma from './src/server/db';
 import { 
   getUserRoleInProject, 
   canEditTask, 
