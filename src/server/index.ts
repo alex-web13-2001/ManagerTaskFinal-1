@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
-import { hashPassword, comparePassword, generateToken, verifyToken, JwtPayload } from '../lib/auth';
+import { hashPassword, comparePassword, generateToken } from '../lib/auth';
 import emailService from '../lib/email';
 import invitationRoutes from './routes/invitations.js';
 import { 
@@ -16,6 +16,8 @@ import {
   canViewTask as canViewTaskFromDB,
   canCreateTask as canCreateTaskFromDB
 } from '../lib/permissions';
+import { authenticate, canAccessProject, AuthRequest, UserRole } from './middleware/auth.js';
+import { webhookHandler } from './handlers/webhookHandler.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -54,94 +56,8 @@ const upload = multer({
   },
 });
 
-// ========== AUTH MIDDLEWARE ==========
-
-interface AuthRequest extends Request {
-  user?: JwtPayload & {
-    roleInProject?: UserRole;
-  };
-}
-
-async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
-  try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Missing or invalid authorization header' });
-    }
-
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-    const payload = verifyToken(token);
-    
-    req.user = payload;
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-}
-
-/**
- * Middleware to check if user has access to a project
- * This middleware should be used after authenticate middleware
- * It checks if the user is a member of the project and enriches the request with role information
- */
-async function canAccessProject(req: AuthRequest, res: Response, next: NextFunction) {
-  console.log('🔐 canAccessProject: Starting access check', {
-    method: req.method,
-    url: req.url,
-    params: req.params,
-  });
-
-  // ПРОВЕРКА НА СЛУЧАЙ, ЕСЛИ AUTHENTICATE НЕ СРАБОТАЛ
-  if (!req.user) {
-    console.log('❌ canAccessProject: No user in request (authenticate middleware not called?)');
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  try {
-    // 1. Get project ID and user ID - support both :projectId and :id parameters
-    const projectId = req.params.projectId || req.params.id;
-    const userId = req.user.sub; // Теперь TypeScript не будет ругаться
-
-    console.log('🔍 canAccessProject: Checking access', {
-      userId,
-      projectId,
-      userEmail: req.user.email,
-    });
-
-    // 2. Basic validation - ensure projectId is provided
-    if (!projectId) {
-      console.log('❌ canAccessProject: No projectId provided in params');
-      return res.status(400).json({ error: 'Bad Request: Project ID is required.' });
-    }
-
-    // 3. Check user's role in the project
-    console.log('🔎 canAccessProject: Querying getUserRoleInProject...');
-    const role = await getUserRoleInProject(userId, projectId);
-    console.log('📋 canAccessProject: Role result:', { userId, projectId, role });
-
-    // 4. If no role found, user is not a member of the project
-    if (!role) {
-      console.log('❌ canAccessProject: User is not a member of this project', {
-        userId,
-        projectId,
-      });
-      return res.status(403).json({ error: 'Forbidden: You are not a member of this project.' });
-    }
-
-    // 5. Enrich request object with role information for use in route handlers
-    req.user.roleInProject = role;
-    console.log('✅ canAccessProject: Access granted', { userId, projectId, role });
-    next();
-  } catch (error: any) {
-    console.error('💥 canAccessProject: Exception caught:', error);
-    res.status(500).json({ error: 'Failed to check project access' });
-  }
-}
-
 // ========== PERMISSION HELPERS ==========
-
-type UserRole = 'owner' | 'admin' | 'collaborator' | 'member' | 'viewer' | null;
+// Auth middleware moved to ./middleware/auth.ts
 
 /**
  * Get user's role in a project
@@ -233,7 +149,7 @@ async function canViewTask(userId: string, task: any): Promise<boolean> {
   return true;
 }
 
-// ========== HEALTH CHECK ==========
+// ========== HEALTH CHECK (PUBLIC) ==========
 
 // Health check endpoint (both /health and /api/health for compatibility)
 const healthHandler = (_req: Request, res: Response) => {
@@ -243,7 +159,81 @@ const healthHandler = (_req: Request, res: Response) => {
 app.get('/health', healthHandler);
 app.get('/api/health', healthHandler);
 
-// ========== AUTH ENDPOINTS ==========
+// ========== PUBLIC WEBHOOKS ==========
+// Webhooks must be placed BEFORE authentication middleware
+// They are public endpoints that external services call
+
+/**
+ * POST /api/webhooks/generic
+ * Generic webhook handler for future integrations
+ */
+app.post('/api/webhooks/generic', webhookHandler);
+
+// ========== PUBLIC INVITATION ENDPOINTS ==========
+// These endpoints need to be public so users can view/accept invitations before logging in
+
+/**
+ * GET /api/invitations/:token
+ * Get invitation details by token (for invite page)
+ * Note: This endpoint is public (no authentication) since users need to view invitations before logging in
+ */
+app.get('/api/invitations/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    
+    // Get invitation from database by token
+    const invitation = await prisma.invitation.findUnique({
+      where: { token: token },
+      include: {
+        project: {
+          select: { name: true, id: true, color: true },
+        },
+      },
+    });
+    
+    if (!invitation) {
+      return res.status(404).json({ error: 'Invitation not found' });
+    }
+    
+    // Check if expired
+    const isExpired = new Date(invitation.expiresAt) < new Date();
+    
+    if (isExpired) {
+      return res.status(410).json({ error: 'Invitation has expired', invitation });
+    }
+    
+    if (invitation.status !== 'pending') {
+      return res.status(400).json({ error: `Invitation is ${invitation.status}`, invitation });
+    }
+    
+    res.json({
+      invitation: {
+        id: invitation.id,
+        token: invitation.token,
+        email: invitation.email,
+        role: invitation.role,
+        status: invitation.status,
+        expiresAt: invitation.expiresAt,
+        projectId: invitation.projectId,
+        projectName: invitation.project.name,
+        projectColor: invitation.project.color,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get invitation error:', error);
+    res.status(500).json({ error: 'Failed to get invitation' });
+  }
+});
+
+// ========== PROTECTED API ROUTES ==========
+// Create a separate router for all protected API endpoints
+const apiRouter = express.Router();
+
+// Apply authentication middleware to all routes in apiRouter
+apiRouter.use(authenticate);
+
+// ========== AUTH ENDPOINTS (PUBLIC - NO AUTH REQUIRED) ==========
+// These must be placed outside apiRouter since users aren't authenticated yet
 
 /**
  * POST /api/auth/signup
@@ -353,7 +343,7 @@ app.post('/api/auth/signin', async (req: Request, res: Response) => {
  * GET /api/auth/me
  * Get current user
  */
-app.get('/api/auth/me', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/auth/me', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
     
@@ -486,13 +476,13 @@ app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
   }
 });
 
-// ========== PROJECT CRUD ENDPOINTS ==========
+// ========== PROJECT CRUD ENDPOINTS (PROTECTED) ==========
 
 /**
  * POST /api/projects
  * Create a new project (any authenticated user can create)
  */
-app.post('/api/projects', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.post('/projects', async (req: AuthRequest, res: Response) => {
   try {
     const { name, description, color } = req.body;
     const ownerId = req.user!.sub;
@@ -555,7 +545,7 @@ app.post('/api/projects', authenticate, async (req: AuthRequest, res: Response) 
  * GET /api/projects
  * Get all projects accessible to the user (owned + member of)
  */
-app.get('/api/projects', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/projects', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
 
@@ -619,7 +609,7 @@ app.get('/api/projects', authenticate, async (req: AuthRequest, res: Response) =
  * GET /api/projects/:id
  * Get a specific project by ID
  */
-app.get('/api/projects/:id', authenticate, canAccessProject, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/projects/:id', canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
     const projectId = req.params.id;
 
@@ -654,7 +644,7 @@ app.get('/api/projects/:id', authenticate, canAccessProject, async (req: AuthReq
  * PATCH /api/projects/:id
  * Update a project (only Owner and Collaborator can edit)
  */
-app.patch('/api/projects/:id', authenticate, canAccessProject, async (req: AuthRequest, res: Response) => {
+apiRouter.patch('/projects/:id', canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
     const projectId = req.params.id;
     const role = req.user!.roleInProject!; // Role is already checked by canAccessProject middleware
@@ -700,7 +690,7 @@ app.patch('/api/projects/:id', authenticate, canAccessProject, async (req: AuthR
  * DELETE /api/projects/:id
  * Delete a project (only Owner can delete)
  */
-app.delete('/api/projects/:id', authenticate, canAccessProject, async (req: AuthRequest, res: Response) => {
+apiRouter.delete('/projects/:id', canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
     const projectId = req.params.id;
     const role = req.user!.roleInProject!; // Role is already checked by canAccessProject middleware
@@ -726,7 +716,7 @@ app.delete('/api/projects/:id', authenticate, canAccessProject, async (req: Auth
  * GET /api/projects/:projectId/tasks
  * Get all tasks in a project (filtered by role)
  */
-app.get('/api/projects/:projectId/tasks', authenticate, canAccessProject, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/projects/:projectId/tasks', canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
     const { projectId } = req.params;
@@ -773,7 +763,7 @@ app.get('/api/projects/:projectId/tasks', authenticate, canAccessProject, async 
  * GET /api/projects/:projectId/members
  * Get all members of a project
  */
-app.get('/api/projects/:projectId/members', authenticate, canAccessProject, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/projects/:projectId/members', canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
     const { projectId } = req.params;
 
@@ -794,18 +784,18 @@ app.get('/api/projects/:projectId/members', authenticate, canAccessProject, asyn
   }
 });
 
-// ========== INVITATION ROUTES ==========
+// ========== INVITATION ROUTES (PROTECTED) ==========
 // Mount invitation routes (handles /api/invitations/* and /api/projects/:projectId/invitations)
-app.use('/api/invitations', authenticate, invitationRoutes);
-app.use('/api/projects', authenticate, invitationRoutes);
+apiRouter.use('/invitations', invitationRoutes);
+apiRouter.use('/projects', invitationRoutes);
 
-// ========== FILE UPLOAD ENDPOINTS ==========
+// ========== FILE UPLOAD ENDPOINTS (PROTECTED) ==========
 
 /**
  * POST /api/upload-avatar
  * Upload user avatar
  */
-app.post('/api/upload-avatar', authenticate, upload.single('avatar'), async (req: AuthRequest, res: Response) => {
+apiRouter.post('/upload-avatar', upload.single('avatar'), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -834,7 +824,7 @@ app.post('/api/upload-avatar', authenticate, upload.single('avatar'), async (req
  * POST /api/upload-attachment
  * Upload task attachment - REFACTORED TO USE PRISMA
  */
-app.post('/api/upload-attachment', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
+apiRouter.post('/upload-attachment', upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -896,7 +886,7 @@ app.post('/api/upload-attachment', authenticate, upload.single('file'), async (r
  * POST /api/upload-project-attachment
  * Upload project attachment
  */
-app.post('/api/upload-project-attachment', authenticate, upload.single('file'), async (req: AuthRequest, res: Response) => {
+apiRouter.post('/upload-project-attachment', upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -929,13 +919,13 @@ app.post('/api/upload-project-attachment', authenticate, upload.single('file'), 
   }
 });
 
-// ========== USER SETTINGS ENDPOINTS ==========
+// ========== USER SETTINGS ENDPOINTS (PROTECTED) ==========
 
 /**
  * GET /api/users/:userId/custom_columns
  * Get custom status columns for a user
  */
-app.get('/api/users/:userId/custom_columns', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/users/:userId/custom_columns', async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.params;
     
@@ -959,7 +949,7 @@ app.get('/api/users/:userId/custom_columns', authenticate, async (req: AuthReque
  * POST /api/users/:userId/custom_columns
  * Save custom status columns for a user
  */
-app.post('/api/users/:userId/custom_columns', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.post('/users/:userId/custom_columns', async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.params;
     const { columns } = req.body;
@@ -984,7 +974,7 @@ app.post('/api/users/:userId/custom_columns', authenticate, async (req: AuthRequ
  * GET /api/users/:userId/categories
  * Get task categories for a user
  */
-app.get('/api/users/:userId/categories', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/users/:userId/categories', async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.params;
     
@@ -1008,7 +998,7 @@ app.get('/api/users/:userId/categories', authenticate, async (req: AuthRequest, 
  * POST /api/users/:userId/categories
  * Save task categories for a user
  */
-app.post('/api/users/:userId/categories', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.post('/users/:userId/categories', async (req: AuthRequest, res: Response) => {
   try {
     const { userId } = req.params;
     const { categories } = req.body;
@@ -1033,7 +1023,7 @@ app.post('/api/users/:userId/categories', authenticate, async (req: AuthRequest,
  * GET /api/my/pending_invitations
  * Get pending invitations for the current user
  */
-app.get('/api/my/pending_invitations', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/my/pending_invitations', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
     
@@ -1067,13 +1057,13 @@ app.get('/api/my/pending_invitations', authenticate, async (req: AuthRequest, re
   }
 });
 
-// ========== TASK CRUD ENDPOINTS (PRISMA-BASED) ==========
+// ========== TASK CRUD ENDPOINTS (PRISMA-BASED) (PROTECTED) ==========
 
 /**
  * GET /api/tasks
  * Get all tasks accessible to the user (personal + project tasks based on role)
  */
-app.get('/api/tasks', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/tasks', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
 
@@ -1163,7 +1153,7 @@ app.get('/api/tasks', authenticate, async (req: AuthRequest, res: Response) => {
  * POST /api/tasks
  * Create a new task with permission validation
  */
-app.post('/api/tasks', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
     const { title, description, status, priority, category, tags, dueDate, projectId, assigneeId, orderKey } = req.body;
@@ -1218,7 +1208,7 @@ app.post('/api/tasks', authenticate, async (req: AuthRequest, res: Response) => 
  * PATCH /api/tasks/:id
  * Update a task with permission validation
  */
-app.patch('/api/tasks/:id', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
     const taskId = req.params.id;
@@ -1281,7 +1271,7 @@ app.patch('/api/tasks/:id', authenticate, async (req: AuthRequest, res: Response
  * DELETE /api/tasks/:id
  * Delete a task with permission validation
  */
-app.delete('/api/tasks/:id', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.delete('/tasks/:id', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
     const taskId = req.params.id;
@@ -1315,13 +1305,13 @@ app.delete('/api/tasks/:id', authenticate, async (req: AuthRequest, res: Respons
   }
 });
 
-// ========== PROJECT INVITATION EMAIL ==========
+// ========== PROJECT INVITATION EMAIL (PROTECTED) ==========
 
 /**
  * POST /api/invitations/send-email
  * Send project invitation email
  */
-app.post('/api/invitations/send-email', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.post('/invitations/send-email', async (req: AuthRequest, res: Response) => {
   try {
     const { invitationId, email, projectName, role, expiresAt } = req.body;
     
@@ -1355,66 +1345,13 @@ app.post('/api/invitations/send-email', authenticate, async (req: AuthRequest, r
   }
 });
 
-/**
- * GET /api/invitations/:token
- * Get invitation details by token (for invite page) - REFACTORED TO USE PRISMA
- * Note: This endpoint is public (no authentication) since users need to view invitations before logging in
- */
-app.get('/api/invitations/:token', async (req: Request, res: Response) => {
-  try {
-    const { token } = req.params;
-    
-    // Get invitation from database by token
-    const invitation = await prisma.invitation.findUnique({
-      where: { token: token },
-      include: {
-        project: {
-          select: { name: true, id: true, color: true },
-        },
-      },
-    });
-    
-    if (!invitation) {
-      return res.status(404).json({ error: 'Invitation not found' });
-    }
-    
-    // Check if expired
-    const isExpired = new Date(invitation.expiresAt) < new Date();
-    
-    if (isExpired) {
-      return res.status(410).json({ error: 'Invitation has expired', invitation });
-    }
-    
-    if (invitation.status !== 'pending') {
-      return res.status(400).json({ error: `Invitation is ${invitation.status}`, invitation });
-    }
-    
-    res.json({
-      invitation: {
-        id: invitation.id,
-        token: invitation.token,
-        email: invitation.email,
-        role: invitation.role,
-        status: invitation.status,
-        expiresAt: invitation.expiresAt,
-        projectId: invitation.projectId,
-        projectName: invitation.project.name,
-        projectColor: invitation.project.color,
-      },
-    });
-  } catch (error: any) {
-    console.error('Get invitation error:', error);
-    res.status(500).json({ error: 'Failed to get invitation' });
-  }
-});
-
-// ========== TASK PERMISSIONS VALIDATION ==========
+// ========== TASK PERMISSIONS VALIDATION (PROTECTED) ==========
 
 /**
  * POST /api/tasks/validate-permission
  * Validate if user has permission to perform action on task - REFACTORED TO USE PRISMA
  */
-app.post('/api/tasks/validate-permission', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.post('/tasks/validate-permission', async (req: AuthRequest, res: Response) => {
   try {
     const { taskId, action } = req.body; // action: 'view', 'edit', 'delete'
     const userId = req.user!.sub;
@@ -1474,7 +1411,7 @@ app.post('/api/tasks/validate-permission', authenticate, async (req: AuthRequest
  * POST /api/tasks/check-permissions
  * Batch check permissions for multiple tasks - REFACTORED TO USE PRISMA
  */
-app.post('/api/tasks/check-permissions', authenticate, async (req: AuthRequest, res: Response) => {
+apiRouter.post('/tasks/check-permissions', async (req: AuthRequest, res: Response) => {
   try {
     const { taskIds, action } = req.body;
     const userId = req.user!.sub;
@@ -1524,6 +1461,10 @@ app.post('/api/tasks/check-permissions', authenticate, async (req: AuthRequest, 
     res.status(500).json({ error: 'Failed to check permissions' });
   }
 });
+
+// ========== MOUNT API ROUTER ==========
+// Mount all protected routes under /api
+app.use('/api', apiRouter);
 
 // ========== ERROR HANDLER ==========
 
