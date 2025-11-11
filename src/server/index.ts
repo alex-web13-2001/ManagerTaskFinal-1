@@ -151,6 +151,25 @@ async function canViewTask(userId: string, task: any): Promise<boolean> {
   return true;
 }
 
+/**
+ * Transform task from database format to API response format
+ * Maps field names for frontend compatibility (e.g., dueDate -> deadline, category -> categoryId)
+ */
+function transformTaskForResponse(task: any): any {
+  return {
+    ...task,
+    // Map dueDate to deadline for frontend compatibility
+    deadline: task.dueDate ? task.dueDate.toISOString() : undefined,
+    // Map category to categoryId for frontend compatibility
+    categoryId: task.category,
+    // Ensure userId is set for backwards compatibility
+    userId: task.creatorId,
+    // Keep original fields as well for backwards compatibility
+    dueDate: task.dueDate ? task.dueDate.toISOString() : undefined,
+    category: task.category,
+  };
+}
+
 // ========== HEALTH CHECK (PUBLIC) ==========
 
 // Health check endpoint (both /health and /api/health for compatibility)
@@ -701,7 +720,8 @@ apiRouter.get('/projects/:projectId/tasks', canAccessProject, async (req: AuthRe
       ],
     });
 
-    res.json(tasks);
+    // Transform tasks for response (field mapping for frontend compatibility)
+    res.json(tasks.map(transformTaskForResponse));
   } catch (error: any) {
     console.error('Get project tasks error:', error);
     res.status(500).json({ error: 'Failed to fetch project tasks' });
@@ -1202,7 +1222,10 @@ apiRouter.get('/tasks', async (req: AuthRequest, res: Response) => {
       new Map(allTasks.map((task) => [task.id, task])).values()
     );
 
-    res.json(uniqueTasks);
+    // Transform tasks for API response (field mapping for frontend compatibility)
+    const transformedTasks = uniqueTasks.map(transformTaskForResponse);
+
+    res.json(transformedTasks);
   } catch (error: any) {
     console.error('Get tasks error:', error);
     res.status(500).json({ error: 'Failed to fetch tasks' });
@@ -1277,7 +1300,8 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.status(201).json(task);
+    // Transform task for response (field mapping for frontend compatibility)
+    res.status(201).json(transformTaskForResponse(task));
   } catch (error: any) {
     console.error('Create task error:', error);
     res.status(500).json({ error: 'Failed to create task' });
@@ -1385,7 +1409,8 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.json(updatedTask);
+    // Transform task for response (field mapping for frontend compatibility)
+    res.json(transformTaskForResponse(updatedTask));
   } catch (error: any) {
     console.error('Update task error:', error);
     res.status(500).json({ error: 'Failed to update task' });
