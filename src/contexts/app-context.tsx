@@ -187,6 +187,7 @@ interface AppContextType {
   updateTask: (taskId: string, updates: Partial<Task>, options?: { silent?: boolean }) => Promise<Task>;
   deleteTask: (taskId: string) => Promise<void>;
   uploadTaskAttachment: (taskId: string, file: File) => Promise<TaskAttachment>;
+  uploadMultipleTaskAttachments: (taskId: string, files: File[]) => Promise<TaskAttachment[]>;
   deleteTaskAttachment: (taskId: string, attachmentId: string) => Promise<void>;
   createProject: (projectData: Partial<Project>) => Promise<Project>;
   updateProject: (projectId: string, updates: Partial<Project>) => Promise<Project>;
@@ -797,16 +798,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const newTask = await tasksAPI.create(taskData);
       
-      // FIX Problem #2: Add task immediately to state for instant UI update and DnD support
+      // FIX Issue #3: Add task immediately to state for instant UI update and DnD support
       // The newTask from API includes all required fields (id, orderKey, version, etc.)
-      setTasks((prev) => [...prev, newTask]);
-      
-      // Also fetch all tasks to ensure full synchronization
-      // This ensures any server-side transformations are reflected
-      // Using setTimeout to avoid blocking the UI
-      setTimeout(() => {
-        fetchTasks().catch(err => console.error('Background fetch failed:', err));
-      }, 100);
+      // Using functional update to ensure we have the latest state
+      setTasks((prev) => {
+        // Check if task already exists (shouldn't happen, but defensive)
+        const exists = prev.some(t => t.id === newTask.id);
+        if (exists) {
+          console.warn('Task already exists in state, skipping duplicate:', newTask.id);
+          return prev;
+        }
+        return [...prev, newTask];
+      });
       
       toast.success('Задача создана');
       return newTask;
@@ -1061,6 +1064,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const uploadMultipleTaskAttachments = async (taskId: string, files: File[]): Promise<TaskAttachment[]> => {
+    try {
+      console.log(`📎 uploadMultipleTaskAttachments: Starting upload for task ${taskId}, ${files.length} files`);
+      const attachments = await tasksAPI.uploadMultipleAttachments(taskId, files);
+      console.log(`✅ uploadMultipleTaskAttachments: Upload successful, ${attachments.length} attachments`);
+      
+      // Update task in state with all new attachments
+      setTasks((prev) => prev.map((t) => {
+        if (t.id === taskId) {
+          console.log(`📝 uploadMultipleTaskAttachments: Updating task ${taskId} in state`);
+          return {
+            ...t,
+            attachments: [...(t.attachments || []), ...attachments],
+          };
+        }
+        return t;
+      }));
+      
+      return attachments;
+    } catch (error: any) {
+      console.error(`❌ uploadMultipleTaskAttachments: Error uploading files for task ${taskId}:`, error);
+      throw error;
+    }
+  };
+
   const deleteTaskAttachment = async (taskId: string, attachmentId: string): Promise<void> => {
     try {
       await tasksAPI.deleteAttachment(taskId, attachmentId);
@@ -1249,6 +1277,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateTask,
     deleteTask,
     uploadTaskAttachment,
+    uploadMultipleTaskAttachments,
     deleteTaskAttachment,
     createProject,
     updateProject,

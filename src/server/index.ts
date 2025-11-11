@@ -638,7 +638,7 @@ apiRouter.patch('/projects/:id', canAccessProject, async (req: AuthRequest, res:
     if (description !== undefined) updateData.description = description;
     if (color !== undefined) updateData.color = color;
     if (archived !== undefined && role === 'owner') updateData.archived = archived; // Only owner can archive
-    if (links !== undefined) updateData.links = Array.isArray(links) ? links : []; // Ensure links is an array
+    if (links !== undefined) updateData.links = links; // Store links as JSON
     // Only owner can modify available categories for the project
     if (availableCategories !== undefined && role === 'owner') {
       updateData.availableCategories = Array.isArray(availableCategories) ? availableCategories : [];
