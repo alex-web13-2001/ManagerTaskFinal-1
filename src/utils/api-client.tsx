@@ -675,6 +675,51 @@ export const projectsAPI = {
 
     return true;
   },
+
+  /**
+   * Get invitations for a project
+   * FIX: Added to fetch real-time invitation data from database
+   */
+  getProjectInvitations: async (projectId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/invitations`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch project invitations');
+    }
+
+    const data = await response.json();
+    return data.invitations || [];
+  },
+
+  /**
+   * Resend invitation
+   * FIX: Added to resend invitations using backend API
+   */
+  resendInvitation: async (invitationId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/invitations/${invitationId}/resend`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to resend invitation');
+    }
+
+    return await response.json();
+  },
 };
 // ========== INVITATIONS API ==========
 

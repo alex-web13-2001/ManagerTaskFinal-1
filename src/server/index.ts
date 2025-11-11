@@ -41,13 +41,21 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(uploadsDir));
 
 // Configure multer for file uploads
+// FIX Problem #3: Handle Cyrillic filenames properly
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, uploadsDir);
   },
   filename: (_req, file, cb) => {
+    // Decode filename to handle Cyrillic characters properly
+    // Express/multer uses latin1 encoding by default, so we need to convert
+    const decodedName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    
+    // Generate unique prefix to avoid filename collisions
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
+    
+    // Combine unique prefix with decoded original filename
+    cb(null, uniqueSuffix + '-' + decodedName);
   },
 });
 
@@ -622,13 +630,15 @@ apiRouter.patch('/projects/:id', canAccessProject, async (req: AuthRequest, res:
       return res.status(403).json({ error: 'You do not have permission to edit this project' });
     }
 
-    const { name, description, color, archived } = req.body;
+    // FIX Problem #4: Support links field for project updates
+    const { name, description, color, archived, links } = req.body;
 
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
     if (color !== undefined) updateData.color = color;
     if (archived !== undefined && role === 'owner') updateData.archived = archived; // Only owner can archive
+    if (links !== undefined) updateData.links = Array.isArray(links) ? links : []; // Ensure links is an array
 
     const updatedProject = await prisma.project.update({
       where: { id: projectId },
@@ -731,22 +741,55 @@ apiRouter.get('/projects/:projectId/tasks', canAccessProject, async (req: AuthRe
 /**
  * GET /api/projects/:projectId/members
  * Get all members of a project
+ * FIX Problem #2: Include project owner even if not in ProjectMember table
  */
 apiRouter.get('/projects/:projectId/members', canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
     const { projectId } = req.params;
 
-    // Fetch project members
-    const members = await prisma.projectMember.findMany({
-      where: { projectId: projectId },
+    // Fetch project with owner information
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
       include: {
-        user: {
+        owner: {
           select: { id: true, name: true, avatarUrl: true, email: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, avatarUrl: true, email: true },
+            },
+          },
         },
       },
     });
 
-    res.json(members);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Check if owner is already in members list
+    const ownerInMembers = project.members.find(
+      (m) => m.userId === project.ownerId && m.role === 'owner'
+    );
+
+    // If owner is not in members, create a synthetic member entry
+    let allMembers = [...project.members];
+    if (!ownerInMembers) {
+      allMembers = [
+        {
+          id: `owner_${project.ownerId}`,
+          userId: project.ownerId,
+          projectId: project.id,
+          role: 'owner',
+          addedAt: project.createdAt,
+          user: project.owner,
+        } as any,
+        ...project.members,
+      ];
+    }
+
+    res.json(allMembers);
   } catch (error: any) {
     console.error('Get project members error:', error);
     res.status(500).json({ error: 'Failed to fetch project members' });
@@ -936,11 +979,14 @@ apiRouter.post('/upload-attachment', uploadRateLimiter, upload.single('file'), a
 
     const fileUrl = `/uploads/${req.file.filename}`;
 
+    // FIX Problem #3: Decode Cyrillic filename for display
+    const decodedFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+
     // Create attachment in database using Prisma
     const attachment = await prisma.attachment.create({
       data: {
         taskId,
-        name: req.file.originalname,
+        name: decodedFileName,
         url: fileUrl,
         size: req.file.size,
         mimeType: req.file.mimetype,

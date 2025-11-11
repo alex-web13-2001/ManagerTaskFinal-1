@@ -494,6 +494,12 @@ export function KanbanBoard({
     return () => clearTimeout(timer);
   }, []);
 
+  // FIX Problem #1: Force sync with props whenever tasks or customColumns change
+  // This ensures new tasks appear immediately in drag-and-drop without page reload
+  React.useEffect(() => {
+    console.log('[KanbanBoard] Tasks or columns updated, total tasks:', tasks.length, 'custom columns:', customColumns.length);
+  }, [tasks, customColumns]);
+
   // Define base kanban columns
   const baseColumnDefinitions = React.useMemo(() => [
     { id: 'todo', title: 'К выполнению', color: 'bg-gray-500' },

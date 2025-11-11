@@ -273,113 +273,18 @@ export function ProjectMembersModal({
         return;
       }
       
-      // Fetch projects from KV store
-      const projects = await projectsAPI.getAll();
-      const project = projects.find((p: any) => p.id === prjId);
+      // FIX: Use proper API to fetch members from database instead of KV store
+      // This ensures we get real-time data including accepted invitations
+      const projectMembers = await projectsAPI.getProjectMembers(prjId);
       
-      if (!project) {
-        console.error('Project not found');
-        setMembers([]);
-        return;
-      }
-      
-      // Get project members list
-      const projectMembers = project.members || [];
-      
-      // Ensure owner is in the members list
-      const ownerId = project.userId;
-      const ownerInMembers = projectMembers.find((m: any) => 
-        (m.id === ownerId || m.userId === ownerId) && m.role === 'owner'
-      );
-      
-      let allMembers = projectMembers;
-      
-      // If owner is not in members, try to get owner info and add them
-      if (!ownerInMembers && ownerId) {
-        try {
-          const currentUser = await authAPI.getCurrentUser();
-          
-          // Check if current user is the owner
-          if (currentUser && currentUser.id === ownerId) {
-            // Add current user as owner
-            allMembers = [
-              {
-                id: ownerId,
-                userId: ownerId,
-                name: (currentUser && typeof currentUser.name === 'string') 
-                  ? currentUser.name 
-                  : (currentUser && typeof currentUser.email === 'string')
-                    ? currentUser.email
-                    : 'Владелец проекта',
-                email: (currentUser && typeof currentUser.email === 'string')
-                  ? currentUser.email
-                  : 'owner@placeholder.local',
-                role: 'owner',
-                status: 'active',
-                addedDate: project.createdAt || new Date().toISOString(),
-              },
-              ...projectMembers
-            ];
-          } else {
-            // For other users viewing the project, add placeholder owner info
-            allMembers = [
-              {
-                id: ownerId,
-                userId: ownerId,
-                name: 'Владелец проекта',
-                email: 'owner@placeholder.local',
-                role: 'owner',
-                status: 'active',
-                addedDate: project.createdAt || new Date().toISOString(),
-              },
-              ...projectMembers
-            ];
-          }
-        } catch (error) {
-          console.error('Error getting owner info:', error);
-          // Add placeholder owner
-          allMembers = [
-            {
-              id: ownerId,
-              userId: ownerId,
-              name: 'Владелец проекта',
-              email: 'owner@placeholder.local',
-              role: 'owner',
-              status: 'active',
-              addedDate: project.createdAt || new Date().toISOString(),
-            },
-            ...projectMembers
-          ];
-        }
-      }
-      
-      // Add pending invitations as "invited" members
-      const pendingInvitations = project.invitations || [];
-      const invitedMembers = pendingInvitations
-        .filter((inv: any) => inv.status === 'pending')
-        .map((inv: any) => ({
-          id: `inv_${inv.id}`,
-          userId: inv.id,
-          name: inv.email,
-          email: inv.email,
-          role: inv.role,
-          status: 'invited' as const,
-          addedDate: inv.sentDate || new Date().toISOString(),
-        }));
-      
-      // Combine accepted members with pending invitations
-      const allMembersWithInvited = [...allMembers, ...invitedMembers];
+      console.log('[ProjectMembersModal] Fetched members from API:', projectMembers);
       
       // Transform members to match expected format with validation
-      const transformedMembers = allMembersWithInvited
+      const transformedMembers = projectMembers
         .filter((m: any) => {
           // Remove invalid entries
           if (!m.id && !m.userId) {
             console.warn('Member without ID:', m);
-            return false;
-          }
-          if (!m.email && !m.name) {
-            console.warn('Member without email and name:', m);
             return false;
           }
           return true;
@@ -403,13 +308,14 @@ export function ProjectMembersModal({
             email: safeEmail,
             avatar: getAvatarSafely(safeName, safeEmail),
             role: m.role,
-            status: m.status || 'active',
-            addedDate: m.addedDate 
-              ? new Date(m.addedDate).toLocaleDateString('ru-RU') 
+            status: 'active', // Members from ProjectMember table are active
+            addedDate: m.addedAt 
+              ? new Date(m.addedAt).toLocaleDateString('ru-RU') 
               : 'Недавно',
           };
         });
       
+      console.log('[ProjectMembersModal] Transformed members:', transformedMembers);
       setMembers(transformedMembers);
     } catch (error) {
       console.error('Fetch members error:', error);
@@ -430,26 +336,23 @@ export function ProjectMembersModal({
         return;
       }
       
-      // Fetch projects from KV store
-      const projects = await projectsAPI.getAll();
-      const project = projects.find((p: any) => p.id === prjId);
+      // FIX: Use proper API to fetch invitations from database instead of KV store
+      // This ensures we get real-time invitation data with current statuses
+      const rawInvitations = await projectsAPI.getProjectInvitations(prjId);
       
-      if (!project) {
-        console.error('Project not found');
-        return;
-      }
+      console.log('[ProjectMembersModal] Fetched invitations from API:', rawInvitations);
       
-      // Get invitations from project and transform them to match expected structure
-      const rawInvitations = project.invitations || [];
+      // Transform invitations to match expected structure
       const transformedInvitations = rawInvitations.map((inv: any) => ({
         id: inv.id,
-        email: inv.invitedEmail || inv.email, // Support both field names
+        email: inv.email,
         role: inv.role,
         status: inv.status,
-        sentDate: inv.sentDate ? formatDate(inv.sentDate) : 'Недавно',
-        link: inv.inviteLink || inv.link,
+        sentDate: inv.createdAt ? formatDate(inv.createdAt) : 'Недавно',
+        link: inv.inviteLink,
       }));
       
+      console.log('[ProjectMembersModal] Transformed invitations:', transformedInvitations);
       setInvitations(transformedInvitations);
     } catch (error) {
       console.error('Fetch invitations error:', error);
@@ -541,35 +444,13 @@ export function ProjectMembersModal({
   const handleResendInvite = async (invitation: Invitation) => {
     try {
       setIsLoading(true);
-      const accessToken = await getAuthToken();
       
-      if (!accessToken) {
-        toast.error('Необходима авторизация');
-        return;
-      }
+      // FIX: Use proper API to resend invitation instead of KV store
+      await projectsAPI.resendInvitation(invitation.id);
       
-      // Fetch current projects
-      const projects = await projectsAPI.getAll();
-      const project = projects.find((p: any) => p.id === prjId);
-      
-      if (!project) {
-        toast.error('Проект не найден');
-        return;
-      }
-      
-      // Update invitation sent date
-      const invitations = project.invitations || [];
-      const inviteIndex = invitations.findIndex((inv: Invitation) => inv.id === invitation.id);
-      
-      if (inviteIndex !== -1) {
-        invitations[inviteIndex].sentDate = new Date().toISOString();
-        invitations[inviteIndex].status = 'pending';
-        await projectsAPI.update(prjId, { invitations });
-        await fetchInvitations();
-        toast.success('Приглашение повторно отправлено');
-      } else {
-        toast.error('Приглашение не найдено');
-      }
+      // Refresh invitations list
+      await fetchInvitations();
+      toast.success('Приглашение повторно отправлено');
     } catch (error) {
       console.error('Resend invite error:', error);
       toast.error('Ошибка повторной отправки');
