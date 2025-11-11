@@ -1212,11 +1212,27 @@ apiRouter.get('/tasks', async (req: AuthRequest, res: Response) => {
 /**
  * POST /api/tasks
  * Create a new task with permission validation
+ * Handles all task fields including tags, deadline, category, etc.
  */
 apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
-    const { title, description, status, priority, category, tags, dueDate, projectId, assigneeId, orderKey } = req.body;
+    // Extract all possible fields from request body
+    const { 
+      title, 
+      description, 
+      status, 
+      priority, 
+      category, 
+      categoryId, // Support both category and categoryId
+      tags, 
+      dueDate, 
+      deadline, // Support both dueDate and deadline (frontend compatibility)
+      projectId, 
+      assigneeId, 
+      orderKey,
+      version
+    } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -1230,20 +1246,24 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Create task in database
+    // Resolve dueDate - support both dueDate and deadline fields
+    const dueDateValue = dueDate || deadline;
+
+    // Create task in database with all supported fields
     const task = await prisma.task.create({
       data: {
         title,
         description: description || null,
         status: status || 'todo',
         priority: priority || 'medium',
-        category: category || null,
-        tags: tags || [],
-        dueDate: dueDate ? new Date(dueDate) : null,
+        category: categoryId || category || null, // Prefer categoryId over category
+        tags: Array.isArray(tags) ? tags : [],
+        dueDate: dueDateValue ? new Date(dueDateValue) : null,
         projectId: projectId || null,
         creatorId: userId,
         assigneeId: assigneeId || null,
         orderKey: orderKey || 'n',
+        version: version || 1,
       },
       include: {
         project: true,
@@ -1267,6 +1287,8 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
 /**
  * PATCH /api/tasks/:id
  * Update a task with permission validation
+ * Handles all task fields including tags, deadline, category, etc.
+ * Supports setting fields to null/empty values
  */
 apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
   try {
@@ -1290,20 +1312,61 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Update task
-    const { title, description, status, priority, category, categoryId, tags, dueDate, assigneeId, orderKey, version } = req.body;
+    // Extract all possible update fields from request body
+    const { 
+      title, 
+      description, 
+      status, 
+      priority, 
+      category, 
+      categoryId, // Support both category and categoryId
+      tags, 
+      dueDate, 
+      deadline, // Support both dueDate and deadline (frontend compatibility)
+      assigneeId, 
+      orderKey, 
+      version 
+    } = req.body;
     
+    // Build update data object - only include fields that are explicitly provided
     const updateData: any = {};
+    
+    // Required/always-present fields
     if (title !== undefined) updateData.title = title;
-    if (description !== undefined) updateData.description = description;
-    if (status !== undefined) updateData.status = status;
-    if (priority !== undefined) updateData.priority = priority;
+    
+    // Optional string fields - support explicit null to clear
+    if (description !== undefined) updateData.description = description || null;
+    
+    // Status and priority - use defaults if empty string provided
+    if (status !== undefined) updateData.status = status || 'todo';
+    if (priority !== undefined) updateData.priority = priority || 'medium';
+    
     // Handle both category and categoryId for backward compatibility
-    if (category !== undefined) updateData.category = category;
-    if (categoryId !== undefined) updateData.category = categoryId;
-    if (tags !== undefined) updateData.tags = tags;
-    if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
-    if (assigneeId !== undefined) updateData.assigneeId = assigneeId;
+    // Prefer categoryId over category if both are present
+    if (categoryId !== undefined) {
+      updateData.category = categoryId || null;
+    } else if (category !== undefined) {
+      updateData.category = category || null;
+    }
+    
+    // Tags - ensure it's an array
+    if (tags !== undefined) {
+      updateData.tags = Array.isArray(tags) ? tags : [];
+    }
+    
+    // Date fields - support both dueDate and deadline, prefer dueDate
+    if (dueDate !== undefined) {
+      updateData.dueDate = dueDate ? new Date(dueDate) : null;
+    } else if (deadline !== undefined) {
+      updateData.dueDate = deadline ? new Date(deadline) : null;
+    }
+    
+    // Assignee - support explicit null to unassign
+    if (assigneeId !== undefined) {
+      updateData.assigneeId = assigneeId || null;
+    }
+    
+    // Ordering and versioning
     if (orderKey !== undefined) updateData.orderKey = orderKey;
     if (version !== undefined) updateData.version = version;
 
