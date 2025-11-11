@@ -37,25 +37,25 @@ const roleDescriptions: Record<string, string> = {
 };
 
 export function InviteAcceptPage() {
-  const [invitationId, setInvitationId] = React.useState<string>('');
+  const [token, setToken] = React.useState<string>(''); // Renamed from invitationId to token
   const [status, setStatus] = React.useState<InvitationStatus>('loading');
   const [invitation, setInvitation] = React.useState<any>(null);
   const [isAccepting, setIsAccepting] = React.useState(false);
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
 
   React.useEffect(() => {
-    // Extract invitation ID from URL
+    // Extract token from URL
     const path = window.location.pathname;
-    const id = path.replace('/invite/', '');
-    setInvitationId(id);
+    const tokenFromUrl = path.replace('/invite/', '');
+    setToken(tokenFromUrl);
   }, []);
 
   React.useEffect(() => {
-    if (invitationId) {
+    if (token) {
       checkAuth();
       fetchInvitation();
     }
-  }, [invitationId]);
+  }, [token]);
 
   const checkAuth = async () => {
     const token = await getAuthToken();
@@ -66,7 +66,8 @@ export function InviteAcceptPage() {
     try {
       setStatus('loading');
       
-      const response = await fetch(`${API_BASE_URL}/api/invitations/${invitationId}`);
+      // Use token endpoint instead of direct ID endpoint
+      const response = await fetch(`${API_BASE_URL}/api/invitations/token/${token}`);
       
       if (response.status === 404) {
         setStatus('not-found');
@@ -105,16 +106,16 @@ export function InviteAcceptPage() {
   const handleAccept = async () => {
     if (!isAuthenticated) {
       toast.error('Пожалуйста, войдите в систему, чтобы принять приглашение');
-      // Save invitation ID to accept after login
-      sessionStorage.setItem('pendingInvitation', invitationId || '');
+      // Save token to accept after login
+      sessionStorage.setItem('pendingInvitation', token);
       window.location.href = '/';
       return;
     }
 
     try {
       setIsAccepting(true);
-      // Use the token (invitationId) not the database ID
-      await invitationsAPI.acceptInvitation(invitationId);
+      // Use the token directly (already using token-based API)
+      await invitationsAPI.acceptInvitation(token);
       
       toast.success('Приглашение принято! Добро пожаловать в проект.');
       

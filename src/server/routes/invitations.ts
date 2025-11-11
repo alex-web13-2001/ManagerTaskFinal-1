@@ -1,16 +1,18 @@
 /**
  * Invitation endpoints for access control system
- * These endpoints handle project invitations
+ * These endpoints handle project invitations using token-based identification
  */
 
 import { Router, Request, Response } from 'express';
 import { AuthRequest } from '../types';
 import {
-  createInvitation,
-  getInvitationByToken,
+  createInvitation as createInvitationHandler,
+  getInvitationByToken as getInvitationByTokenHandler,
+  acceptInvitation as acceptInvitationHandler,
+} from '../handlers/invitationHandlers';
+import {
   getProjectInvitations,
   getUserPendingInvitations,
-  acceptInvitation,
   revokeInvitation,
   resendInvitation,
 } from '../../lib/invitations';
@@ -22,64 +24,9 @@ const router = Router();
 /**
  * POST /api/projects/:projectId/invitations
  * Create a new invitation (Owner only)
+ * Uses unified handler that returns token as public identifier
  */
-router.post('/:projectId/invitations', async (req: AuthRequest, res: Response) => {
-  try {
-    const { projectId } = req.params;
-    const { email, role } = req.body;
-    const userId = req.user!.sub;
-
-    if (!email || !role) {
-      return res.status(400).json({ error: 'Email and role are required' });
-    }
-
-    // Validate role
-    if (!['collaborator', 'member', 'viewer'].includes(role)) {
-      return res.status(400).json({ 
-        error: 'Invalid role. Must be collaborator, member, or viewer' 
-      });
-    }
-
-    // Create invitation
-    const invitation = await createInvitation(projectId, email, role, userId);
-
-    // Generate invitation link
-    const appUrl = process.env.APP_URL || 'http://localhost:5173';
-    const invitationLink = `${appUrl}/invite/${invitation.token}`;
-
-    // Send invitation email
-    try {
-      await emailService.sendProjectInvitationEmail(
-        invitation.email,
-        invitation.project.name,
-        invitation.invitedByUser?.name || 'A team member',
-        invitation.role,
-        invitation.token,
-        invitation.expiresAt.toISOString()
-      );
-    } catch (emailError) {
-      console.error('Failed to send invitation email:', emailError);
-      // Continue anyway - invitation was created
-    }
-
-    res.status(201).json({
-      invitation: {
-        id: invitation.id,
-        email: invitation.email,
-        role: invitation.role,
-        status: invitation.status,
-        expiresAt: invitation.expiresAt,
-        createdAt: invitation.createdAt,
-        link: invitationLink,
-      },
-    });
-  } catch (error: any) {
-    console.error('Create invitation error:', error);
-    res.status(error.message.includes('permission') ? 403 : 400).json({ 
-      error: error.message || 'Failed to create invitation' 
-    });
-  }
-});
+router.post('/:projectId/invitations', createInvitationHandler);
 
 /**
  * GET /api/projects/:projectId/invitations
@@ -145,95 +92,16 @@ router.get('/my-invitations', async (req: AuthRequest, res: Response) => {
 /**
  * GET /api/invitations/token/:token
  * Get invitation details by token (for invite acceptance page)
+ * Uses unified handler
  */
-router.get('/token/:token', async (req: Request, res: Response) => {
-  try {
-    const { token } = req.params;
-
-    const invitation = await getInvitationByToken(token);
-
-    if (!invitation) {
-      return res.status(404).json({ error: 'Invitation not found' });
-    }
-
-    if (invitation.status === 'expired') {
-      return res.status(410).json({ 
-        error: 'Invitation has expired',
-        invitation: {
-          projectName: invitation.project.name,
-          role: invitation.role,
-          status: invitation.status,
-        },
-      });
-    }
-
-    if (invitation.status !== 'pending') {
-      return res.status(400).json({ 
-        error: `Invitation is ${invitation.status}`,
-        invitation: {
-          projectName: invitation.project.name,
-          role: invitation.role,
-          status: invitation.status,
-        },
-      });
-    }
-
-    res.json({
-      invitation: {
-        id: invitation.id,
-        projectId: invitation.projectId,
-        projectName: invitation.project.name,
-        projectColor: invitation.project.color,
-        email: invitation.email,
-        role: invitation.role,
-        status: invitation.status,
-        expiresAt: invitation.expiresAt,
-        invitedBy: invitation.invitedByUser,
-      },
-    });
-  } catch (error: any) {
-    console.error('Get invitation by token error:', error);
-    res.status(500).json({ error: 'Failed to get invitation' });
-  }
-});
+router.get('/token/:token', getInvitationByTokenHandler);
 
 /**
  * POST /api/invitations/:token/accept
- * Accept an invitation
+ * Accept an invitation using token (unified approach)
+ * Uses unified handler with token from URL params
  */
-router.post('/:token/accept', async (req: AuthRequest, res: Response) => {
-  try {
-    const { token } = req.params;
-    const userId = req.user!.sub;
-
-    // Get user email
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { email: true },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const result = await acceptInvitation(token, userId, user.email);
-
-    res.json({
-      message: 'Invitation accepted successfully',
-      project: {
-        id: result.project.id,
-        name: result.project.name,
-        color: result.project.color,
-      },
-      member: {
-        role: result.member.role,
-      },
-    });
-  } catch (error: any) {
-    console.error('Accept invitation error:', error);
-    res.status(400).json({ error: error.message || 'Failed to accept invitation' });
-  }
-});
+router.post('/:token/accept', acceptInvitationHandler);
 
 /**
  * DELETE /api/invitations/:invitationId
