@@ -434,7 +434,14 @@ export function ProjectModal({
                             const fullUrl = attachment.url.startsWith('http') 
                               ? attachment.url 
                               : `${API_BASE_URL}${attachment.url}`;
-                            window.open(fullUrl, '_blank');
+                            
+                            // Create a temporary link element to trigger download
+                            const link = document.createElement('a');
+                            link.href = fullUrl;
+                            link.download = attachment.name; // Set filename for download
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
                           }
                         }}
                       >
