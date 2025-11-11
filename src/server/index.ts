@@ -504,7 +504,24 @@ app.post('/api/projects', authenticate, async (req: AuthRequest, res: Response) 
       return newProject;
     });
 
-    res.status(201).json(project);
+    // Fetch the project with all related data to return consistent response
+    const projectWithMembers = await prisma.project.findUnique({
+      where: { id: project.id },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    res.status(201).json(projectWithMembers);
   } catch (error: any) {
     console.error('Failed to create project or project member entry:', error);
     res.status(500).json({ error: 'Failed to create project' });
