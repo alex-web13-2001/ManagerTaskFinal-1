@@ -20,6 +20,9 @@ import {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// CORS must be the first middleware to ensure headers are set for all responses
+app.use(cors());
+
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -27,7 +30,6 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Middleware
-app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -84,8 +86,15 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
  * It checks if the user is a member of the project and enriches the request with role information
  */
 async function canAccessProject(req: AuthRequest, res: Response, next: NextFunction) {
+  console.log('🔐 canAccessProject: Starting access check', {
+    method: req.method,
+    url: req.url,
+    params: req.params,
+  });
+
   // ПРОВЕРКА НА СЛУЧАЙ, ЕСЛИ AUTHENTICATE НЕ СРАБОТАЛ
   if (!req.user) {
+    console.log('❌ canAccessProject: No user in request (authenticate middleware not called?)');
     return res.status(401).json({ error: "Unauthorized" });
   }
 
@@ -94,24 +103,38 @@ async function canAccessProject(req: AuthRequest, res: Response, next: NextFunct
     const projectId = req.params.projectId || req.params.id;
     const userId = req.user.sub; // Теперь TypeScript не будет ругаться
 
+    console.log('🔍 canAccessProject: Checking access', {
+      userId,
+      projectId,
+      userEmail: req.user.email,
+    });
+
     // 2. Basic validation - ensure projectId is provided
     if (!projectId) {
+      console.log('❌ canAccessProject: No projectId provided in params');
       return res.status(400).json({ error: 'Bad Request: Project ID is required.' });
     }
 
     // 3. Check user's role in the project
+    console.log('🔎 canAccessProject: Querying getUserRoleInProject...');
     const role = await getUserRoleInProject(userId, projectId);
+    console.log('📋 canAccessProject: Role result:', { userId, projectId, role });
 
     // 4. If no role found, user is not a member of the project
     if (!role) {
+      console.log('❌ canAccessProject: User is not a member of this project', {
+        userId,
+        projectId,
+      });
       return res.status(403).json({ error: 'Forbidden: You are not a member of this project.' });
     }
 
     // 5. Enrich request object with role information for use in route handlers
     req.user.roleInProject = role;
+    console.log('✅ canAccessProject: Access granted', { userId, projectId, role });
     next();
   } catch (error: any) {
-    console.error('Access check error:', error);
+    console.error('💥 canAccessProject: Exception caught:', error);
     res.status(500).json({ error: 'Failed to check project access' });
   }
 }
