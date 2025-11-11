@@ -25,7 +25,7 @@ import {
 import { useApp } from '../contexts/app-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { diagnosticsAPI } from '../utils/supabase/client';
+import { diagnosticsAPI } from '../utils/api-client';
 import { toast } from 'sonner@2.0.3';
 
 type ProjectAboutModalProps = {
