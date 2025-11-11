@@ -151,6 +151,25 @@ async function canViewTask(userId: string, task: any): Promise<boolean> {
   return true;
 }
 
+/**
+ * Transform task from database format to API response format
+ * Maps field names for frontend compatibility (e.g., dueDate -> deadline, category -> categoryId)
+ */
+function transformTaskForResponse(task: any): any {
+  return {
+    ...task,
+    // Map dueDate to deadline for frontend compatibility
+    deadline: task.dueDate ? task.dueDate.toISOString() : undefined,
+    // Map category to categoryId for frontend compatibility
+    categoryId: task.category,
+    // Ensure userId is set for backwards compatibility
+    userId: task.creatorId,
+    // Keep original fields as well for backwards compatibility
+    dueDate: task.dueDate ? task.dueDate.toISOString() : undefined,
+    category: task.category,
+  };
+}
+
 // ========== HEALTH CHECK (PUBLIC) ==========
 
 // Health check endpoint (both /health and /api/health for compatibility)
@@ -701,7 +720,8 @@ apiRouter.get('/projects/:projectId/tasks', canAccessProject, async (req: AuthRe
       ],
     });
 
-    res.json(tasks);
+    // Transform tasks for response (field mapping for frontend compatibility)
+    res.json(tasks.map(transformTaskForResponse));
   } catch (error: any) {
     console.error('Get project tasks error:', error);
     res.status(500).json({ error: 'Failed to fetch project tasks' });
@@ -1202,7 +1222,10 @@ apiRouter.get('/tasks', async (req: AuthRequest, res: Response) => {
       new Map(allTasks.map((task) => [task.id, task])).values()
     );
 
-    res.json(uniqueTasks);
+    // Transform tasks for API response (field mapping for frontend compatibility)
+    const transformedTasks = uniqueTasks.map(transformTaskForResponse);
+
+    res.json(transformedTasks);
   } catch (error: any) {
     console.error('Get tasks error:', error);
     res.status(500).json({ error: 'Failed to fetch tasks' });
@@ -1212,11 +1235,27 @@ apiRouter.get('/tasks', async (req: AuthRequest, res: Response) => {
 /**
  * POST /api/tasks
  * Create a new task with permission validation
+ * Handles all task fields including tags, deadline, category, etc.
  */
 apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
-    const { title, description, status, priority, category, tags, dueDate, projectId, assigneeId, orderKey } = req.body;
+    // Extract all possible fields from request body
+    const { 
+      title, 
+      description, 
+      status, 
+      priority, 
+      category, 
+      categoryId, // Support both category and categoryId
+      tags, 
+      dueDate, 
+      deadline, // Support both dueDate and deadline (frontend compatibility)
+      projectId, 
+      assigneeId, 
+      orderKey,
+      version
+    } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -1230,20 +1269,24 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Create task in database
+    // Resolve dueDate - support both dueDate and deadline fields
+    const dueDateValue = dueDate || deadline;
+
+    // Create task in database with all supported fields
     const task = await prisma.task.create({
       data: {
         title,
         description: description || null,
         status: status || 'todo',
         priority: priority || 'medium',
-        category: category || null,
-        tags: tags || [],
-        dueDate: dueDate ? new Date(dueDate) : null,
+        category: categoryId || category || null, // Prefer categoryId over category
+        tags: Array.isArray(tags) ? tags : [],
+        dueDate: dueDateValue ? new Date(dueDateValue) : null,
         projectId: projectId || null,
         creatorId: userId,
         assigneeId: assigneeId || null,
         orderKey: orderKey || 'n',
+        version: version || 1,
       },
       include: {
         project: true,
@@ -1257,7 +1300,8 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.status(201).json(task);
+    // Transform task for response (field mapping for frontend compatibility)
+    res.status(201).json(transformTaskForResponse(task));
   } catch (error: any) {
     console.error('Create task error:', error);
     res.status(500).json({ error: 'Failed to create task' });
@@ -1267,6 +1311,8 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
 /**
  * PATCH /api/tasks/:id
  * Update a task with permission validation
+ * Handles all task fields including tags, deadline, category, etc.
+ * Supports setting fields to null/empty values
  */
 apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
   try {
@@ -1290,20 +1336,61 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Update task
-    const { title, description, status, priority, category, categoryId, tags, dueDate, assigneeId, orderKey, version } = req.body;
+    // Extract all possible update fields from request body
+    const { 
+      title, 
+      description, 
+      status, 
+      priority, 
+      category, 
+      categoryId, // Support both category and categoryId
+      tags, 
+      dueDate, 
+      deadline, // Support both dueDate and deadline (frontend compatibility)
+      assigneeId, 
+      orderKey, 
+      version 
+    } = req.body;
     
+    // Build update data object - only include fields that are explicitly provided
     const updateData: any = {};
+    
+    // Required/always-present fields
     if (title !== undefined) updateData.title = title;
-    if (description !== undefined) updateData.description = description;
-    if (status !== undefined) updateData.status = status;
-    if (priority !== undefined) updateData.priority = priority;
+    
+    // Optional string fields - support explicit null to clear
+    if (description !== undefined) updateData.description = description || null;
+    
+    // Status and priority - use defaults if empty string provided
+    if (status !== undefined) updateData.status = status || 'todo';
+    if (priority !== undefined) updateData.priority = priority || 'medium';
+    
     // Handle both category and categoryId for backward compatibility
-    if (category !== undefined) updateData.category = category;
-    if (categoryId !== undefined) updateData.category = categoryId;
-    if (tags !== undefined) updateData.tags = tags;
-    if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
-    if (assigneeId !== undefined) updateData.assigneeId = assigneeId;
+    // Prefer categoryId over category if both are present
+    if (categoryId !== undefined) {
+      updateData.category = categoryId || null;
+    } else if (category !== undefined) {
+      updateData.category = category || null;
+    }
+    
+    // Tags - ensure it's an array
+    if (tags !== undefined) {
+      updateData.tags = Array.isArray(tags) ? tags : [];
+    }
+    
+    // Date fields - support both dueDate and deadline, prefer dueDate
+    if (dueDate !== undefined) {
+      updateData.dueDate = dueDate ? new Date(dueDate) : null;
+    } else if (deadline !== undefined) {
+      updateData.dueDate = deadline ? new Date(deadline) : null;
+    }
+    
+    // Assignee - support explicit null to unassign
+    if (assigneeId !== undefined) {
+      updateData.assigneeId = assigneeId || null;
+    }
+    
+    // Ordering and versioning
     if (orderKey !== undefined) updateData.orderKey = orderKey;
     if (version !== undefined) updateData.version = version;
 
@@ -1322,7 +1409,8 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.json(updatedTask);
+    // Transform task for response (field mapping for frontend compatibility)
+    res.json(transformTaskForResponse(updatedTask));
   } catch (error: any) {
     console.error('Update task error:', error);
     res.status(500).json({ error: 'Failed to update task' });

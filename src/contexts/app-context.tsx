@@ -798,6 +798,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const newTask = await tasksAPI.create(taskData);
       // Добавляем новую задачу в локальное состояние сразу
       setTasks((prev) => [...prev, newTask]);
+      // FIX Problem #1 & #4: Refresh tasks from server to ensure proper sync for drag-and-drop
+      // This ensures all server-generated fields are properly synchronized
+      await fetchTasks();
       toast.success('Задача создана');
       return newTask;
     } catch (error: any) {
