@@ -773,6 +773,28 @@ export const projectsAPI = {
 
     return await response.json();
   },
+
+  /**
+   * Get categories available for a specific project
+   * FIX Problem #3: Returns only categories assigned to this project
+   */
+  getProjectCategories: async (projectId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/categories`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch project categories');
+    }
+
+    const categories = await response.json();
+    return categories;
+  },
 };
 // ========== INVITATIONS API ==========
 

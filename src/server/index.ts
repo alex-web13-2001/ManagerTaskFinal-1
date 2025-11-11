@@ -908,6 +908,45 @@ apiRouter.delete('/projects/:projectId/members/:memberId', canAccessProject, asy
   }
 });
 
+/**
+ * GET /api/projects/:projectId/categories
+ * Get categories available for a specific project
+ * FIX Problem #3: Returns only categories assigned to this project
+ */
+apiRouter.get('/projects/:projectId/categories', canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const userId = req.user!.sub;
+
+    // Get project with its available categories
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { 
+        availableCategories: true,
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Get all user's categories
+    const kvStore = await import('./kv_store.js');
+    const allCategories = await kvStore.get(`categories:${userId}`) || [];
+
+    // Filter categories by project's availableCategories
+    const projectCategories = allCategories.filter((cat: any) => 
+      Array.isArray(project.availableCategories) && 
+      project.availableCategories.includes(cat.id)
+    );
+
+    res.json(projectCategories);
+  } catch (error: any) {
+    console.error('Get project categories error:', error);
+    res.status(500).json({ error: 'Failed to fetch project categories' });
+  }
+});
+
 // ========== INVITATION ROUTES (PROTECTED) ==========
 // Mount invitation routes (handles /api/invitations/* and /api/projects/:projectId/invitations)
 apiRouter.use('/invitations', invitationRoutes);
