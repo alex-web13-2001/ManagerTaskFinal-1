@@ -11,7 +11,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
-import { X, Plus, Upload, Paperclip, Link as LinkIcon, Users, UserPlus, Loader2 } from 'lucide-react';
+import { X, Plus, Upload, Paperclip, Link as LinkIcon, Users, UserPlus, Loader2, Download } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
 import { toast } from 'sonner';
@@ -415,22 +415,41 @@ export function ProjectModal({
                     key={attachment.id}
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                   >
-                    <div className="flex items-center gap-3">
-                      <Paperclip className="w-4 h-4 text-gray-500" />
-                      <div>
-                        <p className="text-sm">{attachment.name}</p>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <Paperclip className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{attachment.name}</p>
                         <p className="text-xs text-gray-500">{attachment.size}</p>
                       </div>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeAttachment(attachment.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (attachment.url) {
+                            // Build full URL for attachment download
+                            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+                            const fullUrl = attachment.url.startsWith('http') 
+                              ? attachment.url 
+                              : `${API_BASE_URL}${attachment.url}`;
+                            window.open(fullUrl, '_blank');
+                          }
+                        }}
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeAttachment(attachment.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
