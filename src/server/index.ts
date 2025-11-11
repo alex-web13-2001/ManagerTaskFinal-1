@@ -733,6 +733,114 @@ apiRouter.get('/projects/:projectId/members', canAccessProject, async (req: Auth
   }
 });
 
+/**
+ * PATCH /api/projects/:projectId/members/:memberId
+ * Update member role in project (Owner only)
+ */
+apiRouter.patch('/projects/:projectId/members/:memberId', canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId, memberId } = req.params;
+    const { role } = req.body;
+    const userId = req.user!.sub;
+
+    if (!role) {
+      return res.status(400).json({ error: 'Role is required' });
+    }
+
+    // Validate role
+    if (!['owner', 'collaborator', 'member', 'viewer'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    // Check if user is owner
+    const userRole = await getUserRoleInProject(userId, projectId);
+    if (userRole !== 'owner') {
+      return res.status(403).json({ error: 'Only project owner can update member roles' });
+    }
+
+    // Check if member exists
+    const member = await prisma.projectMember.findUnique({
+      where: { id: memberId },
+    });
+
+    if (!member || member.projectId !== projectId) {
+      return res.status(404).json({ error: 'Member not found' });
+    }
+
+    // Prevent changing the last owner
+    if (member.role === 'owner' && role !== 'owner') {
+      const ownerCount = await prisma.projectMember.count({
+        where: { projectId, role: 'owner' },
+      });
+      if (ownerCount <= 1) {
+        return res.status(400).json({ error: 'Cannot change role of the last owner' });
+      }
+    }
+
+    // Update member role
+    const updatedMember = await prisma.projectMember.update({
+      where: { id: memberId },
+      data: { role: role as any },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+      },
+    });
+
+    res.json(updatedMember);
+  } catch (error: any) {
+    console.error('Update member role error:', error);
+    res.status(500).json({ error: 'Failed to update member role' });
+  }
+});
+
+/**
+ * DELETE /api/projects/:projectId/members/:memberId
+ * Remove member from project (Owner only)
+ */
+apiRouter.delete('/projects/:projectId/members/:memberId', canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId, memberId } = req.params;
+    const userId = req.user!.sub;
+
+    // Check if user is owner
+    const userRole = await getUserRoleInProject(userId, projectId);
+    if (userRole !== 'owner') {
+      return res.status(403).json({ error: 'Only project owner can remove members' });
+    }
+
+    // Check if member exists
+    const member = await prisma.projectMember.findUnique({
+      where: { id: memberId },
+    });
+
+    if (!member || member.projectId !== projectId) {
+      return res.status(404).json({ error: 'Member not found' });
+    }
+
+    // Prevent removing the last owner
+    if (member.role === 'owner') {
+      const ownerCount = await prisma.projectMember.count({
+        where: { projectId, role: 'owner' },
+      });
+      if (ownerCount <= 1) {
+        return res.status(400).json({ error: 'Cannot remove the last owner' });
+      }
+    }
+
+    // Remove member
+    await prisma.projectMember.delete({
+      where: { id: memberId },
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Remove member error:', error);
+    res.status(500).json({ error: 'Failed to remove member' });
+  }
+});
+
 // ========== INVITATION ROUTES (PROTECTED) ==========
 // Mount invitation routes (handles /api/invitations/* and /api/projects/:projectId/invitations)
 apiRouter.use('/invitations', invitationRoutes);
