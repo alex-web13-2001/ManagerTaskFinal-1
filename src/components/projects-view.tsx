@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Card, CardContent, CardHeader } from './ui/card';
 import {
   Select,
@@ -413,13 +413,24 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
                   {project.members && project.members.length > 0 && (
                     <div className="flex items-center gap-2">
                       <div className="flex -space-x-2">
-                        {project.members.slice(0, 4).map((member: any, idx: number) => (
-                          <Avatar key={idx} className="w-7 h-7 border-2 border-white">
-                            <AvatarFallback className="text-xs">
-                              {getAvatarSafely(member.name, member.email)}
-                            </AvatarFallback>
-                          </Avatar>
-                        ))}
+                        {project.members.slice(0, 4).map((member: any, idx: number) => {
+                          // Handle nested user structure from server
+                          const memberData = member.user || member;
+                          const memberName = memberData.name || member.name;
+                          const memberEmail = memberData.email || member.email;
+                          const memberAvatar = memberData.avatarUrl || member.avatarUrl;
+                          
+                          return (
+                            <Avatar key={idx} className="w-7 h-7 border-2 border-white">
+                              {memberAvatar && (
+                                <AvatarImage src={memberAvatar} alt={memberName} />
+                              )}
+                              <AvatarFallback className="text-xs bg-purple-100 text-purple-600">
+                                {getAvatarSafely(memberName, memberEmail)}
+                              </AvatarFallback>
+                            </Avatar>
+                          );
+                        })}
                         {project.members.length > 4 && (
                           <div className="w-7 h-7 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
                             <span className="text-xs text-gray-600">+{project.members.length - 4}</span>
