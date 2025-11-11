@@ -630,8 +630,8 @@ apiRouter.patch('/projects/:id', canAccessProject, async (req: AuthRequest, res:
       return res.status(403).json({ error: 'You do not have permission to edit this project' });
     }
 
-    // FIX Problem #4: Support links field for project updates
-    const { name, description, color, archived, links } = req.body;
+    // FIX Problem #4 & #5: Support links and availableCategories fields for project updates
+    const { name, description, color, archived, links, availableCategories } = req.body;
 
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
@@ -639,6 +639,10 @@ apiRouter.patch('/projects/:id', canAccessProject, async (req: AuthRequest, res:
     if (color !== undefined) updateData.color = color;
     if (archived !== undefined && role === 'owner') updateData.archived = archived; // Only owner can archive
     if (links !== undefined) updateData.links = Array.isArray(links) ? links : []; // Ensure links is an array
+    // Only owner can modify available categories for the project
+    if (availableCategories !== undefined && role === 'owner') {
+      updateData.availableCategories = Array.isArray(availableCategories) ? availableCategories : [];
+    }
 
     const updatedProject = await prisma.project.update({
       where: { id: projectId },
@@ -912,6 +916,38 @@ apiRouter.use('/projects', invitationRoutes);
 // ========== FILE UPLOAD ENDPOINTS (PROTECTED) ==========
 
 /**
+ * PATCH /api/profile
+ * Update user profile (name, etc)
+ */
+apiRouter.patch('/profile', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    const { name } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { name },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatarUrl: true,
+        createdAt: true,
+      },
+    });
+
+    res.json(user);
+  } catch (error: any) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+/**
  * POST /api/upload-avatar
  * Upload user avatar
  * Rate limited to prevent abuse
@@ -924,6 +960,19 @@ apiRouter.post('/upload-avatar', uploadRateLimiter, upload.single('avatar'), asy
 
     const userId = req.user!.sub;
     const avatarUrl = `/uploads/${req.file.filename}`;
+
+    // Delete old avatar file if exists
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarUrl: true },
+    });
+
+    if (existingUser?.avatarUrl && existingUser.avatarUrl.startsWith('/uploads/')) {
+      const oldFilePath = path.join(uploadsDir, path.basename(existingUser.avatarUrl));
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath);
+      }
+    }
 
     // Update user avatar
     const user = await prisma.user.update({
@@ -942,20 +991,62 @@ apiRouter.post('/upload-avatar', uploadRateLimiter, upload.single('avatar'), asy
 });
 
 /**
+ * DELETE /api/avatar
+ * Delete user avatar
+ */
+apiRouter.delete('/avatar', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+
+    // Get current avatar
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarUrl: true },
+    });
+
+    // Delete file if exists
+    if (existingUser?.avatarUrl && existingUser.avatarUrl.startsWith('/uploads/')) {
+      const filePath = path.join(uploadsDir, path.basename(existingUser.avatarUrl));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    // Remove avatar from database
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl: null },
+    });
+
+    res.json({
+      success: true,
+      message: 'Avatar deleted successfully',
+    });
+  } catch (error: any) {
+    console.error('Delete avatar error:', error);
+    res.status(500).json({ error: 'Failed to delete avatar' });
+  }
+});
+
+/**
  * POST /api/upload-attachment
- * Upload task attachment - REFACTORED TO USE PRISMA
+ * Upload task attachment(s) - SUPPORTS MULTIPLE FILES
  * Rate limited to prevent abuse
  */
-apiRouter.post('/upload-attachment', uploadRateLimiter, upload.single('file'), async (req: AuthRequest, res: Response) => {
+apiRouter.post('/upload-attachment', uploadRateLimiter, upload.array('files', 10), async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+    const files = req.files as Express.Multer.File[];
+    
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
     }
 
     const { taskId } = req.body;
     const userId = req.user!.sub;
 
     if (!taskId) {
+      // Clean up uploaded files
+      files.forEach(file => fs.unlinkSync(file.path));
       return res.status(400).json({ error: 'Task ID is required' });
     }
 
@@ -965,45 +1056,52 @@ apiRouter.post('/upload-attachment', uploadRateLimiter, upload.single('file'), a
     });
 
     if (!task) {
-      // Clean up uploaded file
-      fs.unlinkSync(req.file.path);
+      // Clean up uploaded files
+      files.forEach(file => fs.unlinkSync(file.path));
       return res.status(404).json({ error: 'Task not found' });
     }
 
     const canEdit = await canEditTaskFromDB(userId, taskId);
     if (!canEdit) {
-      // Clean up uploaded file
-      fs.unlinkSync(req.file.path);
+      // Clean up uploaded files
+      files.forEach(file => fs.unlinkSync(file.path));
       return res.status(403).json({ error: 'You do not have permission to add attachments to this task' });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // Create attachments for all uploaded files
+    const attachments = await Promise.all(
+      files.map(async (file) => {
+        const fileUrl = `/uploads/${file.filename}`;
+        const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
 
-    // FIX Problem #3: Decode Cyrillic filename for display
-    const decodedFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-
-    // Create attachment in database using Prisma
-    const attachment = await prisma.attachment.create({
-      data: {
-        taskId,
-        name: decodedFileName,
-        url: fileUrl,
-        size: req.file.size,
-        mimeType: req.file.mimetype,
-      },
-    });
+        return await prisma.attachment.create({
+          data: {
+            taskId,
+            name: decodedFileName,
+            url: fileUrl,
+            size: file.size,
+            mimeType: file.mimetype,
+          },
+        });
+      })
+    );
 
     res.json({
-      attachment,
-      message: 'Attachment uploaded successfully',
+      attachments,
+      message: `${attachments.length} file(s) uploaded successfully`,
     });
   } catch (error: any) {
     console.error('Upload attachment error:', error);
-    // Clean up file if it exists
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    // Clean up files if they exist
+    const files = req.files as Express.Multer.File[];
+    if (files) {
+      files.forEach(file => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
     }
-    res.status(500).json({ error: 'Failed to upload attachment' });
+    res.status(500).json({ error: 'Failed to upload attachments' });
   }
 });
 

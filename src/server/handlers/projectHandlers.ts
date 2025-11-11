@@ -10,7 +10,7 @@ import prisma from '../db';
  */
 export async function createProject(req: Request, res: Response) {
   try {
-    const { name, description, color } = req.body;
+    const { name, description, color, availableCategories } = req.body;
     const ownerId = (req as any).user!.sub;
 
     if (!name) {
@@ -28,6 +28,7 @@ export async function createProject(req: Request, res: Response) {
           description: description || null,
           color: color || '#3b82f6',
           ownerId: ownerId,
+          availableCategories: Array.isArray(availableCategories) ? availableCategories : [],
         },
       });
 

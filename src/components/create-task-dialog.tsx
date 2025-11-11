@@ -57,21 +57,21 @@ export function CreateTaskDialog({
   // Filter categories based on selected project
   const availableCategories = React.useMemo(() => {
     if (!project || project === 'personal') {
-      // Personal tasks can use all categories
+      // Personal tasks can use all user's categories
       return categories;
     }
     
     if (!selectedProject) {
-      return categories;
+      return [];
     }
     
     // Check if project has availableCategories defined
     const projectAvailableCategories = (selectedProject as any).availableCategories;
     
     if (!projectAvailableCategories || !Array.isArray(projectAvailableCategories) || projectAvailableCategories.length === 0) {
-      // If no categories are assigned to the project, allow all categories
-      // This allows users to assign any task to themselves in the project
-      return categories;
+      // If no categories are assigned to the project, show empty list
+      // Only owner can assign categories via project modal
+      return [];
     }
     
     // Filter to only show categories available in this project

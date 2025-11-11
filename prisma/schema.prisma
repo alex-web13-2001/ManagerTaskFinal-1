@@ -36,15 +36,16 @@ model User {
 
 // Project model
 model Project {
-  id          String    @id @default(uuid())
-  name        String
-  description String?
-  color       String    @default("#3b82f6")
-  icon        String?
-  archived    Boolean   @default(false)
-  links       String[]  @default([]) // FIX Problem #4: Store project links
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                  String    @id @default(uuid())
+  name                String
+  description         String?
+  color               String    @default("#3b82f6")
+  icon                String?
+  archived            Boolean   @default(false)
+  links               String[]  @default([]) // FIX Problem #4: Store project links
+  availableCategories String[]  @default([]) // FIX Problem #5: Store available category IDs for this project
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
   
   // Relations
   ownerId     String

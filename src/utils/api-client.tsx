@@ -187,9 +187,21 @@ export const authAPI = {
     const token = getAuthToken();
     if (!token) throw new Error('Not authenticated');
 
-    // TODO: Implement profile update endpoint
-    console.warn('Profile update endpoint not yet implemented');
-    return updates;
+    const response = await fetch(`${API_BASE_URL}/api/profile`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to update profile');
+    }
+
+    return await response.json();
   },
 
   uploadAvatar: async (file: File) => {
@@ -217,8 +229,21 @@ export const authAPI = {
   },
 
   deleteAvatar: async () => {
-    // TODO: Implement avatar delete endpoint
-    console.warn('Avatar delete endpoint not yet implemented');
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/avatar`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete avatar');
+    }
+
     return true;
   },
 
@@ -331,7 +356,7 @@ export const tasksAPI = {
     if (!token) throw new Error('Not authenticated');
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('files', file);
     formData.append('taskId', taskId);
 
     const response = await fetch(`${API_BASE_URL}/api/upload-attachment`, {
@@ -348,7 +373,35 @@ export const tasksAPI = {
     }
 
     const data = await response.json();
-    return data.attachment;
+    // Return first attachment for backward compatibility
+    return data.attachments?.[0] || data.attachment;
+  },
+
+  uploadMultipleAttachments: async (taskId: string, files: File[]) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    formData.append('taskId', taskId);
+
+    const response = await fetch(`${API_BASE_URL}/api/upload-attachment`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to upload attachments');
+    }
+
+    const data = await response.json();
+    return data.attachments;
   },
 
   deleteAttachment: async (taskId: string, attachmentId: string) => {

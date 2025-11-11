@@ -12,7 +12,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
 import { X, Plus, Upload, Paperclip, Link as LinkIcon, Users, UserPlus, Loader2 } from 'lucide-react';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
 import { toast } from 'sonner';
 import { useApp, type ProjectLink, type ProjectAttachment } from '../contexts/app-context';
@@ -440,22 +440,42 @@ export function ProjectModal({
 
                 {/* Компактный список участников */}
                 <div className="space-y-2">
-                  {existingProject.members.slice(0, 3).map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
-                    >
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback className="text-xs bg-purple-100 text-purple-600">
-                          {member.short}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{member.name}</p>
-                        <p className="text-xs text-gray-500">{member.role}</p>
+                  {existingProject.members.slice(0, 3).map((member) => {
+                    // Handle nested user structure from server
+                    const memberData = member.user || member;
+                    const memberName = memberData.name || member.name || 'Без имени';
+                    const memberEmail = memberData.email || member.email || '';
+                    const memberAvatar = memberData.avatarUrl || member.avatarUrl;
+                    const memberRole = member.role || 'member';
+                    
+                    // Generate initials
+                    const initials = memberName
+                      .split(' ')
+                      .slice(0, 2)
+                      .map(n => n[0])
+                      .join('')
+                      .toUpperCase() || memberEmail[0]?.toUpperCase() || '?';
+                    
+                    return (
+                      <div
+                        key={member.id}
+                        className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+                      >
+                        <Avatar className="w-8 h-8">
+                          {memberAvatar && (
+                            <AvatarImage src={memberAvatar} alt={memberName} />
+                          )}
+                          <AvatarFallback className="text-xs bg-purple-100 text-purple-600">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm truncate">{memberName}</p>
+                          <p className="text-xs text-gray-500">{memberRole}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {existingProject.members.length > 3 && (
                     <p className="text-sm text-gray-500 text-center">
                       и ещё {existingProject.members.length - 3} участник(ов)
