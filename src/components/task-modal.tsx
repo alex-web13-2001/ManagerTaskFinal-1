@@ -590,7 +590,7 @@ export function TaskModal({
   }, [projectId, selectedProject]);
   
   // Filter categories to show only categories available in the selected project
-  // For project tasks, use categories from the project owner
+  // For project tasks, use categories from the project owner (filtered by availableCategories)
   const availableCategories = React.useMemo(() => {
     if (projectId === 'personal') {
       // Personal tasks can use all user's categories
@@ -601,19 +601,10 @@ export function TaskModal({
       return categories;
     }
     
-    // For project tasks: use project categories (owner's categories)
-    if (projectCategories.length > 0) {
-      return projectCategories;
-    }
-    
-    // Fallback to old logic if project categories not loaded yet
-    const projectAvailableCategories = (selectedProject as any).availableCategories;
-    
-    if (!projectAvailableCategories || !Array.isArray(projectAvailableCategories) || projectAvailableCategories.length === 0) {
-      return [];
-    }
-    
-    return categories.filter(cat => projectAvailableCategories.includes(cat.id));
+    // For project tasks: ONLY use project categories from the owner
+    // These are already filtered by project.availableCategories on the server
+    // Do NOT fallback to current user's categories - members should only see owner's categories
+    return projectCategories;
   }, [projectId, selectedProject, categories, projectCategories]);
   
   // Reset category if it's not available in the selected project
