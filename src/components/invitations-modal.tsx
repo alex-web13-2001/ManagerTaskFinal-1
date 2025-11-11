@@ -23,7 +23,8 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
 type Invitation = {
-  id: string;
+  id: string; // Database ID (used for reject/revoke operations)
+  token: string; // Token used for accepting invitations
   projectId: string;
   projectName?: string;
   invitedEmail: string;
@@ -84,15 +85,16 @@ export function InvitationsModal({
     }
   };
 
-  const handleAccept = async (invitationId: string) => {
+  const handleAccept = async (invitation: Invitation) => {
     try {
-      setProcessingId(invitationId);
-      const result = await invitationsAPI.acceptInvitation(invitationId);
+      setProcessingId(invitation.id);
+      // Use token for accepting, not database ID
+      const result = await invitationsAPI.acceptInvitation(invitation.token);
       
       toast.success('Приглашение принято! Вы теперь участник проекта.');
       
-      // Remove from list
-      setInvitations(invitations.filter(inv => inv.id !== invitationId));
+      // Remove from list using database ID
+      setInvitations(invitations.filter(inv => inv.id !== invitation.id));
       
       // Notify parent to refresh projects
       if (onInvitationAccepted) {
@@ -203,7 +205,7 @@ export function InvitationsModal({
                         <div className="flex flex-col gap-2">
                           <Button
                             size="sm"
-                            onClick={() => handleAccept(invitation.id)}
+                            onClick={() => handleAccept(invitation)}
                             disabled={processingId === invitation.id}
                             className="bg-green-600 hover:bg-green-700"
                           >

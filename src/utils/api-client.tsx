@@ -540,7 +540,7 @@ export const projectsAPI = {
   },
 
   /**
-   * Accept an invitation
+   * Accept an invitation using token
    */
   acceptInvitation: async (token: string) => {
     const authToken = getAuthToken();
@@ -687,14 +687,14 @@ export const invitationsAPI = {
   },
 
   /**
-   * Accept an invitation (delegates to projectsAPI)
+   * Accept an invitation using token (delegates to projectsAPI)
    */
-  acceptInvitation: async (invitationId: string) => {
-    return projectsAPI.acceptInvitation(invitationId);
+  acceptInvitation: async (token: string) => {
+    return projectsAPI.acceptInvitation(token);
   },
   
   /**
-   * Reject an invitation (delegates to projectsAPI)
+   * Reject an invitation using database ID (delegates to projectsAPI)
    */
   rejectInvitation: async (invitationId: string) => {
     return projectsAPI.rejectInvitation(invitationId);
