@@ -18,6 +18,7 @@ import {
 } from '../lib/permissions';
 import { authenticate, canAccessProject, AuthRequest, UserRole } from './middleware/auth.js';
 import { webhookHandler } from './handlers/webhookHandler.js';
+import { createProject } from './handlers/projectHandlers.js';
 import { authRateLimiter, uploadRateLimiter, passwordResetRateLimiter } from './middleware/rateLimiter.js';
 
 const app = express();
@@ -487,64 +488,7 @@ app.post('/api/auth/reset-password', passwordResetRateLimiter, async (req: Reque
  * POST /api/projects
  * Create a new project (any authenticated user can create)
  */
-apiRouter.post('/projects', async (req: AuthRequest, res: Response) => {
-  try {
-    const { name, description, color } = req.body;
-    const ownerId = req.user!.sub;
-
-    if (!name) {
-      return res.status(400).json({ error: 'Project name is required' });
-    }
-
-    // Use transaction to ensure both project and project member are created together
-    // This prevents "orphan projects" without owner members in case of errors
-    const project = await prisma.$transaction(async (tx) => {
-      // Step 1: Create project
-      const newProject = await tx.project.create({
-        data: {
-          name,
-          description: description || null,
-          color: color || '#3b82f6',
-          ownerId: ownerId,
-        },
-      });
-
-      // Step 2: Immediately add owner as a member with 'owner' role
-      // This links ownership with the access control system
-      await tx.projectMember.create({
-        data: {
-          userId: ownerId,
-          projectId: newProject.id,
-          role: 'owner',
-        },
-      });
-
-      return newProject;
-    });
-
-    // Fetch the project with all related data to return consistent response
-    const projectWithMembers = await prisma.project.findUnique({
-      where: { id: project.id },
-      include: {
-        owner: {
-          select: { id: true, name: true, email: true, avatarUrl: true },
-        },
-        members: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true, avatarUrl: true },
-            },
-          },
-        },
-      },
-    });
-
-    res.status(201).json(projectWithMembers);
-  } catch (error: any) {
-    console.error('Failed to create project or project member entry:', error);
-    res.status(500).json({ error: 'Failed to create project' });
-  }
-});
+apiRouter.post('/projects', createProject);
 
 /**
  * GET /api/projects
