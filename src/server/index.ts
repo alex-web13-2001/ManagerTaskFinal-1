@@ -18,6 +18,7 @@ import {
 } from '../lib/permissions';
 import { authenticate, canAccessProject, AuthRequest, UserRole } from './middleware/auth.js';
 import { webhookHandler } from './handlers/webhookHandler.js';
+import { authRateLimiter, uploadRateLimiter, passwordResetRateLimiter } from './middleware/rateLimiter.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -238,8 +239,9 @@ apiRouter.use(authenticate);
 /**
  * POST /api/auth/signup
  * Register a new user
+ * Rate limited to prevent abuse
  */
-app.post('/api/auth/signup', async (req: Request, res: Response) => {
+app.post('/api/auth/signup', authRateLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
 
@@ -300,8 +302,9 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
 /**
  * POST /api/auth/signin
  * Sign in a user
+ * Rate limited to prevent brute force attacks
  */
-app.post('/api/auth/signin', async (req: Request, res: Response) => {
+app.post('/api/auth/signin', authRateLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
@@ -372,8 +375,9 @@ apiRouter.get('/auth/me', async (req: AuthRequest, res: Response) => {
 /**
  * POST /api/auth/forgot-password
  * Request password reset
+ * Rate limited to prevent abuse
  */
-app.post('/api/auth/forgot-password', async (req: Request, res: Response) => {
+app.post('/api/auth/forgot-password', passwordResetRateLimiter, async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
 
@@ -421,8 +425,9 @@ app.post('/api/auth/forgot-password', async (req: Request, res: Response) => {
 /**
  * POST /api/auth/reset-password
  * Reset password using token
+ * Rate limited to prevent abuse
  */
-app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
+app.post('/api/auth/reset-password', passwordResetRateLimiter, async (req: Request, res: Response) => {
   try {
     const { token, password } = req.body;
 
@@ -794,8 +799,9 @@ apiRouter.use('/projects', invitationRoutes);
 /**
  * POST /api/upload-avatar
  * Upload user avatar
+ * Rate limited to prevent abuse
  */
-apiRouter.post('/upload-avatar', upload.single('avatar'), async (req: AuthRequest, res: Response) => {
+apiRouter.post('/upload-avatar', uploadRateLimiter, upload.single('avatar'), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -823,8 +829,9 @@ apiRouter.post('/upload-avatar', upload.single('avatar'), async (req: AuthReques
 /**
  * POST /api/upload-attachment
  * Upload task attachment - REFACTORED TO USE PRISMA
+ * Rate limited to prevent abuse
  */
-apiRouter.post('/upload-attachment', upload.single('file'), async (req: AuthRequest, res: Response) => {
+apiRouter.post('/upload-attachment', uploadRateLimiter, upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -885,8 +892,9 @@ apiRouter.post('/upload-attachment', upload.single('file'), async (req: AuthRequ
 /**
  * POST /api/upload-project-attachment
  * Upload project attachment
+ * Rate limited to prevent abuse
  */
-apiRouter.post('/upload-project-attachment', upload.single('file'), async (req: AuthRequest, res: Response) => {
+apiRouter.post('/upload-project-attachment', uploadRateLimiter, upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
