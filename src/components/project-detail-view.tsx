@@ -9,6 +9,7 @@ import { Checkbox } from './ui/checkbox';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProjectKanbanBoard } from './project-kanban-board';
+import { KanbanBoardSkeleton } from './kanban-skeleton';
 import { ProjectTaskTable } from './project-task-table';
 import { TaskModal } from './task-modal';
 import { ProjectAboutModal } from './project-about-modal';
@@ -27,10 +28,12 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
   const { 
     projects, 
     tasks, 
-    isLoading, 
+    isLoading,
+    isInitialLoad,
     currentUser,
     teamMembers,
     categories,
+    customColumns,
     getUserRoleInProject,
     canEditProject,
     canDeleteProject,
@@ -555,7 +558,10 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
 
       {/* Основная область */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {viewMode === 'kanban' ? (
+        {/* Show loading skeleton during initial load or when data is being fetched */}
+        {(isInitialLoad || isLoading) && viewMode === 'kanban' ? (
+          <KanbanBoardSkeleton columnCount={customColumns.length > 0 ? 4 + customColumns.length : 4} />
+        ) : viewMode === 'kanban' ? (
           <ProjectKanbanBoard
             projectId={projectId}
             searchQuery={searchQuery}
