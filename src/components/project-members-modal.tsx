@@ -385,12 +385,17 @@ export function ProjectMembersModal({
           return true;
         })
         .map((m: any) => {
+          // Handle both flat and nested user structures
           const safeName = (typeof m.name === 'string' && m.name.trim()) 
             ? m.name.trim() 
-            : '';
+            : (typeof m.user?.name === 'string' && m.user.name.trim())
+              ? m.user.name.trim()
+              : '';
           const safeEmail = (typeof m.email === 'string' && m.email.trim()) 
             ? m.email.trim() 
-            : '';
+            : (typeof m.user?.email === 'string' && m.user.email.trim())
+              ? m.user.email.trim()
+              : '';
           
           return {
             id: m.id || m.userId,
