@@ -1161,12 +1161,13 @@ apiRouter.post('/upload-project-attachment', uploadRateLimiter, upload.single('f
     }
 
     const fileUrl = `/uploads/${req.file.filename}`;
+    const decodedFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
     const attachmentId = `proj_attachment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Return attachment metadata
     const attachment = {
       id: attachmentId,
-      name: req.file.originalname,
+      name: decodedFileName,
       size: `${(req.file.size / 1024 / 1024).toFixed(2)} MB`,
       url: fileUrl,
       uploadedAt: new Date().toISOString(),

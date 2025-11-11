@@ -1456,7 +1456,14 @@ export function TaskModal({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => window.open(attachment.url, '_blank')}
+                            onClick={() => {
+                              // FIX: Build full URL for attachment download
+                              const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+                              const fullUrl = attachment.url.startsWith('http') 
+                                ? attachment.url 
+                                : `${API_BASE_URL}${attachment.url}`;
+                              window.open(fullUrl, '_blank');
+                            }}
                           >
                             <Download className="w-4 h-4" />
                           </Button>

@@ -236,7 +236,12 @@ export function ProjectAboutModal({
                         size="sm"
                         onClick={() => {
                           if (attachment.url) {
-                            window.open(attachment.url, '_blank');
+                            // FIX: Build full URL for attachment download
+                            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+                            const fullUrl = attachment.url.startsWith('http') 
+                              ? attachment.url 
+                              : `${API_BASE_URL}${attachment.url}`;
+                            window.open(fullUrl, '_blank');
                           }
                         }}
                       >

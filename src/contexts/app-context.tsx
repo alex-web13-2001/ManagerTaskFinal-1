@@ -189,6 +189,7 @@ interface AppContextType {
   uploadTaskAttachment: (taskId: string, file: File) => Promise<TaskAttachment>;
   uploadMultipleTaskAttachments: (taskId: string, files: File[]) => Promise<TaskAttachment[]>;
   deleteTaskAttachment: (taskId: string, attachmentId: string) => Promise<void>;
+  uploadProjectAttachment: (projectId: string, file: File) => Promise<any>;
   createProject: (projectData: Partial<Project>) => Promise<Project>;
   updateProject: (projectId: string, updates: Partial<Project>) => Promise<Project>;
   archiveProject: (projectId: string) => Promise<void>;
@@ -1112,6 +1113,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const uploadProjectAttachment = async (projectId: string, file: File): Promise<any> => {
+    try {
+      console.log(`📎 uploadProjectAttachment: Uploading file ${file.name} for project ${projectId}`);
+      const attachment = await tasksAPI.uploadProjectAttachment(projectId, file);
+      console.log(`✅ uploadProjectAttachment: Upload successful, attachment:`, attachment);
+      return attachment;
+    } catch (error: any) {
+      console.error(`❌ uploadProjectAttachment: Error uploading file ${file.name}:`, error);
+      toast.error(error.message || 'Ошибка загрузки файла');
+      throw error;
+    }
+  };
+
   // ========== PERMISSION HELPERS ==========
 
   /**
@@ -1279,6 +1293,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     uploadTaskAttachment,
     uploadMultipleTaskAttachments,
     deleteTaskAttachment,
+    uploadProjectAttachment,
     createProject,
     updateProject,
     archiveProject,
