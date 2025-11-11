@@ -797,10 +797,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const newTask = await tasksAPI.create(taskData);
       
-      // FIX Problem #1: Don't add task optimistically - wait for fetchTasks to complete
-      // This prevents race conditions and ensures DnD handlers are properly initialized
-      // The newly created task will appear after fetchTasks completes with all required fields
-      await fetchTasks();
+      // FIX Problem #2: Add task immediately to state for instant UI update and DnD support
+      // The newTask from API includes all required fields (id, orderKey, version, etc.)
+      setTasks((prev) => [...prev, newTask]);
+      
+      // Also fetch all tasks to ensure full synchronization
+      // This ensures any server-side transformations are reflected
+      // Using setTimeout to avoid blocking the UI
+      setTimeout(() => {
+        fetchTasks().catch(err => console.error('Background fetch failed:', err));
+      }, 100);
       
       toast.success('Задача создана');
       return newTask;

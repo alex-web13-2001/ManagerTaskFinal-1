@@ -630,8 +630,8 @@ apiRouter.patch('/projects/:id', canAccessProject, async (req: AuthRequest, res:
       return res.status(403).json({ error: 'You do not have permission to edit this project' });
     }
 
-    // FIX Problem #4: Support links field for project updates
-    const { name, description, color, archived, links } = req.body;
+    // FIX Problem #4 & #5: Support links and availableCategories fields for project updates
+    const { name, description, color, archived, links, availableCategories } = req.body;
 
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
@@ -639,6 +639,10 @@ apiRouter.patch('/projects/:id', canAccessProject, async (req: AuthRequest, res:
     if (color !== undefined) updateData.color = color;
     if (archived !== undefined && role === 'owner') updateData.archived = archived; // Only owner can archive
     if (links !== undefined) updateData.links = Array.isArray(links) ? links : []; // Ensure links is an array
+    // Only owner can modify available categories for the project
+    if (availableCategories !== undefined && role === 'owner') {
+      updateData.availableCategories = Array.isArray(availableCategories) ? availableCategories : [];
+    }
 
     const updatedProject = await prisma.project.update({
       where: { id: projectId },
