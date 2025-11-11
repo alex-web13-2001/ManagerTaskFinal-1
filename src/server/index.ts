@@ -911,17 +911,18 @@ apiRouter.delete('/projects/:projectId/members/:memberId', canAccessProject, asy
 /**
  * GET /api/projects/:projectId/categories
  * Get categories available for a specific project
- * FIX Problem #3: Returns only categories assigned to this project
+ * FIX Problem #3: Returns owner's categories that are assigned to this project
+ * Members see these categories and can use them for tasks
  */
 apiRouter.get('/projects/:projectId/categories', canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
     const { projectId } = req.params;
-    const userId = req.user!.sub;
 
-    // Get project with its available categories
+    // Get project with owner and available categories
     const project = await prisma.project.findUnique({
       where: { id: projectId },
       select: { 
+        ownerId: true,
         availableCategories: true,
       },
     });
@@ -930,12 +931,12 @@ apiRouter.get('/projects/:projectId/categories', canAccessProject, async (req: A
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    // Get all user's categories
+    // Get owner's categories (not current user's categories!)
     const kvStore = await import('./kv_store.js');
-    const allCategories = await kvStore.get(`categories:${userId}`) || [];
+    const ownerCategories = await kvStore.get(`categories:${project.ownerId}`) || [];
 
-    // Filter categories by project's availableCategories
-    const projectCategories = allCategories.filter((cat: any) => 
+    // Filter owner's categories by project's availableCategories
+    const projectCategories = ownerCategories.filter((cat: any) => 
       Array.isArray(project.availableCategories) && 
       project.availableCategories.includes(cat.id)
     );

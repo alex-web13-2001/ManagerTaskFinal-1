@@ -146,6 +146,7 @@ export function TaskModal({
   } = useApp();
   const [mode, setMode] = React.useState<TaskModalMode>(initialMode);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [projectCategories, setProjectCategories] = React.useState<any[]>([]);
   
   const isEditMode = mode === 'edit';
   const isViewMode = mode === 'view';
@@ -568,7 +569,28 @@ export function TaskModal({
     return categories.find((c) => c.id === categoryId);
   }, [categories, categoryId]);
   
+  // Load project categories when project changes
+  React.useEffect(() => {
+    if (projectId && projectId !== 'personal' && selectedProject) {
+      // Fetch categories for this project (owner's categories filtered by availableCategories)
+      const loadProjectCategories = async () => {
+        try {
+          const { projectsAPI } = await import('../utils/api-client');
+          const cats = await projectsAPI.getProjectCategories(projectId);
+          setProjectCategories(cats);
+        } catch (error) {
+          console.error('Failed to load project categories:', error);
+          setProjectCategories([]);
+        }
+      };
+      loadProjectCategories();
+    } else {
+      setProjectCategories([]);
+    }
+  }, [projectId, selectedProject]);
+  
   // Filter categories to show only categories available in the selected project
+  // For project tasks, use categories from the project owner
   const availableCategories = React.useMemo(() => {
     if (projectId === 'personal') {
       // Personal tasks can use all user's categories
@@ -579,18 +601,20 @@ export function TaskModal({
       return categories;
     }
     
-    // Check if project has availableCategories defined
+    // For project tasks: use project categories (owner's categories)
+    if (projectCategories.length > 0) {
+      return projectCategories;
+    }
+    
+    // Fallback to old logic if project categories not loaded yet
     const projectAvailableCategories = (selectedProject as any).availableCategories;
     
     if (!projectAvailableCategories || !Array.isArray(projectAvailableCategories) || projectAvailableCategories.length === 0) {
-      // If no categories are assigned to the project, show empty list
-      // Only project owner can assign categories via project modal
       return [];
     }
     
-    // Filter to only show categories available in this project
     return categories.filter(cat => projectAvailableCategories.includes(cat.id));
-  }, [projectId, selectedProject, categories]);
+  }, [projectId, selectedProject, categories, projectCategories]);
   
   // Reset category if it's not available in the selected project
   React.useEffect(() => {
