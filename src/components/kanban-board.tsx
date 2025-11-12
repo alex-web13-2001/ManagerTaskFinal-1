@@ -310,8 +310,12 @@ DraggableTaskCard.displayName = 'DraggableTaskCard';
 
 // Мемоизированная версия для оптимизации производительности
 const MemoizedDraggableTaskCard = React.memo(DraggableTaskCard, (prevProps, nextProps) => {
+  // If task ID changed, this is a different task - force re-render
+  if (prevProps.task.id !== nextProps.task.id) {
+    return false;
+  }
+  
   return (
-    prevProps.task.id === nextProps.task.id &&
     prevProps.task.title === nextProps.task.title &&
     prevProps.task.status === nextProps.task.status &&
     prevProps.task.priority === nextProps.task.priority &&
@@ -461,11 +465,32 @@ const DroppableColumn = ({
 
 // Мемоизированная версия DroppableColumn
 const MemoizedDroppableColumn = React.memo(DroppableColumn, (prevProps, nextProps) => {
+  // CRITICAL FIX: Check if tasks list changed (new tasks added/removed)
+  if (prevProps.tasks.length !== nextProps.tasks.length) {
+    return false; // Force re-render
+  }
+  
+  // Check if task IDs changed (new task added or task removed)
+  const prevIds = prevProps.tasks.map(t => t.id).sort().join(',');
+  const nextIds = nextProps.tasks.map(t => t.id).sort().join(',');
+  
+  if (prevIds !== nextIds) {
+    return false; // Force re-render - ensures new tasks get drag handlers
+  }
+  
+  // Only check updates for existing tasks
+  const hasTaskUpdates = prevProps.tasks.some((task, index) => {
+    const nextTask = nextProps.tasks[index];
+    return nextTask && task.updatedAt !== nextTask.updatedAt;
+  });
+  
+  if (hasTaskUpdates) {
+    return false; // Force re-render
+  }
+  
   return (
     prevProps.columnId === nextProps.columnId &&
     prevProps.title === nextProps.title &&
-    prevProps.tasks.length === nextProps.tasks.length &&
-    prevProps.tasks.every((task, index) => task.id === nextProps.tasks[index]?.id && task.updatedAt === nextProps.tasks[index]?.updatedAt) &&
     prevProps.isInitialMount === nextProps.isInitialMount &&
     prevProps.isCustom === nextProps.isCustom
   );
