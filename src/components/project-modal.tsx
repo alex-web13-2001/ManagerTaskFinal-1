@@ -216,7 +216,7 @@ export function ProjectModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className="w-[95%] sm:max-w-[700px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>
             {isEditMode ? 'Редактировать проект' : 'Создать новый проект'}
@@ -259,7 +259,7 @@ export function ProjectModal({
           {/* Цвет */}
           <div className="space-y-2">
             <Label>Цвет проекта</Label>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {colorOptions.map((option) => (
                 <button
                   key={option.id}
@@ -284,7 +284,7 @@ export function ProjectModal({
           <div className="space-y-2">
             <Label>Внешние ссылки</Label>
             <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Input
                   placeholder="Название ссылки"
                   value={newLinkName}
