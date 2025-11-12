@@ -25,7 +25,7 @@ export function VerifyEmailPage({ onVerified }: VerifyEmailPageProps) {
         const data = await res.json();
         
         if (res.ok) {
-          localStorage.setItem('authToken', data.token);
+          localStorage.setItem('auth_token', data.token);
           setStatus('success');
           setMessage('Email успешно подтвержден!');
           

@@ -111,7 +111,7 @@ export async function createInvitation(req: AuthRequest, res: Response) {
 
     // Generate invitation link
     const appUrl = process.env.APP_URL || 'http://localhost:5173';
-    const invitationLink = `${appUrl}/invite/${invitation.token}`;
+    const invitationLink = `${appUrl}/invite?token=${invitation.token}`;
 
     // Find user by email to send notification (if they have an account)
     const invitedUser = await prisma.user.findUnique({

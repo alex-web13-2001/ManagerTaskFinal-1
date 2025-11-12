@@ -13,7 +13,7 @@ import { TasksView } from './components/tasks-view';
 import { CategoriesView } from './components/categories-view';
 import { ArchiveView } from './components/archive-view';
 import { ProfileView } from './components/profile-view';
-import { InviteAcceptPage } from './components/invite-accept-page';
+import { InvitationPage } from './components/invitation-page';
 import { VerifyEmailPage } from './components/verify-email-page';
 import { ResetPasswordPage } from './components/reset-password-page';
 import { WelcomeModal } from './components/welcome-modal';
@@ -158,14 +158,21 @@ function App() {
           return;
         }
 
-        // Check if URL is an invite link
+        // Check if URL is an invite link with query parameter
         const path = window.location.pathname;
+        if (path === '/invite' && params.get('token')) {
+          setCurrentView('invite');
+          setIsLoading(false);
+          return; // Don't check auth for invite page, it will handle its own
+        }
+
+        // Support legacy invite link format /invite/{token}
         if (path.startsWith('/invite/')) {
-          const invitationId = path.replace('/invite/', '');
-          if (invitationId) {
-            setCurrentView('invite');
-            setIsLoading(false);
-            return; // Don't check auth for invite page, it will handle its own
+          const token = path.replace('/invite/', '');
+          if (token) {
+            // Redirect to new format
+            window.location.href = `/invite?token=${token}`;
+            return;
           }
         }
 
@@ -290,7 +297,7 @@ function App() {
         case 'profile':
           return <ProfileView key="profile" />;
         case 'invite':
-          return <InviteAcceptPage key="invite" />;
+          return <InvitationPage key="invite" />;
         default:
           return <DashboardView key="dashboard-default" onCalendarView={handleDashboardCalendarView} />;
       }
@@ -367,7 +374,7 @@ function App() {
     return (
       <ErrorBoundary>
         <AppProvider>
-          <InviteAcceptPage />
+          <InvitationPage />
           <Toaster richColors position="top-right" />
         </AppProvider>
       </ErrorBoundary>

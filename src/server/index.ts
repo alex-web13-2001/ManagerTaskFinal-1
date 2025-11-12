@@ -377,7 +377,7 @@ app.post('/api/auth/signin', authRateLimiter, async (req: Request, res: Response
     // Проверяем, активирован ли email
     if (!user.emailVerified) {
       return res.status(403).json({ 
-        error: 'Пожалуйста, подтвердите ваш email перед входом' 
+        error: 'Пожалуйста, подтвердите ваш email перед входом. Проверьте письмо.' 
       });
     }
 
