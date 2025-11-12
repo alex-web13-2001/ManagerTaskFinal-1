@@ -43,6 +43,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   moveCard: (draggedId: string, targetId: string, position: 'before' | 'after') => void;
   isInitialRender: boolean;
   canDrag?: boolean;
+  projectCategories?: any[];
 }>(({
   task,
   onClick,
@@ -51,12 +52,15 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   moveCard,
   isInitialRender,
   canDrag = true,
+  projectCategories = [],
 }, forwardedRef) => {
   const { teamMembers, categories, setIsDragging } = useApp();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
   
   const assignee = teamMembers?.find((m) => m.id === task.assigneeId);
-  const category = categories.find((c) => c.id === task.categoryId);
+  // Use project categories if available, otherwise fallback to user's categories
+  const availableCategories = projectCategories.length > 0 ? projectCategories : categories;
+  const category = availableCategories.find((c) => c.id === task.categoryId);
   
   const getInitials = (name?: string) => {
     if (!name) return '?';
@@ -141,7 +145,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
         id={`task-card-${task.id}`}
         ref={combinedRef}
         layoutId={task.id}
-        initial={isInitialRender ? { opacity: 1 } : { opacity: 0, scale: 0.95 }}
+        initial={isInitialRender ? { opacity: 1 } : { opacity: 1, scale: 1 }}
         animate={{ 
           opacity: isDragging ? 0.5 : 1,
           scale: 1,
@@ -267,10 +271,12 @@ const MemoizedDraggableTaskCard = React.memo(DraggableTaskCard, (prevProps, next
     prevProps.task.priority === nextProps.task.priority &&
     prevProps.task.deadline === nextProps.task.deadline &&
     prevProps.task.updatedAt === nextProps.task.updatedAt &&
+    prevProps.task.categoryId === nextProps.task.categoryId &&
     prevProps.isOverdue === nextProps.isOverdue &&
     prevProps.index === nextProps.index &&
     prevProps.isInitialRender === nextProps.isInitialRender &&
-    prevProps.canDrag === nextProps.canDrag
+    prevProps.canDrag === nextProps.canDrag &&
+    prevProps.projectCategories === nextProps.projectCategories
   );
 });
 
@@ -286,6 +292,7 @@ const DroppableColumn = ({
   moveCardWithinColumn,
   isFirstRender,
   canDrag,
+  projectCategories,
 }: {
   columnId: string;
   title: string;
@@ -297,6 +304,7 @@ const DroppableColumn = ({
   moveCardWithinColumn: (draggedId: string, targetId: string, position: 'before' | 'after') => void;
   isFirstRender: boolean;
   canDrag?: boolean;
+  projectCategories?: any[];
 }) => {
   const [{ isOver }, drop] = useDrop(() => ({
     accept: ITEM_TYPE,
@@ -341,6 +349,7 @@ const DroppableColumn = ({
               moveCard={moveCardWithinColumn}
               isInitialRender={isFirstRender}
               canDrag={canDrag}
+              projectCategories={projectCategories}
             />
           ))}
         </AnimatePresence>
@@ -357,7 +366,8 @@ const MemoizedDroppableColumn = React.memo(DroppableColumn, (prevProps, nextProp
     prevProps.tasks.length === nextProps.tasks.length &&
     prevProps.tasks.every((task, index) => task.id === nextProps.tasks[index]?.id && task.updatedAt === nextProps.tasks[index]?.updatedAt) &&
     prevProps.isFirstRender === nextProps.isFirstRender &&
-    prevProps.canDrag === nextProps.canDrag
+    prevProps.canDrag === nextProps.canDrag &&
+    prevProps.projectCategories === nextProps.projectCategories
   );
 });
 
@@ -382,6 +392,26 @@ export function ProjectKanbanBoard({
   const [columnToDelete, setColumnToDelete] = React.useState<string | null>(null);
   // Track if this is the first render to avoid fade-in animation on initial load
   const [isFirstRender, setIsFirstRender] = React.useState(true);
+  // Load project categories for proper category display
+  const [projectCategories, setProjectCategories] = React.useState<any[]>([]);
+  
+  // Load project categories when project changes
+  React.useEffect(() => {
+    const loadProjectCategories = async () => {
+      try {
+        const { projectsAPI } = await import('../utils/api-client');
+        const cats = await projectsAPI.getProjectCategories(projectId);
+        setProjectCategories(cats);
+      } catch (error) {
+        console.error('Failed to load project categories for kanban:', error);
+        setProjectCategories([]);
+      }
+    };
+    
+    if (projectId) {
+      loadProjectCategories();
+    }
+  }, [projectId]);
   
   React.useEffect(() => {
     if (!isInitialLoad && isFirstRender) {
@@ -606,6 +636,7 @@ export function ProjectKanbanBoard({
               moveCardWithinColumn={handleMoveCardCallback}
               isFirstRender={isFirstRender}
               canDrag={canDragTasks}
+              projectCategories={projectCategories}
             />
           ))}
         </div>

@@ -1052,7 +1052,20 @@ export function TaskModal({
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open(attachment.url, '_blank');
+                            
+                            // Build full URL for attachment download
+                            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+                            const fullUrl = attachment.url.startsWith('http') 
+                              ? attachment.url 
+                              : `${API_BASE_URL}${attachment.url}`;
+                            
+                            // Create a temporary link element to trigger download
+                            const link = document.createElement('a');
+                            link.href = fullUrl;
+                            link.download = attachment.name; // Set filename for download
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
                           }}
                         >
                           <Download className="w-4 h-4 mr-2" />
@@ -1477,7 +1490,14 @@ export function TaskModal({
                               const fullUrl = attachment.url.startsWith('http') 
                                 ? attachment.url 
                                 : `${API_BASE_URL}${attachment.url}`;
-                              window.open(fullUrl, '_blank');
+                              
+                              // Create a temporary link element to trigger download
+                              const link = document.createElement('a');
+                              link.href = fullUrl;
+                              link.download = attachment.name; // Set filename for download
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
                             }}
                           >
                             <Download className="w-4 h-4" />
