@@ -532,7 +532,7 @@ export function PersonalKanbanBoard({
   // Wrap handlers in useCallback for memoization
   const handleMoveCardCallback = React.useCallback((draggedId: string, targetId: string, position: 'before' | 'after') => {
     return handleMoveCard(draggedId, targetId, position, personalTasks);
-  }, [handleMoveCard, personalTasks]);
+  }, [handleMoveCard]); // Убрали personalTasks из зависимостей - хук сам получает актуальные задачи через ref
 
   const handleTaskClick = React.useCallback((taskId: string) => {
     onTaskClick(taskId);
