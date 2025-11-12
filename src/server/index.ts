@@ -746,8 +746,9 @@ apiRouter.patch('/projects/:id', canAccessProject, async (req: AuthRequest, res:
 /**
  * DELETE /api/projects/:id
  * Delete a project (only Owner can delete)
+ * Rate limited to prevent abuse of file system operations
  */
-apiRouter.delete('/projects/:id', canAccessProject, async (req: AuthRequest, res: Response) => {
+apiRouter.delete('/projects/:id', uploadRateLimiter, canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
     const projectId = req.params.id;
     const role = req.user!.roleInProject!; // Role is already checked by canAccessProject middleware
@@ -1970,8 +1971,9 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
 /**
  * DELETE /api/tasks/:id
  * Delete a task with permission validation
+ * Rate limited to prevent abuse of file system operations
  */
-apiRouter.delete('/tasks/:id', async (req: AuthRequest, res: Response) => {
+apiRouter.delete('/tasks/:id', uploadRateLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
     const taskId = req.params.id;
