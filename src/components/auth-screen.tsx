@@ -28,12 +28,16 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
   // Проверка URL параметров для автозаполнения при регистрации через приглашение
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('mode') === 'register') {
+    const mode = urlParams.get('mode');
+    
+    if (mode === 'register' || mode === 'signup') {
       setActiveTab('register');
       const email = urlParams.get('email');
       if (email) {
         setRegisterEmail(decodeURIComponent(email));
       }
+    } else if (mode === 'signin') {
+      setActiveTab('login');
     }
   }, []);
 
@@ -50,6 +54,22 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
     try {
       await authAPI.signIn(loginEmail, loginPassword);
       toast.success('Вход выполнен успешно! 🎉');
+      
+      // Check for pending invitation
+      const pendingToken = sessionStorage.getItem('pendingInvitation');
+      if (pendingToken) {
+        sessionStorage.removeItem('pendingInvitation');
+        
+        try {
+          const { invitationsAPI } = await import('@/utils/api-client');
+          await invitationsAPI.acceptInvitation(pendingToken);
+          toast.success('Приглашение принято! Добро пожаловать в проект.');
+        } catch (err) {
+          console.error('Failed to accept invitation:', err);
+          toast.error('Не удалось принять приглашение');
+        }
+      }
+      
       onLogin();
     } catch (error: any) {
       // Don't log expected auth errors (like wrong password)
