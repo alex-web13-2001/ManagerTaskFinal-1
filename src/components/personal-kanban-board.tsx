@@ -355,7 +355,7 @@ const DroppableColumn = ({
         <AnimatePresence mode="popLayout">
           {tasks.map((task, index) => (
             <MemoizedDraggableTaskCard
-              key={`${task.id}-${task.updatedAt || ''}`}
+              key={task.id}
               task={task}
               index={index}
               onClick={() => onTaskClick(task.id)}
