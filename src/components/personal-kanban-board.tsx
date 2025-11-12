@@ -371,38 +371,6 @@ const DroppableColumn = ({
   );
 };
 
-// Мемоизированная версия DroppableColumn
-const MemoizedDroppableColumn = React.memo(DroppableColumn, (prevProps, nextProps) => {
-  // CRITICAL FIX: Check if tasks list changed (new tasks added/removed)
-  if (prevProps.tasks.length !== nextProps.tasks.length) {
-    return false; // Force re-render
-  }
-  
-  // Check if task IDs changed (new task added or task removed)
-  const prevIds = prevProps.tasks.map(t => t.id).sort().join(',');
-  const nextIds = nextProps.tasks.map(t => t.id).sort().join(',');
-  
-  if (prevIds !== nextIds) {
-    return false; // Force re-render - ensures new tasks get drag handlers
-  }
-  
-  // Check if any task object references changed
-  const hasTaskObjectChanges = prevProps.tasks.some((task, index) => {
-    return task !== nextProps.tasks[index]; // Compare by reference
-  });
-  
-  if (hasTaskObjectChanges) {
-    return false; // Force re-render
-  }
-  
-  return (
-    prevProps.columnId === nextProps.columnId &&
-    prevProps.title === nextProps.title &&
-    prevProps.isFirstRender === nextProps.isFirstRender &&
-    prevProps.canDrag === nextProps.canDrag
-  );
-});
-
 export function PersonalKanbanBoard({
   filters,
   onTaskClick,
@@ -419,11 +387,12 @@ export function PersonalKanbanBoard({
   // Track if this is the first render to avoid fade-in animation on initial load
   const [isFirstRender, setIsFirstRender] = React.useState(true);
   
+  // FIX: Use simple timer-based approach like Dashboard to avoid race conditions
+  // This ensures proper initialization even after registration delay
   React.useEffect(() => {
-    if (!isInitialLoad && isFirstRender) {
-      setIsFirstRender(false);
-    }
-  }, [isInitialLoad, isFirstRender]);
+    const timer = setTimeout(() => setIsFirstRender(false), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Use custom columns from context
   const customColumns = contextCustomColumns;

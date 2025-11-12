@@ -463,38 +463,6 @@ const DroppableColumn = ({
   );
 };
 
-// Мемоизированная версия DroppableColumn
-const MemoizedDroppableColumn = React.memo(DroppableColumn, (prevProps, nextProps) => {
-  // CRITICAL FIX: Check if tasks list changed (new tasks added/removed)
-  if (prevProps.tasks.length !== nextProps.tasks.length) {
-    return false; // Force re-render
-  }
-  
-  // Check if task IDs changed (new task added or task removed)
-  const prevIds = prevProps.tasks.map(t => t.id).sort().join(',');
-  const nextIds = nextProps.tasks.map(t => t.id).sort().join(',');
-  
-  if (prevIds !== nextIds) {
-    return false; // Force re-render - ensures new tasks get drag handlers
-  }
-  
-  // Check if any task object references changed
-  const hasTaskObjectChanges = prevProps.tasks.some((task, index) => {
-    return task !== nextProps.tasks[index]; // Compare by reference
-  });
-  
-  if (hasTaskObjectChanges) {
-    return false; // Force re-render
-  }
-  
-  return (
-    prevProps.columnId === nextProps.columnId &&
-    prevProps.title === nextProps.title &&
-    prevProps.isInitialMount === nextProps.isInitialMount &&
-    prevProps.isCustom === nextProps.isCustom
-  );
-});
-
 type GroupBy = 'none' | 'project' | 'priority';
 
 export function KanbanBoard({

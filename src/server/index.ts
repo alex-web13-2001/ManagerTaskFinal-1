@@ -80,6 +80,17 @@ const upload = multer({
   },
 });
 
+/**
+ * Generate full file URL with API base URL
+ * Supports both local development and production
+ */
+function getFullFileUrl(relativePath: string): string {
+  const API_BASE_URL = process.env.API_BASE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:3001';
+  // Remove leading slash if present
+  const cleanPath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
+  return `${API_BASE_URL}/${cleanPath}`;
+}
+
 // ========== PERMISSION HELPERS ==========
 // Auth middleware moved to ./middleware/auth.ts
 
@@ -1023,7 +1034,7 @@ apiRouter.post('/upload-avatar', uploadRateLimiter, upload.single('avatar'), asy
     }
 
     const userId = req.user!.sub;
-    const avatarUrl = `/uploads/${req.file.filename}`;
+    const avatarUrl = getFullFileUrl(`uploads/${req.file.filename}`);
 
     // Delete old avatar file if exists
     const existingUser = await prisma.user.findUnique({
@@ -1135,7 +1146,7 @@ apiRouter.post('/upload-attachment', uploadRateLimiter, upload.array('files', 10
     // Create attachments for all uploaded files
     const attachments = await Promise.all(
       files.map(async (file) => {
-        const fileUrl = `/uploads/${file.filename}`;
+        const fileUrl = getFullFileUrl(`uploads/${file.filename}`);
         const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
 
         return await prisma.attachment.create({
@@ -1174,6 +1185,11 @@ apiRouter.post('/upload-attachment', uploadRateLimiter, upload.array('files', 10
  * Upload project attachment
  * Rate limited to prevent abuse
  */
+/**
+ * POST /api/upload-project-attachment
+ * Upload project attachment and save to database
+ * Rate limited to prevent abuse
+ */
 apiRouter.post('/upload-project-attachment', uploadRateLimiter, upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
@@ -1182,21 +1198,70 @@ apiRouter.post('/upload-project-attachment', uploadRateLimiter, upload.single('f
 
     const { projectId } = req.body;
     if (!projectId) {
+      // Clean up uploaded file - path is validated by multer storage config
+      const safeFilePath = path.join(uploadsDir, path.basename(req.file.path));
+      if (fs.existsSync(safeFilePath)) {
+        fs.unlinkSync(safeFilePath);
+      }
       return res.status(400).json({ error: 'Project ID is required' });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
-    const decodedFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-    const attachmentId = `proj_attachment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const userId = req.user!.sub;
 
-    // Return attachment metadata
+    // Check if user has permission to add attachments to this project
+    const userRole = await getUserRoleInProject(userId, projectId);
+    if (!userRole || userRole === 'viewer') {
+      // Clean up uploaded file - path is validated by multer storage config
+      const safeFilePath = path.join(uploadsDir, path.basename(req.file.path));
+      if (fs.existsSync(safeFilePath)) {
+        fs.unlinkSync(safeFilePath);
+      }
+      return res.status(403).json({ error: 'You do not have permission to add attachments to this project' });
+    }
+
+    const fileUrl = getFullFileUrl(`uploads/${req.file.filename}`);
+    const decodedFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+
+    // Save attachment to database using Prisma
+    // Note: You'll need to add ProjectAttachment model to your Prisma schema
+    // For now, we'll store it in project's attachments JSON field
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { attachments: true },
+    });
+
+    if (!project) {
+      // Clean up uploaded file - path is validated by multer storage config
+      const safeFilePath = path.join(uploadsDir, path.basename(req.file.path));
+      if (fs.existsSync(safeFilePath)) {
+        fs.unlinkSync(safeFilePath);
+      }
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Create attachment object
     const attachment = {
-      id: attachmentId,
+      id: `proj_attachment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: decodedFileName,
-      size: `${(req.file.size / 1024 / 1024).toFixed(2)} MB`,
+      size: req.file.size,
+      sizeFormatted: `${(req.file.size / 1024 / 1024).toFixed(2)} MB`,
       url: fileUrl,
+      mimeType: req.file.mimetype,
       uploadedAt: new Date().toISOString(),
+      uploadedBy: userId,
     };
+
+    // Get existing attachments or initialize empty array
+    const existingAttachments = (project.attachments as any[]) || [];
+    
+    // Add new attachment
+    const updatedAttachments = [...existingAttachments, attachment];
+
+    // Update project with new attachment
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { attachments: updatedAttachments },
+    });
 
     res.json({
       attachment,
@@ -1204,7 +1269,111 @@ apiRouter.post('/upload-project-attachment', uploadRateLimiter, upload.single('f
     });
   } catch (error: any) {
     console.error('Upload project attachment error:', error);
+    // Clean up file if error occurred - path is validated by multer storage config
+    if (req.file) {
+      const safeFilePath = path.join(uploadsDir, path.basename(req.file.path));
+      if (fs.existsSync(safeFilePath)) {
+        fs.unlinkSync(safeFilePath);
+      }
+    }
     res.status(500).json({ error: 'Failed to upload project attachment' });
+  }
+});
+
+/**
+ * GET /api/download/:filename
+ * Download file with proper headers
+ * Fixes issue with corrupted Word/PDF files
+ * Rate limited to prevent abuse
+ */
+apiRouter.get('/download/:filename', uploadRateLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const { filename } = req.params;
+    
+    // Security: prevent directory traversal
+    const sanitizedFilename = path.basename(filename);
+    const filePath = path.join(uploadsDir, sanitizedFilename);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    
+    // Get file stats
+    const stats = fs.statSync(filePath);
+    
+    // Decode filename for proper display (handle Cyrillic)
+    const originalName = sanitizedFilename.replace(/^\d+-\d+-/, ''); // Remove timestamp prefix
+    
+    // Set proper headers for download
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(originalName)}"`);
+    res.setHeader('Content-Length', stats.size);
+    
+    // Stream file to response
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  } catch (error: any) {
+    console.error('Download file error:', error);
+    res.status(500).json({ error: 'Failed to download file' });
+  }
+});
+
+/**
+ * DELETE /api/projects/:projectId/attachments/:attachmentId
+ * Delete project attachment
+ * Rate limited to prevent abuse
+ */
+apiRouter.delete('/projects/:projectId/attachments/:attachmentId', uploadRateLimiter, canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId, attachmentId } = req.params;
+    const userId = req.user!.sub;
+
+    // Check permission
+    const userRole = await getUserRoleInProject(userId, projectId);
+    if (!userRole || (userRole !== 'owner' && userRole !== 'collaborator')) {
+      return res.status(403).json({ error: 'Only Owner and Collaborator can delete attachments' });
+    }
+
+    // Get project
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { attachments: true },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const existingAttachments = (project.attachments as any[]) || [];
+    const attachmentToDelete = existingAttachments.find((a: any) => a.id === attachmentId);
+
+    if (!attachmentToDelete) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    // Delete file from filesystem
+    if (attachmentToDelete.url) {
+      const filename = path.basename(new URL(attachmentToDelete.url).pathname);
+      const filePath = path.join(uploadsDir, filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    // Remove attachment from array
+    const updatedAttachments = existingAttachments.filter((a: any) => a.id !== attachmentId);
+
+    // Update project
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { attachments: updatedAttachments },
+    });
+
+    res.json({ message: 'Attachment deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete project attachment error:', error);
+    res.status(500).json({ error: 'Failed to delete attachment' });
   }
 });
 
