@@ -405,8 +405,21 @@ export const tasksAPI = {
   },
 
   deleteAttachment: async (taskId: string, attachmentId: string) => {
-    // TODO: Implement attachment delete
-    console.warn('Attachment delete not yet implemented');
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete attachment');
+    }
+
     return true;
   },
 

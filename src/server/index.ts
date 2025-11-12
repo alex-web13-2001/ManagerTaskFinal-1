@@ -746,8 +746,9 @@ apiRouter.patch('/projects/:id', canAccessProject, async (req: AuthRequest, res:
 /**
  * DELETE /api/projects/:id
  * Delete a project (only Owner can delete)
+ * Rate limited to prevent abuse of file system operations
  */
-apiRouter.delete('/projects/:id', canAccessProject, async (req: AuthRequest, res: Response) => {
+apiRouter.delete('/projects/:id', uploadRateLimiter, canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
     const projectId = req.params.id;
     const role = req.user!.roleInProject!; // Role is already checked by canAccessProject middleware
@@ -757,7 +758,63 @@ apiRouter.delete('/projects/:id', canAccessProject, async (req: AuthRequest, res
       return res.status(403).json({ error: 'Only the project owner can delete the project' });
     }
 
-    // Delete project (members and tasks will be cascade deleted)
+    // Get project with attachments and all tasks with their attachments
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { 
+        attachments: true,
+        tasks: { include: { attachments: true } }
+      },
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Delete project attachment files
+    if (project.attachments && Array.isArray(project.attachments)) {
+      const attachments = project.attachments as any[];
+      for (const attachment of attachments) {
+        if (attachment.url) {
+          try {
+            const filename = path.basename(new URL(attachment.url).pathname);
+            const filePath = path.join(uploadsDir, path.basename(filename));
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+              console.log(`🗑️ Deleted project file: ${filename}`);
+            }
+          } catch (fileError) {
+            console.error('Failed to delete project file:', fileError);
+            // Continue with deletion process
+          }
+        }
+      }
+    }
+
+    // Delete task attachment files
+    if (project.tasks && project.tasks.length > 0) {
+      for (const task of project.tasks) {
+        if (task.attachments && task.attachments.length > 0) {
+          for (const attachment of task.attachments) {
+            if (attachment.url) {
+              try {
+                const filename = path.basename(new URL(attachment.url).pathname);
+                const filePath = path.join(uploadsDir, path.basename(filename));
+                if (fs.existsSync(filePath)) {
+                  fs.unlinkSync(filePath);
+                  console.log(`🗑️ Deleted task file: ${filename}`);
+                }
+              } catch (fileError) {
+                console.error('Failed to delete task file:', fileError);
+                // Continue with deletion process
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Delete project (members and tasks will be cascade deleted from database)
     await prisma.project.delete({
       where: { id: projectId },
     });
@@ -1401,10 +1458,16 @@ apiRouter.delete('/projects/:projectId/attachments/:attachmentId', uploadRateLim
 
     // Delete file from filesystem
     if (attachmentToDelete.url) {
-      const filename = path.basename(new URL(attachmentToDelete.url).pathname);
-      const filePath = path.join(uploadsDir, filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      try {
+        const filename = path.basename(new URL(attachmentToDelete.url).pathname);
+        const filePath = path.join(uploadsDir, path.basename(filename));
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log(`🗑️ Deleted file: ${filename}`);
+        }
+      } catch (fileError) {
+        console.error('Failed to delete file:', fileError);
+        // Continue with database update even if file deletion fails
       }
     }
 
@@ -1908,15 +1971,17 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
 /**
  * DELETE /api/tasks/:id
  * Delete a task with permission validation
+ * Rate limited to prevent abuse of file system operations
  */
-apiRouter.delete('/tasks/:id', async (req: AuthRequest, res: Response) => {
+apiRouter.delete('/tasks/:id', uploadRateLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.sub;
     const taskId = req.params.id;
 
-    // Check if task exists
+    // Check if task exists and get its attachments
     const existingTask = await prisma.task.findUnique({
       where: { id: taskId },
+      include: { attachments: true },
     });
 
     if (!existingTask) {
@@ -1931,7 +1996,26 @@ apiRouter.delete('/tasks/:id', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Delete task (attachments will be cascade deleted)
+    // Delete physical files before deleting task
+    if (existingTask.attachments && existingTask.attachments.length > 0) {
+      for (const attachment of existingTask.attachments) {
+        if (attachment.url) {
+          try {
+            const filename = path.basename(new URL(attachment.url).pathname);
+            const filePath = path.join(uploadsDir, path.basename(filename));
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+              console.log(`🗑️ Deleted file: ${filename}`);
+            }
+          } catch (fileError) {
+            console.error('Failed to delete file:', fileError);
+            // Continue with deletion process even if file deletion fails
+          }
+        }
+      }
+    }
+
+    // Delete task (attachments will be cascade deleted from database)
     await prisma.task.delete({
       where: { id: taskId },
     });
@@ -1943,6 +2027,63 @@ apiRouter.delete('/tasks/:id', async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('Delete task error:', error);
     res.status(500).json({ error: 'Failed to delete task' });
+  }
+});
+
+/**
+ * DELETE /api/tasks/:taskId/attachments/:attachmentId
+ * Delete task attachment
+ * Rate limited to prevent abuse
+ */
+apiRouter.delete('/tasks/:taskId/attachments/:attachmentId', uploadRateLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const { taskId, attachmentId } = req.params;
+    const userId = req.user!.sub;
+
+    // Check permission
+    const canEdit = await canEditTaskFromDB(userId, taskId);
+    if (!canEdit) {
+      return res.status(403).json({ error: 'Only Owner and Collaborator can delete attachments' });
+    }
+
+    // Get attachment from database
+    const attachment = await prisma.attachment.findUnique({
+      where: { id: attachmentId },
+    });
+
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    // Verify attachment belongs to this task
+    if (attachment.taskId !== taskId) {
+      return res.status(400).json({ error: 'Attachment does not belong to this task' });
+    }
+
+    // Delete physical file from filesystem
+    if (attachment.url) {
+      try {
+        const filename = path.basename(new URL(attachment.url).pathname);
+        const filePath = path.join(uploadsDir, path.basename(filename));
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log(`🗑️ Deleted file: ${filename}`);
+        }
+      } catch (fileError) {
+        console.error('Failed to delete file:', fileError);
+        // Continue with database deletion even if file deletion fails
+      }
+    }
+
+    // Delete attachment record from database
+    await prisma.attachment.delete({
+      where: { id: attachmentId },
+    });
+
+    res.json({ message: 'Attachment deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete task attachment error:', error);
+    res.status(500).json({ error: 'Failed to delete attachment' });
   }
 });
 
