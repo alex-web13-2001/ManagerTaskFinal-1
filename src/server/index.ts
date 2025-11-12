@@ -1198,8 +1198,11 @@ apiRouter.post('/upload-project-attachment', uploadRateLimiter, upload.single('f
 
     const { projectId } = req.body;
     if (!projectId) {
-      // Clean up uploaded file
-      fs.unlinkSync(req.file.path);
+      // Clean up uploaded file - path is validated by multer storage config
+      const safeFilePath = path.join(uploadsDir, path.basename(req.file.path));
+      if (fs.existsSync(safeFilePath)) {
+        fs.unlinkSync(safeFilePath);
+      }
       return res.status(400).json({ error: 'Project ID is required' });
     }
 
@@ -1208,8 +1211,11 @@ apiRouter.post('/upload-project-attachment', uploadRateLimiter, upload.single('f
     // Check if user has permission to add attachments to this project
     const userRole = await getUserRoleInProject(userId, projectId);
     if (!userRole || userRole === 'viewer') {
-      // Clean up uploaded file
-      fs.unlinkSync(req.file.path);
+      // Clean up uploaded file - path is validated by multer storage config
+      const safeFilePath = path.join(uploadsDir, path.basename(req.file.path));
+      if (fs.existsSync(safeFilePath)) {
+        fs.unlinkSync(safeFilePath);
+      }
       return res.status(403).json({ error: 'You do not have permission to add attachments to this project' });
     }
 
@@ -1225,8 +1231,11 @@ apiRouter.post('/upload-project-attachment', uploadRateLimiter, upload.single('f
     });
 
     if (!project) {
-      // Clean up uploaded file
-      fs.unlinkSync(req.file.path);
+      // Clean up uploaded file - path is validated by multer storage config
+      const safeFilePath = path.join(uploadsDir, path.basename(req.file.path));
+      if (fs.existsSync(safeFilePath)) {
+        fs.unlinkSync(safeFilePath);
+      }
       return res.status(404).json({ error: 'Project not found' });
     }
 
@@ -1260,9 +1269,12 @@ apiRouter.post('/upload-project-attachment', uploadRateLimiter, upload.single('f
     });
   } catch (error: any) {
     console.error('Upload project attachment error:', error);
-    // Clean up file if error occurred
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    // Clean up file if error occurred - path is validated by multer storage config
+    if (req.file) {
+      const safeFilePath = path.join(uploadsDir, path.basename(req.file.path));
+      if (fs.existsSync(safeFilePath)) {
+        fs.unlinkSync(safeFilePath);
+      }
     }
     res.status(500).json({ error: 'Failed to upload project attachment' });
   }
@@ -1272,8 +1284,9 @@ apiRouter.post('/upload-project-attachment', uploadRateLimiter, upload.single('f
  * GET /api/download/:filename
  * Download file with proper headers
  * Fixes issue with corrupted Word/PDF files
+ * Rate limited to prevent abuse
  */
-apiRouter.get('/download/:filename', async (req: AuthRequest, res: Response) => {
+apiRouter.get('/download/:filename', uploadRateLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const { filename } = req.params;
     
@@ -1309,8 +1322,9 @@ apiRouter.get('/download/:filename', async (req: AuthRequest, res: Response) => 
 /**
  * DELETE /api/projects/:projectId/attachments/:attachmentId
  * Delete project attachment
+ * Rate limited to prevent abuse
  */
-apiRouter.delete('/projects/:projectId/attachments/:attachmentId', canAccessProject, async (req: AuthRequest, res: Response) => {
+apiRouter.delete('/projects/:projectId/attachments/:attachmentId', uploadRateLimiter, canAccessProject, async (req: AuthRequest, res: Response) => {
   try {
     const { projectId, attachmentId } = req.params;
     const userId = req.user!.sub;
