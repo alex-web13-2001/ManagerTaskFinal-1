@@ -34,9 +34,15 @@ export function useWebSocket(): WebSocketHookReturn {
       return;
     }
 
-    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    // Use VITE_API_BASE_URL to match api-client.tsx
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
     
-    console.log('🔌 WebSocket: Connecting to', serverUrl);
+    // Construct WebSocket URL from HTTP(S) URL
+    // - If HTTPS, use WSS (secure WebSocket)
+    // - If HTTP, use WS
+    const serverUrl = apiBaseUrl.replace(/^https/, 'wss').replace(/^http/, 'ws');
+    
+    console.log('🔌 WebSocket: Connecting to', serverUrl, '(from API base:', apiBaseUrl + ')');
     
     const socket = io(serverUrl, {
       auth: { token },
