@@ -225,6 +225,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Use ref to track drag state without causing re-renders
   const isDraggingRef = React.useRef(false);
   
+  // Ref to track recently created tasks to prevent polling overwrites
+  const recentlyCreatedTasksRef = React.useRef<Set<string>>(new Set());
+  
   // Function to set drag state
   const setIsDragging = React.useCallback((isDragging: boolean) => {
     isDraggingRef.current = isDragging;
@@ -263,17 +266,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       // Only update state if data actually changed - prevents unnecessary re-renders during drag-and-drop
       setTasks(prevTasks => {
-        if (!areArraysDifferent(prevTasks, limitedTasks)) {
+        // If we have recently created tasks, preserve them
+        const recentlyCreated = prevTasks.filter(t => recentlyCreatedTasksRef.current.has(t.id));
+        
+        // Merge: keep recently created tasks + add/update tasks from server
+        const mergedTasks = [...recentlyCreated];
+        const recentIds = new Set(recentlyCreated.map(t => t.id));
+        
+        for (const task of limitedTasks) {
+          if (!recentIds.has(task.id)) {
+            mergedTasks.push(task);
+          }
+        }
+        
+        if (!areArraysDifferent(prevTasks, mergedTasks)) {
           // Data hasn't changed, return previous state to prevent re-render
           return prevTasks;
         }
+        
         console.log('✅ Задачи обновлены:', { 
           было: prevTasks.length, 
-          стало: limitedTasks.length,
-          личные: limitedTasks.filter(t => !t.projectId).length,
-          проектные: limitedTasks.filter(t => t.projectId).length,
+          стало: mergedTasks.length,
+          недавно_созданных: recentlyCreated.length,
+          личные: mergedTasks.filter(t => !t.projectId).length,
+          проектные: mergedTasks.filter(t => t.projectId).length,
         });
-        return limitedTasks;
+        return mergedTasks;
       });
     } catch (error: any) {
       // Only log if it's not an auth error (auth errors are expected when not logged in)
@@ -809,6 +827,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           console.warn('Task already exists in state, skipping duplicate:', newTask.id);
           return prev;
         }
+        
+        // Track this task as recently created to prevent polling overwrites
+        recentlyCreatedTasksRef.current.add(newTask.id);
+        
+        // Remove from tracking after 10 seconds (2 polling cycles)
+        setTimeout(() => {
+          recentlyCreatedTasksRef.current.delete(newTask.id);
+        }, 10000);
+        
         return [...prev, newTask];
       });
       
