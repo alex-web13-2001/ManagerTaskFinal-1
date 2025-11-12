@@ -115,7 +115,7 @@ export function ProjectAboutModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
@@ -177,11 +177,11 @@ export function ProjectAboutModal({
                       rel="noopener noreferrer"
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
                     >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex items-center gap-3 flex-1 min-w-0 max-w-[400px]">
                         <LinkIcon className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm truncate">{link.name}</p>
-                          <p className="text-xs text-gray-500 truncate">{link.url}</p>
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <p className="text-sm truncate whitespace-nowrap overflow-hidden text-ellipsis">{link.name}</p>
+                          <p className="text-xs text-gray-500 truncate whitespace-nowrap overflow-hidden text-ellipsis">{link.url}</p>
                         </div>
                       </div>
                       <LinkIcon className="w-4 h-4 text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
@@ -224,10 +224,10 @@ export function ProjectAboutModal({
                       key={attachment.id}
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                     >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex items-center gap-3 flex-1 min-w-0 max-w-[400px]">
                         <Paperclip className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm truncate">{attachment.name}</p>
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <p className="text-sm truncate whitespace-nowrap overflow-hidden text-ellipsis">{attachment.name}</p>
                           <p className="text-xs text-gray-500">{attachment.size}</p>
                         </div>
                       </div>

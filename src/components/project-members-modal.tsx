@@ -537,7 +537,7 @@ export function ProjectMembersModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full sm:max-w-[800px] mx-auto my-4 sm:my-8 max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <DialogTitle>Участники проекта</DialogTitle>
@@ -678,16 +678,16 @@ export function ProjectMembersModal({
                   <Separator />
                   <div className="space-y-3">
                     <Label>Пригласить нового участника</Label>
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
                       <Input
                         type="email"
                         placeholder="Email участника"
                         value={inviteEmail}
                         onChange={(e) => setInviteEmail(e.target.value)}
-                        className="flex-1"
+                        className="flex-1 w-full"
                       />
                       <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as Role)}>
-                        <SelectTrigger className="w-52">
+                        <SelectTrigger className="w-full sm:w-52">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -702,7 +702,7 @@ export function ProjectMembersModal({
                         type="button"
                         onClick={handleInvite} 
                         disabled={isLoading}
-                        className="bg-purple-600 hover:bg-purple-700"
+                        className="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto"
                       >
                         {isLoading ? (
                           <>
