@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Bell } from 'lucide-react';
+import { Plus, Bell, Wifi, WifiOff } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { useApp } from '../contexts/app-context';
+import { useWebSocketContext } from '../contexts/websocket-context';
 import { invitationsAPI, getAuthToken } from '../utils/api-client';
 import { toast } from 'sonner';
 import { RealtimeIndicator } from './realtime-indicator';
@@ -26,7 +27,8 @@ type HeaderProps = {
 };
 
 export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: HeaderProps) {
-  const { currentUser, refreshData, isRealtimeConnected, canCreateTask } = useApp();
+  const { currentUser, refreshData, canCreateTask } = useApp();
+  const { isConnected: isWebSocketConnected } = useWebSocketContext();
   const [pendingInvitations, setPendingInvitations] = React.useState<any[]>([]);
   const [isInvitationsModalOpen, setIsInvitationsModalOpen] = React.useState(false);
 
@@ -39,7 +41,7 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
     return name.slice(0, 2).toUpperCase();
   };
 
-  // Fetch pending invitations
+  // Fetch pending invitations on mount
   const fetchInvitations = React.useCallback(async () => {
     try {
       // Check if user is authenticated first
@@ -56,12 +58,10 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
     }
   }, []);
 
+  // Fetch invitations once on mount - WebSocket will handle updates
   React.useEffect(() => {
     if (currentUser) {
       fetchInvitations();
-      // Poll for new invitations every 30 seconds
-      const interval = setInterval(fetchInvitations, 30000);
-      return () => clearInterval(interval);
     }
   }, [currentUser, fetchInvitations]);
 
@@ -87,8 +87,20 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
 
       {/* Правая часть */}
       <div className="flex items-center gap-2 md:gap-4 ml-auto">
-        {/* Real-time индикатор */}
-        <RealtimeIndicator isConnected={isRealtimeConnected} />
+        {/* WebSocket connection indicator */}
+        <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 text-sm">
+          {isWebSocketConnected ? (
+            <>
+              <Wifi className="w-4 h-4 text-green-500" />
+              <span className="text-gray-700">Connected</span>
+            </>
+          ) : (
+            <>
+              <WifiOff className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-500">Offline</span>
+            </>
+          )}
+        </div>
 
         <Button
           onClick={onCreateTask}
