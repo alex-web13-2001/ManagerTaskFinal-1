@@ -648,7 +648,7 @@ export function ProjectKanbanBoard({
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-4 md:p-6">
         <div className="flex gap-4 h-full min-w-max">
           {columns.map((column) => (
-            <MemoizedDroppableColumn
+            <DroppableColumn
               key={column.id}
               columnId={column.id}
               title={column.title}

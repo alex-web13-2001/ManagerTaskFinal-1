@@ -637,7 +637,7 @@ export function PersonalKanbanBoard({
             const isCustom = !baseColumnDefinitions.find(base => base.id === column.id);
             
             return (
-              <MemoizedDroppableColumn
+              <DroppableColumn
                 key={column.id}
                 columnId={column.id}
                 title={column.title}

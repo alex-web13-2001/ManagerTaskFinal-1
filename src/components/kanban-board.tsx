@@ -718,7 +718,7 @@ export function KanbanBoard({
             const isCustom = !baseColumnDefinitions.find(base => base.id === column.id);
             console.log('[Dashboard] Rendering column:', column.id, column.title, 'isCustom:', isCustom, 'tasks:', column.tasks.length);
             return (
-              <MemoizedDroppableColumn
+              <DroppableColumn
                 key={column.id}
                 columnId={column.id}
                 title={column.title}
