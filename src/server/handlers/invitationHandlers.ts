@@ -12,6 +12,7 @@ import {
   emitInviteAccepted,
   emitProjectMemberAdded 
 } from '../websocket.js';
+import emailService from '../../lib/email.js';
 
 // --- СОЗДАНИЕ ПРИГЛАШЕНИЯ (CREATE INVITATION) ---
 export async function createInvitation(req: AuthRequest, res: Response) {
@@ -130,6 +131,28 @@ export async function createInvitation(req: AuthRequest, res: Response) {
         projectName: invitation.project.name,
         link: invitationLink,
       }, invitedUser.id);
+    }
+
+    // Send invitation email
+    try {
+      const inviterUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true },
+      });
+      
+      await emailService.sendProjectInvitationEmail(
+        invitation.email,
+        invitation.project.name,
+        inviterUser?.name || 'Пользователь',
+        invitation.role,
+        invitation.token,
+        invitation.expiresAt.toISOString()
+      );
+      
+      console.log('✅ Invitation email sent to:', invitation.email);
+    } catch (emailError) {
+      console.error('❌ Failed to send invitation email:', emailError);
+      // Не прерываем процесс, если email не отправился
     }
 
     // Return invitation with token (not id) as the public identifier

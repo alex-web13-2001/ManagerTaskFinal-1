@@ -83,66 +83,36 @@ class EmailService {
   /**
    * Send welcome email after registration
    */
-  async sendWelcomeEmail(email: string, name: string, verificationToken?: string): Promise<boolean> {
-    const appUrl = process.env.APP_URL || 'http://localhost:5173';
-    const verificationLink = verificationToken 
-      ? `${appUrl}/verify-email?token=${verificationToken}`
-      : null;
-
+  async sendWelcomeEmail(email: string, name: string, verificationToken: string): Promise<boolean> {
+    const verificationLink = `${process.env.FRONTEND_URL}/?token=${verificationToken}`;
+    
     const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-          .content { background-color: #f9fafb; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button { display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .footer { text-align: center; margin-top: 20px; color: #6b7280; font-size: 14px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Добро пожаловать в Task Manager!</h1>
-          </div>
-          <div class="content">
-            <h2>Привет, ${name}!</h2>
-            <p>Спасибо за регистрацию в Task Manager. Мы рады приветствовать вас!</p>
-            
-            ${verificationLink ? `
-              <p>Пожалуйста, подтвердите ваш email адрес, нажав на кнопку ниже:</p>
-              <div style="text-align: center;">
-                <a href="${verificationLink}" class="button">Подтвердить email</a>
-              </div>
-              <p style="color: #6b7280; font-size: 14px;">Или скопируйте эту ссылку в браузер:<br>${verificationLink}</p>
-            ` : `
-              <p>Ваш аккаунт активирован и готов к использованию!</p>
-            `}
-            
-            <p>С помощью Task Manager вы можете:</p>
-            <ul>
-              <li>Создавать и управлять проектами</li>
-              <li>Организовывать задачи в Kanban досках</li>
-              <li>Приглашать участников команды</li>
-              <li>Отслеживать прогресс работы</li>
-            </ul>
-            
-            <p>Если у вас есть вопросы, не стесняйтесь обращаться к нам.</p>
-          </div>
-          <div class="footer">
-            <p>© 2025 Task Manager. Все права защищены.</p>
-          </div>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #7c3aed;">Добро пожаловать в Task Manager T24!</h1>
+        <p>Здравствуйте, ${name}!</p>
+        <p>Спасибо за регистрацию в Task Manager T24 — вашем новом инструменте для управления задачами и проектами.</p>
+        <p>Чтобы начать работу, пожалуйста, активируйте ваш аккаунт, перейдя по ссылке ниже:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${verificationLink}" 
+             style="background-color: #7c3aed; color: white; padding: 12px 30px; 
+                    text-decoration: none; border-radius: 5px; display: inline-block;">
+            Активировать аккаунт
+          </a>
         </div>
-      </body>
-      </html>
+        <p style="color: #666; font-size: 14px;">
+          Если вы не регистрировались в Task Manager T24, просто проигнорируйте это письмо.
+        </p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+        <p style="color: #999; font-size: 12px;">
+          С уважением,<br>
+          Команда Task Manager T24
+        </p>
+      </div>
     `;
 
     return this.sendEmail({
       to: email,
-      subject: 'Добро пожаловать в Task Manager!',
+      subject: 'Добро пожаловать в Task Manager T24!',
       html,
     });
   }
@@ -150,60 +120,39 @@ class EmailService {
   /**
    * Send password reset email
    */
-  async sendPasswordResetEmail(email: string, name: string, resetToken: string): Promise<boolean> {
-    const appUrl = process.env.APP_URL || 'http://localhost:5173';
-    const resetLink = `${appUrl}/reset-password?token=${resetToken}`;
-
+  async sendPasswordResetEmail(email: string, resetToken: string): Promise<boolean> {
+    const resetLink = `${process.env.FRONTEND_URL}/?reset-token=${resetToken}`;
+    
     const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #DC2626; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-          .content { background-color: #f9fafb; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button { display: inline-block; padding: 12px 24px; background-color: #DC2626; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .warning { background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin: 20px 0; }
-          .footer { text-align: center; margin-top: 20px; color: #6b7280; font-size: 14px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Восстановление пароля</h1>
-          </div>
-          <div class="content">
-            <h2>Привет, ${name}!</h2>
-            <p>Мы получили запрос на восстановление пароля для вашего аккаунта в Task Manager.</p>
-            
-            <p>Чтобы сбросить пароль, нажмите на кнопку ниже:</p>
-            <div style="text-align: center;">
-              <a href="${resetLink}" class="button">Сбросить пароль</a>
-            </div>
-            
-            <p style="color: #6b7280; font-size: 14px;">Или скопируйте эту ссылку в браузер:<br>${resetLink}</p>
-            
-            <div class="warning">
-              <strong>⏰ Внимание:</strong> Эта ссылка действительна в течение 1 часа.
-            </div>
-            
-            <p><strong>Если вы не запрашивали восстановление пароля</strong>, просто проигнорируйте это письмо. Ваш пароль не будет изменен.</p>
-            
-            <p>Из соображений безопасности, никогда не делитесь этой ссылкой с другими.</p>
-          </div>
-          <div class="footer">
-            <p>© 2025 Task Manager. Все права защищены.</p>
-          </div>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #7c3aed;">Восстановление пароля</h1>
+        <p>Вы запросили восстановление пароля для вашего аккаунта в Task Manager T24.</p>
+        <p>Чтобы сбросить пароль, перейдите по ссылке ниже:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" 
+             style="background-color: #7c3aed; color: white; padding: 12px 30px; 
+                    text-decoration: none; border-radius: 5px; display: inline-block;">
+            Сбросить пароль
+          </a>
         </div>
-      </body>
-      </html>
+        <p style="color: #666; font-size: 14px;">
+          Ссылка будет активна в течение 1 часа.
+        </p>
+        <p style="color: #666; font-size: 14px;">
+          Если вы не запрашивали восстановление пароля, проигнорируйте это письмо. 
+          Ваш пароль останется без изменений.
+        </p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+        <p style="color: #999; font-size: 12px;">
+          С уважением,<br>
+          Команда Task Manager T24
+        </p>
+      </div>
     `;
 
     return this.sendEmail({
       to: email,
-      subject: 'Восстановление пароля - Task Manager',
+      subject: 'Восстановление пароля в Task Manager T24',
       html,
     });
   }
@@ -261,95 +210,42 @@ class EmailService {
     projectName: string,
     inviterName: string,
     role: string,
-    invitationId: string,
+    invitationToken: string,
     expiresAt: string
   ): Promise<boolean> {
-    const appUrl = process.env.APP_URL || 'http://localhost:5173';
-    const inviteLink = `${appUrl}/invite/${invitationId}`;
+    const invitationLink = `${process.env.FRONTEND_URL}/invite/${invitationToken}`;
     
-    const roleLabels: Record<string, string> = {
-      owner: 'Владелец',
-      admin: 'Администратор',
-      collaborator: 'Участник с правами',
-      member: 'Участник',
-      viewer: 'Наблюдатель',
-    };
-    
-    const roleDescriptions: Record<string, string> = {
-      owner: 'Полный контроль над проектом',
-      admin: 'Управление участниками и приглашениями',
-      collaborator: 'Создание и редактирование задач',
-      member: 'Просмотр и редактирование своих задач',
-      viewer: 'Только просмотр проекта',
-    };
-    
-    const roleLabel = roleLabels[role] || role;
-    const roleDescription = roleDescriptions[role] || '';
-    const expiryDate = new Date(expiresAt).toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
     const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #7C3AED; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-          .content { background-color: #f9fafb; padding: 30px; border-radius: 0 0 5px 5px; }
-          .button { display: inline-block; padding: 14px 28px; background-color: #7C3AED; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }
-          .project-info { background-color: white; border-left: 4px solid #7C3AED; padding: 15px; margin: 20px 0; border-radius: 5px; }
-          .role-badge { display: inline-block; background-color: #EDE9FE; color: #7C3AED; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; }
-          .warning { background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin: 20px 0; border-radius: 5px; }
-          .footer { text-align: center; margin-top: 20px; color: #6b7280; font-size: 14px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>📩 Приглашение в проект</h1>
-          </div>
-          <div class="content">
-            <h2>Вас приглашают в проект!</h2>
-            <p><strong>${inviterName}</strong> приглашает вас присоединиться к проекту в Task Manager.</p>
-            
-            <div class="project-info">
-              <h3 style="margin-top: 0;">📁 ${projectName}</h3>
-              <p><strong>Ваша роль:</strong> <span class="role-badge">${roleLabel}</span></p>
-              <p style="color: #6b7280; font-size: 14px; margin-bottom: 0;">${roleDescription}</p>
-            </div>
-            
-            <p>Нажмите на кнопку ниже, чтобы принять приглашение:</p>
-            <div style="text-align: center;">
-              <a href="${inviteLink}" class="button">Принять приглашение</a>
-            </div>
-            
-            <p style="color: #6b7280; font-size: 14px;">Или скопируйте эту ссылку в браузер:<br><a href="${inviteLink}">${inviteLink}</a></p>
-            
-            <div class="warning">
-              <strong>⏰ Срок действия:</strong> Приглашение действительно до ${expiryDate}
-            </div>
-            
-            <p style="color: #6b7280; font-size: 14px;">После принятия приглашения вы сможете сразу начать работу над проектом в соответствии с вашими правами доступа.</p>
-          </div>
-          <div class="footer">
-            <p>© 2025 Task Manager. Все права защищены.</p>
-            <p style="font-size: 12px; color: #9ca3af;">Если вы не ожидали это приглашение, можете проигнорировать это письмо.</p>
-          </div>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #7c3aed;">Приглашение в проект</h1>
+        <p><strong>${inviterName}</strong> пригласил вас присоединиться к проекту 
+           <strong>"${projectName}"</strong> в Task Manager T24.</p>
+        <p>Ваша роль в проекте: <strong>${role}</strong></p>
+        <p>Чтобы присоединиться к проекту, перейдите по ссылке ниже:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${invitationLink}" 
+             style="background-color: #7c3aed; color: white; padding: 12px 30px; 
+                    text-decoration: none; border-radius: 5px; display: inline-block;">
+            Принять приглашение
+          </a>
         </div>
-      </body>
-      </html>
+        <p style="color: #666; font-size: 14px;">
+          Приглашение действительно до: ${new Date(expiresAt).toLocaleString('ru-RU')}
+        </p>
+        <p style="color: #666; font-size: 14px;">
+          Если вы не ожидали этого приглашения, просто проигнорируйте это письмо.
+        </p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+        <p style="color: #999; font-size: 12px;">
+          С уважением,<br>
+          Команда Task Manager T24
+        </p>
+      </div>
     `;
 
     return this.sendEmail({
       to: email,
-      subject: `Приглашение в проект "${projectName}" - Task Manager`,
+      subject: `Вас пригласили в проект Task Manager T24`,
       html,
     });
   }
