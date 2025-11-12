@@ -46,6 +46,7 @@ model Project {
   archived            Boolean   @default(false)
   links               Json?     @default("[]") // FIX Problem #4: Store project links as JSON array of objects
   availableCategories String[]  @default([]) // FIX Problem #5: Store available category IDs for this project
+  attachments         Json?     @default("[]") // Store project file attachments as JSON array
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   
