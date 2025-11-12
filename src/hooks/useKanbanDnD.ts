@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner@2.0.3';
 import { generateOrderKey, compareOrderKeys } from '../utils/orderKey';
 import type { Task } from '../contexts/app-context';
@@ -13,6 +13,15 @@ interface TaskOrderState {
 }
 
 export function useKanbanDnD({ tasks, onUpdateTask }: UseKanbanDnDOptions) {
+  // Используем ref для хранения актуального списка задач
+  // Это решает проблему с замыканием в handleMoveCard
+  const tasksRef = useRef<Task[]>(tasks);
+  
+  // Обновляем ref при каждом изменении tasks
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+  
   // Локальное состояние для оптимистичного обновления порядка
   const [taskOrder, setTaskOrder] = useState<TaskOrderState>({});
   
@@ -25,7 +34,7 @@ export function useKanbanDnD({ tasks, onUpdateTask }: UseKanbanDnDOptions) {
 
   // Очищаем taskOrder от устаревших ID задач
   useEffect(() => {
-    const currentTaskIds = new Set(tasks.map(t => t.id));
+    const currentTaskIds = new Set(tasksRef.current.map(t => t.id));
     
     const cleanupTimer = setTimeout(() => {
       setTaskOrder(prev => {
@@ -61,8 +70,9 @@ export function useKanbanDnD({ tasks, onUpdateTask }: UseKanbanDnDOptions) {
     position: 'before' | 'after',
     columnTasks: Task[]
   ) => {
-    const draggedTask = tasks.find(t => t.id === draggedId);
-    const targetTask = tasks.find(t => t.id === targetId);
+    // Используем tasksRef.current для получения актуального списка задач
+    const draggedTask = tasksRef.current.find(t => t.id === draggedId);
+    const targetTask = tasksRef.current.find(t => t.id === targetId);
     
     if (!draggedTask || !targetTask) {
       console.log('[useKanbanDnD] Task not found:', { draggedId, targetId });
@@ -177,11 +187,12 @@ export function useKanbanDnD({ tasks, onUpdateTask }: UseKanbanDnDOptions) {
       // Очищаем сохраненное состояние
       setSavedState(null);
     }
-  }, [tasks, taskOrder, onUpdateTask, savedState]);
+  }, [taskOrder, onUpdateTask, savedState]); // Убрали tasks из зависимостей, используем tasksRef
 
   // Обработчик изменения статуса (перетаскивание в пустую колонку)
   const handleStatusChange = useCallback(async (taskId: string, newStatus: string) => {
-    const task = tasks.find(t => t.id === taskId);
+    // Используем tasksRef.current для получения актуального списка задач
+    const task = tasksRef.current.find(t => t.id === taskId);
     if (!task) return;
     
     // Сохраняем текущее состояние
@@ -206,7 +217,7 @@ export function useKanbanDnD({ tasks, onUpdateTask }: UseKanbanDnDOptions) {
       
       setSavedState(null);
     }
-  }, [tasks, taskOrder, onUpdateTask, savedState]);
+  }, [taskOrder, onUpdateTask, savedState]); // Убрали tasks из зависимостей, используем tasksRef
 
   return {
     taskOrder,

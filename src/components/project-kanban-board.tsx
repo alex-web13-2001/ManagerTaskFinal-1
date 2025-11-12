@@ -574,7 +574,7 @@ export function ProjectKanbanBoard({
   // Wrap handlers in useCallback for memoization
   const handleMoveCardCallback = React.useCallback((draggedId: string, targetId: string, position: 'before' | 'after') => {
     return handleMoveCard(draggedId, targetId, position, projectTasks);
-  }, [handleMoveCard, projectTasks]);
+  }, [handleMoveCard]); // Убрали projectTasks из зависимостей - хук сам получает актуальные задачи через ref
 
   const handleTaskClick = React.useCallback((taskId: string) => {
     onTaskClick(taskId);
