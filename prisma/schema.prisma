@@ -30,6 +30,8 @@ model User {
   createdTasks          Task[]    @relation("TaskCreator")
   assignedTasks         Task[]    @relation("TaskAssignee")
   receivedInvitations   Invitation[]
+  customColumns         CustomColumn[]
+  categories            Category[]
 
   @@map("users")
 }
@@ -152,4 +154,38 @@ model KvStore {
   updatedAt DateTime @updatedAt
 
   @@map("kv_store")
+}
+
+// CustomColumn model - stores user-defined status columns for Kanban board
+model CustomColumn {
+  id        String   @id @default(uuid())
+  name      String
+  color     String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("custom_columns")
+}
+
+// Category model - stores task categories for organization
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  color     String   @default("#3b82f6")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("categories")
 }
