@@ -315,30 +315,27 @@ app.post('/api/auth/signup', authRateLimiter, async (req: Request, res: Response
 
     // Hash password and create user
     const hashedPassword = await hashPassword(password);
+    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
         name,
+        emailVerified: false, // НЕ активирован сразу
+        emailVerificationToken,
       },
     });
 
-    // Send welcome email (async, don't wait for it)
-    emailService.sendWelcomeEmail(user.email, user.name).catch(err => {
+    // Send welcome email with verification token
+    emailService.sendWelcomeEmail(user.email, user.name, emailVerificationToken).catch(err => {
       console.error('Failed to send welcome email:', err);
     });
 
-    // Generate token
-    const token = generateToken(user.id, user.email);
-
+    // НЕ генерировать JWT! Вернуть информационное сообщение:
     res.status(201).json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatarUrl: user.avatarUrl,
-      },
-      token,
+      message: 'Регистрация успешна. Проверьте почту для активации аккаунта.',
+      email: user.email,
     });
   } catch (error: any) {
     console.error('Signup error:', error);
@@ -377,6 +374,13 @@ app.post('/api/auth/signin', authRateLimiter, async (req: Request, res: Response
       return res.status(401).json({ error: 'Неверный email или пароль' });
     }
 
+    // Проверяем, активирован ли email
+    if (!user.emailVerified) {
+      return res.status(403).json({ 
+        error: 'Пожалуйста, подтвердите ваш email перед входом' 
+      });
+    }
+
     // Generate token
     const token = generateToken(user.id, user.email);
 
@@ -392,6 +396,49 @@ app.post('/api/auth/signin', authRateLimiter, async (req: Request, res: Response
   } catch (error: any) {
     console.error('Signin error:', error);
     res.status(500).json({ error: 'Ошибка входа в систему' });
+  }
+});
+
+/**
+ * GET /api/auth/verify-email
+ * Verify user email with token
+ */
+app.get('/api/auth/verify-email', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.query;
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Токен не предоставлен' });
+    }
+    
+    const user = await prisma.user.findFirst({
+      where: { emailVerificationToken: token as string }
+    });
+    
+    if (!user) {
+      return res.status(400).json({ error: 'Неверная ссылка активации' });
+    }
+    
+    // Активируем пользователя
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null,
+      }
+    });
+    
+    // Генерируем токен авторизации
+    const authToken = generateToken(user.id, user.email);
+    
+    res.json({
+      message: 'Email подтвержден!',
+      user: { id: user.id, email: user.email, name: user.name },
+      token: authToken,
+    });
+  } catch (error) {
+    console.error('Ошибка верификации email:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
 
@@ -464,7 +511,7 @@ app.post('/api/auth/forgot-password', passwordResetRateLimiter, async (req: Requ
     });
 
     // Send password reset email
-    await emailService.sendPasswordResetEmail(user.email, user.name, resetToken);
+    await emailService.sendPasswordResetEmail(user.email, resetToken);
 
     res.json({ 
       message: 'If an account exists with this email, a password reset link has been sent.' 
@@ -1901,43 +1948,6 @@ apiRouter.delete('/tasks/:id', async (req: AuthRequest, res: Response) => {
 
 // ========== PROJECT INVITATION EMAIL (PROTECTED) ==========
 
-/**
- * POST /api/invitations/send-email
- * Send project invitation email
- */
-apiRouter.post('/invitations/send-email', async (req: AuthRequest, res: Response) => {
-  try {
-    const { invitationId, email, projectName, role, expiresAt } = req.body;
-    
-    if (!invitationId || !email || !projectName || !role || !expiresAt) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    const inviterName = req.user?.name || 'Пользователь';
-    
-    // Send email
-    const sent = await emailService.sendProjectInvitationEmail(
-      email,
-      projectName,
-      inviterName,
-      role,
-      invitationId,
-      expiresAt
-    );
-    
-    if (!sent) {
-      console.warn('Email not sent (service not configured), but invitation created');
-    }
-    
-    res.json({ 
-      message: sent ? 'Invitation email sent successfully' : 'Invitation created (email service not configured)',
-      emailSent: sent 
-    });
-  } catch (error: any) {
-    console.error('Send invitation email error:', error);
-    res.status(500).json({ error: 'Failed to send invitation email' });
-  }
-});
 
 // ========== TASK PERMISSIONS VALIDATION (PROTECTED) ==========
 
