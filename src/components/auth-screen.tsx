@@ -9,6 +9,7 @@ import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { authAPI } from '../utils/api-client';
 import { AnimatedLogo } from './logo';
+import { RegistrationSuccessPage } from './registration-success-page';
 
 export function AuthScreen({ onLogin }: { onLogin: () => void }) {
   const [loginEmail, setLoginEmail] = React.useState('');
@@ -21,6 +22,20 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
   const [resetEmailSent, setResetEmailSent] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState('login');
+  const [showRegistrationSuccess, setShowRegistrationSuccess] = React.useState(false);
+  const [registeredEmail, setRegisteredEmail] = React.useState('');
+
+  // Проверка URL параметров для автозаполнения при регистрации через приглашение
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('mode') === 'register') {
+      setActiveTab('register');
+      const email = urlParams.get('email');
+      if (email) {
+        setRegisterEmail(decodeURIComponent(email));
+      }
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,15 +75,29 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
     setIsLoading(true);
     
     try {
-      await authAPI.signUp(registerEmail, registerPassword, registerName);
-      toast.success('🎉 Регистрация успешна! Загружаем ваше рабочее пространство...');
-      // Small delay to show the success message
-      setTimeout(() => {
-        onLogin();
-      }, 500);
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: registerEmail, 
+          password: registerPassword, 
+          name: registerName 
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        toast.success(data.message);
+        setRegisteredEmail(registerEmail);
+        setShowRegistrationSuccess(true);
+      } else {
+        toast.error(data.error || 'Ошибка регистрации');
+      }
     } catch (error: any) {
       console.error('Register error:', error);
       toast.error(error.message || 'Ошибка регистрации');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -88,6 +117,10 @@ export function AuthScreen({ onLogin }: { onLogin: () => void }) {
       setIsLoading(false);
     }
   };
+
+  if (showRegistrationSuccess) {
+    return <RegistrationSuccessPage email={registeredEmail} />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-pink-50 p-4">

@@ -105,10 +105,9 @@ export function InviteAcceptPage() {
 
   const handleAccept = async () => {
     if (!isAuthenticated) {
-      toast.error('Пожалуйста, войдите в систему, чтобы принять приглашение');
-      // Save token to accept after login
+      // Если пользователь не авторизован, перенаправляем на регистрацию
       sessionStorage.setItem('pendingInvitation', token);
-      window.location.href = '/';
+      window.location.href = `/?mode=register&email=${encodeURIComponent(invitation.email)}`;
       return;
     }
 

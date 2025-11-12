@@ -14,6 +14,9 @@ import { CategoriesView } from './components/categories-view';
 import { ArchiveView } from './components/archive-view';
 import { ProfileView } from './components/profile-view';
 import { InviteAcceptPage } from './components/invite-accept-page';
+import { VerifyEmailPage } from './components/verify-email-page';
+import { ResetPasswordPage } from './components/reset-password-page';
+import { WelcomeModal } from './components/welcome-modal';
 import { TaskModal } from './components/task-modal';
 import { SidebarProvider, SidebarInset } from './components/ui/sidebar';
 import { Toaster } from './components/ui/sonner';
@@ -34,6 +37,8 @@ function App() {
   const [isCreateTaskOpen, setIsCreateTaskOpen] = React.useState(false);
   const [currentProject, setCurrentProject] = React.useState<string>('');
   const [selectedProjectId, setSelectedProjectId] = React.useState<string | null>(null);
+  const [showVerifyEmail, setShowVerifyEmail] = React.useState(false);
+  const [showResetPassword, setShowResetPassword] = React.useState(false);
 
   // Global error handler - must be first effect - AGGRESSIVE WASM SUPPRESSION
   React.useEffect(() => {
@@ -138,6 +143,21 @@ function App() {
 
     const checkAuth = async () => {
       try {
+        // Проверяем URL для верификации email
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('token') && window.location.pathname === '/') {
+          setShowVerifyEmail(true);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Проверяем URL для сброса пароля
+        if (params.get('reset-token')) {
+          setShowResetPassword(true);
+          setIsLoading(false);
+          return;
+        }
+
         // Check if URL is an invite link
         const path = window.location.pathname;
         if (path.startsWith('/invite/')) {
@@ -304,6 +324,44 @@ function App() {
     );
   }
 
+  // Show email verification page
+  if (showVerifyEmail) {
+    return (
+      <ErrorBoundary>
+        <AppProvider>
+          <VerifyEmailPage 
+            onVerified={(hasInvitation) => {
+              setShowVerifyEmail(false);
+              setIsAuthenticated(true);
+              if (!hasInvitation) {
+                // Показываем welcome modal, добавляя параметр в URL
+                const url = new URL(window.location.href);
+                url.searchParams.set('welcome', 'true');
+                window.history.replaceState({}, '', url.toString());
+              }
+            }} 
+          />
+          <Toaster richColors position="top-right" />
+        </AppProvider>
+      </ErrorBoundary>
+    );
+  }
+
+  // Show reset password page
+  if (showResetPassword) {
+    return (
+      <ErrorBoundary>
+        <AppProvider>
+          <ResetPasswordPage onSuccess={() => {
+            setShowResetPassword(false);
+            window.location.href = '/';
+          }} />
+          <Toaster richColors position="top-right" />
+        </AppProvider>
+      </ErrorBoundary>
+    );
+  }
+
   // Show invite page without authentication
   if (currentView === 'invite') {
     return (
@@ -326,6 +384,7 @@ function App() {
         <AppProvider>
           <WebSocketProvider>
             <SidebarProvider>
+              <WelcomeModal />
               <Header
                 onCreateTask={() => setIsCreateTaskOpen(true)}
                 onNavigate={(view) => setCurrentView(view as View)}
