@@ -50,7 +50,7 @@ router.get('/:projectId/invitations', async (req: AuthRequest, res: Response) =>
       createdAt: inv.createdAt,
       acceptedAt: inv.acceptedAt,
       invitedBy: inv.invitedByUser,
-      link: inv.status === 'pending' ? `${appUrl}/invite/${inv.token}` : null,
+      link: inv.status === 'pending' ? `${appUrl}/invite?token=${inv.token}` : null,
     }));
 
     res.json({ invitations: invitationsWithLinks });
@@ -136,7 +136,7 @@ router.post('/:invitationId/resend', async (req: AuthRequest, res: Response) => 
 
     // Generate new invitation link
     const appUrl = process.env.APP_URL || 'http://localhost:5173';
-    const invitationLink = `${appUrl}/invite/${invitation.token}`;
+    const invitationLink = `${appUrl}/invite?token=${invitation.token}`;
 
     // Send new invitation email
     try {

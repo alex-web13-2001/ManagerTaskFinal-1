@@ -213,7 +213,7 @@ class EmailService {
     invitationToken: string,
     expiresAt: string
   ): Promise<boolean> {
-    const invitationLink = `${process.env.FRONTEND_URL}/invite/${invitationToken}`;
+    const invitationLink = `${process.env.FRONTEND_URL}/invite?token=${invitationToken}`;
     
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
