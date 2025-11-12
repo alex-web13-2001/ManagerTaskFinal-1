@@ -216,7 +216,7 @@ export function ProjectModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95%] sm:max-w-[700px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <DialogContent className="w-[90%] sm:w-auto sm:max-w-[700px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>
             {isEditMode ? 'Редактировать проект' : 'Создать новый проект'}
