@@ -377,13 +377,12 @@ const MemoizedDroppableColumn = React.memo(DroppableColumn, (prevProps, nextProp
     return false; // Force re-render - ensures new tasks get drag handlers
   }
   
-  // Only check updates for existing tasks
-  const hasTaskUpdates = prevProps.tasks.some((task, index) => {
-    const nextTask = nextProps.tasks[index];
-    return nextTask && task.updatedAt !== nextTask.updatedAt;
+  // Check if any task object references changed
+  const hasTaskObjectChanges = prevProps.tasks.some((task, index) => {
+    return task !== nextProps.tasks[index]; // Compare by reference
   });
   
-  if (hasTaskUpdates) {
+  if (hasTaskObjectChanges) {
     return false; // Force re-render
   }
   
