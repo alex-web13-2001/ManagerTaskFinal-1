@@ -932,11 +932,12 @@ apiRouter.get('/projects/:projectId/categories', canAccessProject, async (req: A
     }
 
     // Get owner's categories (not current user's categories!)
-    const kvStore = await import('./kv_store.js');
-    const ownerCategories = await kvStore.get(`categories:${project.ownerId}`) || [];
+    const ownerCategories = await prisma.category.findMany({
+      where: { userId: project.ownerId },
+    });
 
     // Filter owner's categories by project's availableCategories
-    const projectCategories = ownerCategories.filter((cat: any) => 
+    const projectCategories = ownerCategories.filter((cat) => 
       Array.isArray(project.availableCategories) && 
       project.availableCategories.includes(cat.id)
     );
@@ -1199,9 +1200,11 @@ apiRouter.get('/users/:userId/custom_columns', async (req: AuthRequest, res: Res
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Use KV store for now (temporary until added to Prisma schema)
-    const kvStore = await import('./kv_store.js');
-    const columns = await kvStore.get(`custom_columns:${userId}`) || [];
+    // Get custom columns from Prisma
+    const columns = await prisma.customColumn.findMany({
+      where: { userId },
+      orderBy: { order: 'asc' },
+    });
     
     res.json(columns);
   } catch (error: any) {
@@ -1224,11 +1227,34 @@ apiRouter.post('/users/:userId/custom_columns', async (req: AuthRequest, res: Re
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Use KV store for now (temporary until added to Prisma schema)
-    const kvStore = await import('./kv_store.js');
-    await kvStore.set(`custom_columns:${userId}`, columns);
+    // Delete existing columns and create new ones in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Delete all existing columns for this user
+      await tx.customColumn.deleteMany({
+        where: { userId },
+      });
+
+      // Create new columns
+      if (Array.isArray(columns) && columns.length > 0) {
+        await tx.customColumn.createMany({
+          data: columns.map((col: any, index: number) => ({
+            id: col.id,
+            name: col.name,
+            color: col.color || null,
+            order: col.order !== undefined ? col.order : index,
+            userId,
+          })),
+        });
+      }
+    });
+
+    // Fetch and return the updated columns
+    const updatedColumns = await prisma.customColumn.findMany({
+      where: { userId },
+      orderBy: { order: 'asc' },
+    });
     
-    res.json(columns);
+    res.json(updatedColumns);
   } catch (error: any) {
     console.error('Save custom columns error:', error);
     res.status(500).json({ error: 'Failed to save custom columns' });
@@ -1248,9 +1274,11 @@ apiRouter.get('/users/:userId/categories', async (req: AuthRequest, res: Respons
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Use KV store for now (temporary until added to Prisma schema)
-    const kvStore = await import('./kv_store.js');
-    const categories = await kvStore.get(`categories:${userId}`) || [];
+    // Get categories from Prisma
+    const categories = await prisma.category.findMany({
+      where: { userId },
+      orderBy: { name: 'asc' },
+    });
     
     res.json(categories);
   } catch (error: any) {
@@ -1273,11 +1301,34 @@ apiRouter.post('/users/:userId/categories', async (req: AuthRequest, res: Respon
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Use KV store for now (temporary until added to Prisma schema)
-    const kvStore = await import('./kv_store.js');
-    await kvStore.set(`categories:${userId}`, categories);
+    // Delete existing categories and create new ones in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Delete all existing categories for this user
+      await tx.category.deleteMany({
+        where: { userId },
+      });
+
+      // Create new categories
+      if (Array.isArray(categories) && categories.length > 0) {
+        await tx.category.createMany({
+          data: categories.map((cat: any) => ({
+            id: cat.id,
+            name: cat.name,
+            color: cat.color || '#3b82f6',
+            userId,
+          })),
+          skipDuplicates: true, // Skip if duplicate userId+name
+        });
+      }
+    });
+
+    // Fetch and return the updated categories
+    const updatedCategories = await prisma.category.findMany({
+      where: { userId },
+      orderBy: { name: 'asc' },
+    });
     
-    res.json(categories);
+    res.json(updatedCategories);
   } catch (error: any) {
     console.error('Save categories error:', error);
     res.status(500).json({ error: 'Failed to save categories' });
