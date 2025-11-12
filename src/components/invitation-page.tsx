@@ -76,7 +76,7 @@ export function InvitationPage() {
         const isAuthenticated = !!authToken;
 
         // Fetch invitation details (public endpoint, no auth required)
-        const response = await fetch(`${API_BASE_URL}/api/invitations/token/${token}`);
+        const response = await fetch(`${API_BASE_URL}/api/invitations/${token}`);
 
         if (response.status === 404) {
           setErrorMessage('Приглашение не найдено');
