@@ -198,6 +198,8 @@ interface AppContextType {
   refreshData: () => Promise<void>;
   // Drag state management
   setIsDragging: (isDragging: boolean) => void;
+  // Direct state setters for WebSocket updates
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   // Permission helpers
   getUserRoleInProject: (projectId: string) => UserRole;
   canViewAllProjectTasks: (projectId: string) => boolean;
@@ -1328,6 +1330,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     deleteProject,
     refreshData,
     setIsDragging,
+    // Direct state setters for WebSocket updates
+    setTasks,
     // Permission helpers
     getUserRoleInProject,
     canViewAllProjectTasks,

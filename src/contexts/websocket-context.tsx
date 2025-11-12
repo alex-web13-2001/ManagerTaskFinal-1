@@ -13,7 +13,9 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const { 
     fetchTasks, 
     fetchProjects,
-    currentUser 
+    currentUser,
+    tasks,
+    setTasks
   } = useApp();
 
   // Handle task events - refetch tasks to ensure consistency
@@ -22,28 +24,61 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
 
     const handleTaskCreated = (data: { task: Task; projectId?: string }) => {
       console.log('📥 WebSocket: task:created', data);
-      toast.success(`New task: ${data.task.title}`);
-      // Refetch tasks to get the updated list
-      fetchTasks();
+      toast.success(`Новая задача: ${data.task.title}`);
+      
+      // Добавляем задачу напрямую в state вместо fetchTasks()
+      // Это обеспечивает мгновенное обновление UI и регистрацию DnD handlers
+      setTasks((prevTasks) => {
+        // Проверяем, есть ли задача уже в state (от createTask)
+        const exists = prevTasks.some(t => t.id === data.task.id);
+        
+        if (exists) {
+          console.log('📝 WebSocket: Задача уже в state, форсируем ре-рендер для DnD');
+          // Форсируем ре-рендер, создавая новый массив
+          // Это заставит React обновить компоненты и React DnD зарегистрирует handlers
+          return [...prevTasks];
+        }
+        
+        // Добавляем новую задачу
+        console.log('✅ WebSocket: Добавляем новую задачу в state');
+        return [...prevTasks, data.task];
+      });
+      
+      // Опционально: перезагрузим задачи через небольшую задержку
+      // для синхронизации с сервером (например, если есть server-side изменения)
+      setTimeout(() => {
+        fetchTasks();
+      }, 1000);
     };
 
     const handleTaskUpdated = (data: { task: Task; projectId?: string }) => {
       console.log('📥 WebSocket: task:updated', data);
-      // Silently refetch tasks to update the list
-      fetchTasks();
+      
+      // Обновляем задачу в state напрямую
+      setTasks((prevTasks) => {
+        return prevTasks.map(t => t.id === data.task.id ? data.task : t);
+      });
     };
 
     const handleTaskDeleted = (data: { taskId: string; projectId?: string }) => {
       console.log('📥 WebSocket: task:deleted', data);
-      toast.info('Task deleted');
-      // Refetch tasks to get the updated list
-      fetchTasks();
+      toast.info('Задача удалена');
+      
+      // Удаляем задачу из state напрямую
+      setTasks((prevTasks) => prevTasks.filter(t => t.id !== data.taskId));
     };
 
     const handleTaskMoved = (data: { taskId: string; fromStatus: string; toStatus: string; projectId?: string }) => {
       console.log('📥 WebSocket: task:moved', data);
-      // Silently refetch tasks to update positions
-      fetchTasks();
+      
+      // Обновляем статус задачи
+      setTasks((prevTasks) => {
+        return prevTasks.map(t => 
+          t.id === data.taskId 
+            ? { ...t, status: data.toStatus, updatedAt: new Date().toISOString() }
+            : t
+        );
+      });
     };
 
     // Subscribe to task events
@@ -59,7 +94,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       websocket.off('task:deleted', handleTaskDeleted);
       websocket.off('task:moved', handleTaskMoved);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, fetchTasks]);
+  }, [websocket.isConnected, websocket.on, websocket.off, fetchTasks, setTasks]);
 
   // Handle invitation events
   useEffect(() => {
