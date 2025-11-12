@@ -1431,7 +1431,7 @@ apiRouter.post('/users/:userId/custom_columns', async (req: AuthRequest, res: Re
         await tx.customColumn.createMany({
           data: columns.map((col: any, index: number) => ({
             id: col.id,
-            name: col.name,
+            name: col.title || col.name,  // Support both title and name for backward compatibility
             color: col.color || null,
             order: col.order !== undefined ? col.order : index,
             userId,
