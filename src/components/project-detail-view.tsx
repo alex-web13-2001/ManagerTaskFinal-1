@@ -16,6 +16,7 @@ import { ProjectAboutModal } from './project-about-modal';
 import { ProjectMembersModal } from './project-members-modal';
 import { ProjectModal } from './project-modal';
 import { useApp } from '../contexts/app-context';
+import { useWebSocketContext } from '../contexts/websocket-context';
 import type { Filters } from './filters-panel';
 
 type ProjectDetailViewProps = {
@@ -39,7 +40,21 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
     canDeleteProject,
     canCreateTask,
   } = useApp();
+  const { joinProject, leaveProject, isConnected } = useWebSocketContext();
   const project = projects.find((p) => p.id === projectId);
+  
+  // Auto-join project room when viewing the project
+  React.useEffect(() => {
+    if (isConnected && projectId) {
+      joinProject(projectId);
+      console.log(`📥 Joined project room: ${projectId}`);
+      
+      return () => {
+        leaveProject(projectId);
+        console.log(`📤 Left project room: ${projectId}`);
+      };
+    }
+  }, [isConnected, projectId, joinProject, leaveProject]);
   
   // Debug logging
   React.useEffect(() => {

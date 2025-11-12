@@ -243,20 +243,11 @@ export function ProjectMembersModal({
     }
   }, [open]);
 
-  // Fetch members and invitations
+  // Fetch members and invitations - no more polling, WebSocket will handle updates
   React.useEffect(() => {
     if (open) {
       fetchMembers();
       fetchInvitations();
-      
-      // Set up polling to refresh member list every 10 seconds (silent refresh)
-      const pollInterval = setInterval(() => {
-        fetchMembers(false); // Silent refresh without loading spinner
-        fetchInvitations();
-      }, 10000);
-      
-      // Clean up interval on unmount or when modal closes
-      return () => clearInterval(pollInterval);
     }
   }, [open, prjId]);
 

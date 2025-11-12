@@ -19,6 +19,7 @@ import { SidebarProvider, SidebarInset } from './components/ui/sidebar';
 import { Toaster } from './components/ui/sonner';
 import { authAPI } from './utils/api-client';
 import { AppProvider } from './contexts/app-context';
+import { WebSocketProvider } from './contexts/websocket-context';
 import { ErrorBoundary } from './components/error-boundary';
 import { Loader2 } from 'lucide-react';
 import { DndProviderWrapper } from './components/dnd-provider-wrapper';
@@ -323,30 +324,32 @@ function App() {
     <ErrorBoundary>
       <DndProviderWrapper>
         <AppProvider>
-          <SidebarProvider>
-            <Header
-              onCreateTask={() => setIsCreateTaskOpen(true)}
-              onNavigate={(view) => setCurrentView(view as View)}
-              onLogout={handleLogout}
-              currentProject={currentProject}
-            />
-            <SidebarNav
-              currentView={currentView}
-              onViewChange={(view) => setCurrentView(view as View)}
-              onLogout={handleLogout}
-            />
-            <SidebarInset className="pt-16 h-screen overflow-hidden">
-              {renderView()}
-            </SidebarInset>
-            <TaskModal
-              open={isCreateTaskOpen}
-              onOpenChange={setIsCreateTaskOpen}
-              mode="create"
-              initialProject={currentProject}
-              onSave={() => {}}
-            />
-            <Toaster />
-          </SidebarProvider>
+          <WebSocketProvider>
+            <SidebarProvider>
+              <Header
+                onCreateTask={() => setIsCreateTaskOpen(true)}
+                onNavigate={(view) => setCurrentView(view as View)}
+                onLogout={handleLogout}
+                currentProject={currentProject}
+              />
+              <SidebarNav
+                currentView={currentView}
+                onViewChange={(view) => setCurrentView(view as View)}
+                onLogout={handleLogout}
+              />
+              <SidebarInset className="pt-16 h-screen overflow-hidden">
+                {renderView()}
+              </SidebarInset>
+              <TaskModal
+                open={isCreateTaskOpen}
+                onOpenChange={setIsCreateTaskOpen}
+                mode="create"
+                initialProject={currentProject}
+                onSave={() => {}}
+              />
+              <Toaster />
+            </SidebarProvider>
+          </WebSocketProvider>
         </AppProvider>
       </DndProviderWrapper>
     </ErrorBoundary>
