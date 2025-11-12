@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
+import { createServer } from 'http';
 import prisma from './db';
 import { hashPassword, comparePassword, generateToken } from '../lib/auth';
 import emailService from '../lib/email';
@@ -20,6 +21,19 @@ import { authenticate, canAccessProject, AuthRequest, UserRole } from './middlew
 import { webhookHandler } from './handlers/webhookHandler.js';
 import { createProject } from './handlers/projectHandlers.js';
 import { authRateLimiter, uploadRateLimiter, passwordResetRateLimiter } from './middleware/rateLimiter.js';
+import { 
+  initializeWebSocket, 
+  emitTaskCreated, 
+  emitTaskUpdated, 
+  emitTaskDeleted,
+  emitTaskMoved,
+  emitInviteReceived,
+  emitInviteAccepted,
+  emitInviteRejected,
+  emitProjectUpdated,
+  emitProjectMemberAdded,
+  emitProjectMemberRemoved
+} from './websocket.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -661,6 +675,9 @@ apiRouter.patch('/projects/:id', canAccessProject, async (req: AuthRequest, res:
       },
     });
 
+    // Emit WebSocket event for real-time synchronization
+    emitProjectUpdated(updatedProject);
+
     res.json(updatedProject);
   } catch (error: any) {
     console.error('Update project error:', error);
@@ -855,6 +872,9 @@ apiRouter.patch('/projects/:projectId/members/:memberId', canAccessProject, asyn
       },
     });
 
+    // Emit WebSocket event for real-time synchronization
+    emitProjectMemberAdded(projectId, updatedMember);
+
     res.json(updatedMember);
   } catch (error: any) {
     console.error('Update member role error:', error);
@@ -900,6 +920,9 @@ apiRouter.delete('/projects/:projectId/members/:memberId', canAccessProject, asy
     await prisma.projectMember.delete({
       where: { id: memberId },
     });
+
+    // Emit WebSocket event for real-time synchronization
+    emitProjectMemberRemoved(projectId, memberId);
 
     res.json({ success: true });
   } catch (error: any) {
@@ -1536,8 +1559,12 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Emit WebSocket event for real-time synchronization
+    const transformedTask = transformTaskForResponse(task);
+    emitTaskCreated(transformedTask, task.projectId || undefined);
+
     // Transform task for response (field mapping for frontend compatibility)
-    res.status(201).json(transformTaskForResponse(task));
+    res.status(201).json(transformedTask);
   } catch (error: any) {
     console.error('Create task error:', error);
     res.status(500).json({ error: 'Failed to create task' });
@@ -1645,8 +1672,17 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Emit WebSocket event for real-time synchronization
+    const transformedTask = transformTaskForResponse(updatedTask);
+    emitTaskUpdated(transformedTask, updatedTask.projectId || undefined);
+    
+    // If status changed, also emit task:moved for drag-and-drop visualization
+    if (status !== undefined && status !== existingTask.status) {
+      emitTaskMoved(taskId, existingTask.status, status, updatedTask.projectId || undefined);
+    }
+
     // Transform task for response (field mapping for frontend compatibility)
-    res.json(transformTaskForResponse(updatedTask));
+    res.json(transformedTask);
   } catch (error: any) {
     console.error('Update task error:', error);
     res.status(500).json({ error: 'Failed to update task' });
@@ -1683,6 +1719,9 @@ apiRouter.delete('/tasks/:id', async (req: AuthRequest, res: Response) => {
     await prisma.task.delete({
       where: { id: taskId },
     });
+
+    // Emit WebSocket event for real-time synchronization
+    emitTaskDeleted(taskId, existingTask.projectId || undefined);
 
     res.json({ message: 'Task deleted successfully' });
   } catch (error: any) {
@@ -1882,12 +1921,20 @@ function isMainModule(): boolean {
 }
 
 if (isMainModule()) {
-  const server = app.listen(PORT, () => {
+  // Create HTTP server
+  const httpServer = createServer(app);
+  
+  // Initialize WebSocket server
+  initializeWebSocket(httpServer);
+  
+  // Start listening
+  httpServer.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`🔌 WebSocket server ready`);
     console.log(`📁 Serving uploads from: ${uploadsDir}`);
   });
 
-  server.on('error', (error: NodeJS.ErrnoException) => {
+  httpServer.on('error', (error: NodeJS.ErrnoException) => {
     if (error.code === 'EADDRINUSE') {
       console.error(`❌ Error: Port ${PORT} is already in use`);
       console.error('Please check if another process is using this port or set a different PORT in environment variables');
@@ -1903,7 +1950,7 @@ if (isMainModule()) {
   // Graceful shutdown
   process.on('SIGTERM', () => {
     console.log('SIGTERM signal received: closing HTTP server');
-    server.close(() => {
+    httpServer.close(() => {
       console.log('HTTP server closed');
       process.exit(0);
     });

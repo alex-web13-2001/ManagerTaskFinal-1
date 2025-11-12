@@ -7,6 +7,11 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../types';
 import { prisma } from '../db';
 import * as crypto from 'crypto';
+import { 
+  emitInviteReceived, 
+  emitInviteAccepted,
+  emitProjectMemberAdded 
+} from '../websocket.js';
 
 // --- СОЗДАНИЕ ПРИГЛАШЕНИЯ (CREATE INVITATION) ---
 export async function createInvitation(req: AuthRequest, res: Response) {
@@ -106,6 +111,26 @@ export async function createInvitation(req: AuthRequest, res: Response) {
     // Generate invitation link
     const appUrl = process.env.APP_URL || 'http://localhost:5173';
     const invitationLink = `${appUrl}/invite/${invitation.token}`;
+
+    // Find user by email to send notification (if they have an account)
+    const invitedUser = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      select: { id: true },
+    });
+
+    // Emit WebSocket event if user exists (for real-time notification)
+    if (invitedUser) {
+      emitInviteReceived({
+        token: invitation.token,
+        email: invitation.email,
+        role: invitation.role,
+        status: invitation.status,
+        expiresAt: invitation.expiresAt,
+        projectId: invitation.projectId,
+        projectName: invitation.project.name,
+        link: invitationLink,
+      }, invitedUser.id);
+    }
 
     // Return invitation with token (not id) as the public identifier
     res.status(201).json({
@@ -282,6 +307,11 @@ export async function acceptInvitation(req: AuthRequest, res: Response) {
         projectId: invitation.projectId,
         role: invitation.role,
       },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+      },
     });
 
     // Update invitation status
@@ -292,6 +322,10 @@ export async function acceptInvitation(req: AuthRequest, res: Response) {
         acceptedAt: new Date(),
       },
     });
+
+    // Emit WebSocket events for real-time synchronization
+    emitInviteAccepted(token, invitation.projectId, userId);
+    emitProjectMemberAdded(invitation.projectId, member);
 
     res.json({
       message: 'Invitation accepted successfully',
