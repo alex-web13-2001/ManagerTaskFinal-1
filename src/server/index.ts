@@ -644,9 +644,34 @@ apiRouter.get('/projects', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Combine and return all projects
+    // Combine all projects
     const allProjects = [...ownedProjects, ...memberProjects];
-    res.json(allProjects);
+    
+    // Enrich projects with full category objects
+    const enrichedProjects = await Promise.all(
+      allProjects.map(async (project) => {
+        if (project.availableCategories && Array.isArray(project.availableCategories) && project.availableCategories.length > 0) {
+          // Fetch the owner's categories
+          const categories = await prisma.category.findMany({
+            where: {
+              userId: project.ownerId,
+              id: { in: project.availableCategories as string[] },
+            },
+          });
+          
+          return {
+            ...project,
+            categoriesDetails: categories, // Add full category objects
+          };
+        }
+        return {
+          ...project,
+          categoriesDetails: [], // Empty array if no categories
+        };
+      })
+    );
+    
+    res.json(enrichedProjects);
   } catch (error: any) {
     console.error('Get projects error:', error);
     res.status(500).json({ error: 'Failed to fetch projects' });
@@ -708,9 +733,34 @@ apiRouter.get('/projects/archived', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Combine and return all archived projects
+    // Combine all archived projects
     const allArchivedProjects = [...ownedProjects, ...memberProjects];
-    res.json(allArchivedProjects);
+    
+    // Enrich projects with full category objects
+    const enrichedProjects = await Promise.all(
+      allArchivedProjects.map(async (project) => {
+        if (project.availableCategories && Array.isArray(project.availableCategories) && project.availableCategories.length > 0) {
+          // Fetch the owner's categories
+          const categories = await prisma.category.findMany({
+            where: {
+              userId: project.ownerId,
+              id: { in: project.availableCategories as string[] },
+            },
+          });
+          
+          return {
+            ...project,
+            categoriesDetails: categories, // Add full category objects
+          };
+        }
+        return {
+          ...project,
+          categoriesDetails: [], // Empty array if no categories
+        };
+      })
+    );
+    
+    res.json(enrichedProjects);
   } catch (error: any) {
     console.error('Get archived projects error:', error);
     res.status(500).json({ error: 'Failed to fetch archived projects' });

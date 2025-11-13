@@ -334,11 +334,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           project.members.forEach((member: any) => {
             // Handle both flat and nested user structures
             const memberId = member.userId || member.id;
-            const memberName = member.user?.name || member.name || member.user?.email || member.email || 'Без имени';
+            const memberName = member.user?.name || member.name || '';
             const memberEmail = member.user?.email || member.email || '';
             const memberAvatar = member.user?.avatarUrl || member.avatarUrl;
             
-            if (memberId && !membersMap.has(memberId)) {
+            // Only add members that have at least a name or email
+            if (memberId && (memberName || memberEmail) && !membersMap.has(memberId)) {
               membersMap.set(memberId, {
                 id: memberId,
                 name: memberName,

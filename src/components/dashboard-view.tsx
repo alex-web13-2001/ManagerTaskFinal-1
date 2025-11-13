@@ -74,12 +74,11 @@ export function DashboardView({ onCalendarView }: DashboardViewProps = {}) {
     });
     
     // Add categories from all projects where user is a member
+    // Use categoriesDetails field which contains full category objects from the project owner
     projects.forEach(project => {
-      if (project.availableCategories && Array.isArray(project.availableCategories)) {
-        project.availableCategories.forEach(catId => {
-          // Find the category details from the global categories list
-          const category = categories.find(c => c.id === catId);
-          if (category && !categoryMap.has(category.id)) {
+      if (project.categoriesDetails && Array.isArray(project.categoriesDetails)) {
+        project.categoriesDetails.forEach(category => {
+          if (!categoryMap.has(category.id)) {
             categoryMap.set(category.id, category);
           }
         });

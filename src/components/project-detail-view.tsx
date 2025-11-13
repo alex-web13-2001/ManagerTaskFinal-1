@@ -159,16 +159,25 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
     return members;
   }, [project, teamMembers]);
   
-  // FIX Problem #1: Get categories from project.availableCategories
+  // FIX Problem #1: Get categories from project.categoriesDetails
   const projectCategories = React.useMemo(() => {
-    if (!project?.availableCategories || !Array.isArray(project.availableCategories)) {
+    if (!project) {
       return [];
     }
     
-    // Map category IDs to full category objects
-    return project.availableCategories
-      .map(catId => categories.find(c => c.id === catId))
-      .filter((cat): cat is { id: string; name: string; color?: string } => cat !== undefined);
+    // Use categoriesDetails if available (includes full category objects from owner)
+    if (project.categoriesDetails && Array.isArray(project.categoriesDetails)) {
+      return project.categoriesDetails;
+    }
+    
+    // Fallback to old method for backward compatibility
+    if (project.availableCategories && Array.isArray(project.availableCategories)) {
+      return project.availableCategories
+        .map(catId => categories.find(c => c.id === catId))
+        .filter((cat): cat is { id: string; name: string; color?: string } => cat !== undefined);
+    }
+    
+    return [];
   }, [project, categories]);
   
   // Фильтры
