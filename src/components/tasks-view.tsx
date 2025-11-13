@@ -2,7 +2,6 @@ import React from 'react';
 import { LayoutGrid, Table as TableIcon, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { TaskModal } from './task-modal';
 import { PersonalKanbanBoard } from './personal-kanban-board';
 import { PersonalTaskTable } from './personal-task-table';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -11,9 +10,12 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function TasksView() {
+interface TasksViewProps {
+  onTaskClick?: (taskId: string) => void;
+}
+
+export function TasksView({ onTaskClick }: TasksViewProps) {
   const [viewMode, setViewMode] = React.useState<'kanban' | 'table'>('kanban');
-  const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
   
   // Фильтры: приоритет и дедлайн (без статуса)
   const [filters, setFilters] = React.useState<{
@@ -25,7 +27,7 @@ export function TasksView() {
   });
 
   const handleTaskClick = (taskId: string) => {
-    setSelectedTaskId(taskId);
+    onTaskClick?.(taskId);
   };
 
   const toggleArrayFilter = (key: 'priorities', value: string) => {
@@ -226,15 +228,6 @@ export function TasksView() {
           <PersonalTaskTable filters={filters} onTaskClick={handleTaskClick} />
         )}
       </div>
-
-      {selectedTaskId && (
-        <TaskModal
-          open={!!selectedTaskId}
-          onOpenChange={(open) => !open && setSelectedTaskId(null)}
-          mode="view"
-          taskId={selectedTaskId}
-        />
-      )}
     </div>
   );
 }

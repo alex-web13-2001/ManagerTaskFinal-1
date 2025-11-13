@@ -1,6 +1,7 @@
 import './utils/dev-tools-config';
 import React from 'react';
 import './styles/globals.css';
+import { BrowserRouter, Routes, Route, useParams, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { AuthScreen } from './components/auth-screen';
 import { SidebarNav } from './components/sidebar-nav';
 import { Header } from './components/header';
@@ -31,12 +32,18 @@ import { generateFaviconDataURL } from './components/favicon-svg';
 type View = 'dashboard' | 'dashboard-calendar' | 'tasks' | 'projects' | 'project-calendar' | 'categories' | 'archive' | 'profile' | 'invite';
 
 function App() {
+  return (
+    <BrowserRouter>
+      <AppRouter />
+    </BrowserRouter>
+  );
+}
+
+function AppRouter() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [currentView, setCurrentView] = React.useState<View>('dashboard');
-  const [isCreateTaskOpen, setIsCreateTaskOpen] = React.useState(false);
-  const [currentProject, setCurrentProject] = React.useState<string>('');
-  const [selectedProjectId, setSelectedProjectId] = React.useState<string | null>(null);
   const [showVerifyEmail, setShowVerifyEmail] = React.useState(false);
   const [showResetPassword, setShowResetPassword] = React.useState(false);
 
@@ -144,8 +151,8 @@ function App() {
     const checkAuth = async () => {
       try {
         // Проверяем URL для верификации email
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('token') && window.location.pathname === '/') {
+        const params = new URLSearchParams(location.search);
+        if (params.get('token') && location.pathname === '/') {
           setShowVerifyEmail(true);
           setIsLoading(false);
           return;
@@ -159,16 +166,14 @@ function App() {
         }
 
         // Check if URL is an invite link with query parameter
-        const path = window.location.pathname;
-        if (path === '/invite' && params.get('token')) {
-          setCurrentView('invite');
+        if (location.pathname === '/invite' && params.get('token')) {
           setIsLoading(false);
           return; // Don't check auth for invite page, it will handle its own
         }
 
         // Support legacy invite link format /invite/{token}
-        if (path.startsWith('/invite/')) {
-          const token = path.replace('/invite/', '');
+        if (location.pathname.startsWith('/invite/')) {
+          const token = location.pathname.replace('/invite/', '');
           if (token) {
             // Redirect to new format
             window.location.href = `/invite?token=${token}`;
@@ -179,6 +184,12 @@ function App() {
         const user = await authAPI.getCurrentUser();
         if (isMounted && user) {
           setIsAuthenticated(true);
+        } else if (isMounted && !user) {
+          // Save current URL for redirect after login
+          const currentPath = location.pathname;
+          if (currentPath !== '/' && currentPath !== '/login' && !currentPath.startsWith('/invite')) {
+            sessionStorage.setItem('redirectAfterLogin', currentPath);
+          }
         }
       } catch (error) {
         if (isMounted) {
@@ -215,32 +226,164 @@ function App() {
         }
       }
     };
-  }, []);
+  }, [location.pathname, location.search]);
 
   const handleLogin = React.useCallback(() => {
     setIsAuthenticated(true);
-  }, []);
+    
+    // Check for redirect URL
+    const redirectUrl = sessionStorage.getItem('redirectAfterLogin');
+    if (redirectUrl) {
+      sessionStorage.removeItem('redirectAfterLogin');
+      navigate(redirectUrl);
+    } else {
+      navigate('/');
+    }
+  }, [navigate]);
 
   const handleLogout = React.useCallback(async () => {
     try {
       await authAPI.signOut();
       setIsAuthenticated(false);
-      setCurrentView('dashboard');
+      navigate('/login');
     } catch (error) {
       console.error('Logout error:', error);
     }
-  }, []);
+  }, [navigate]);
 
-  // These hooks must be declared BEFORE any conditional returns
+  // Early returns AFTER all hooks
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-pink-50">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 mx-auto mb-4 text-purple-600 animate-spin" />
+          <p className="text-gray-600">Загрузка...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show email verification page
+  if (showVerifyEmail) {
+    return (
+      <ErrorBoundary>
+        <AppProvider>
+          <VerifyEmailPage 
+            onVerified={(hasInvitation) => {
+              setShowVerifyEmail(false);
+              setIsAuthenticated(true);
+              if (!hasInvitation) {
+                // Показываем welcome modal, добавляя параметр в URL
+                navigate('/?welcome=true', { replace: true });
+              }
+            }} 
+          />
+          <Toaster richColors position="top-right" />
+        </AppProvider>
+      </ErrorBoundary>
+    );
+  }
+
+  // Show reset password page
+  if (showResetPassword) {
+    return (
+      <ErrorBoundary>
+        <AppProvider>
+          <ResetPasswordPage onSuccess={() => {
+            setShowResetPassword(false);
+            navigate('/');
+          }} />
+          <Toaster richColors position="top-right" />
+        </AppProvider>
+      </ErrorBoundary>
+    );
+  }
+
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/login" element={!isAuthenticated ? <AuthScreen onLogin={handleLogin} /> : <Navigate to="/" replace />} />
+      <Route path="/invite" element={
+        <ErrorBoundary>
+          <AppProvider>
+            <InvitationPage />
+            <Toaster richColors position="top-right" />
+          </AppProvider>
+        </ErrorBoundary>
+      } />
+      
+      {/* Protected routes */}
+      {isAuthenticated ? (
+        <>
+          <Route path="/" element={<MainApp />} />
+          <Route path="/tasks/:taskId" element={<MainApp />} />
+          <Route path="/projects/:projectId" element={<MainApp />} />
+          <Route path="/projects/:projectId/tasks/:taskId" element={<MainApp />} />
+        </>
+      ) : (
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      )}
+    </Routes>
+  );
+}
+
+function MainApp() {
+  const { taskId, projectId } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [currentView, setCurrentView] = React.useState<View>('dashboard');
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = React.useState(false);
+  const [currentProject, setCurrentProject] = React.useState<string>('');
+  const [selectedProjectId, setSelectedProjectId] = React.useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
+
+  // URL → State synchronization
+  React.useEffect(() => {
+    // If in URL there's a projectId
+    if (projectId) {
+      setCurrentView('projects');
+      setSelectedProjectId(projectId);
+    }
+    
+    // If in URL there's a taskId
+    if (taskId) {
+      setSelectedTaskId(taskId);
+    }
+    
+    // If URL is "/" (home)
+    if (location.pathname === '/') {
+      setCurrentView('dashboard');
+      setSelectedProjectId(null);
+      setSelectedTaskId(null);
+    }
+  }, [location.pathname, projectId, taskId]);
+
+  // Handlers with URL updates
+  const handleTaskClick = React.useCallback((taskId: string) => {
+    if (selectedProjectId) {
+      navigate(`/projects/${selectedProjectId}/tasks/${taskId}`);
+    } else {
+      navigate(`/tasks/${taskId}`);
+    }
+  }, [selectedProjectId, navigate]);
+
+  const handleTaskClose = React.useCallback(() => {
+    if (selectedProjectId) {
+      navigate(`/projects/${selectedProjectId}`);
+    } else {
+      navigate('/');
+    }
+  }, [selectedProjectId, navigate]);
+
   const handleProjectClick = React.useCallback((projectId: string) => {
+    navigate(`/projects/${projectId}`);
     setSelectedProjectId(projectId);
-    setCurrentProject(projectId);
-  }, []);
+  }, [navigate]);
 
   const handleBackToProjects = React.useCallback(() => {
+    navigate('/');
     setSelectedProjectId(null);
-    setCurrentProject(''); // Clear current project
-  }, []);
+  }, [navigate]);
 
   // Sync currentProject with selectedProjectId for task creation
   React.useEffect(() => {
@@ -269,11 +412,20 @@ function App() {
     setCurrentView('dashboard');
   }, []);
 
+  const handleLogout = React.useCallback(async () => {
+    try {
+      await authAPI.signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  }, [navigate]);
+
   const renderView = React.useCallback(() => {
     try {
       // Если выбран проект, показываем страницу проекта
       if (selectedProjectId && currentView === 'projects') {
-        return <ProjectDetailView key={selectedProjectId} projectId={selectedProjectId} onBack={handleBackToProjects} onCalendarView={handleCalendarView} />;
+        return <ProjectDetailView key={selectedProjectId} projectId={selectedProjectId} onBack={handleBackToProjects} onCalendarView={handleCalendarView} onTaskClick={handleTaskClick} />;
       }
 
       // Если открыт календарь проекта
@@ -283,23 +435,21 @@ function App() {
 
       switch (currentView) {
         case 'dashboard':
-          return <DashboardView key="dashboard" onCalendarView={handleDashboardCalendarView} />;
+          return <DashboardView key="dashboard" onCalendarView={handleDashboardCalendarView} onTaskClick={handleTaskClick} />;
         case 'dashboard-calendar':
           return <DashboardCalendarView key="dashboard-calendar" onBack={handleBackFromDashboardCalendar} />;
         case 'projects':
           return <ProjectsView key="projects" onProjectClick={handleProjectClick} />;
         case 'tasks':
-          return <TasksView key="tasks" />;
+          return <TasksView key="tasks" onTaskClick={handleTaskClick} />;
         case 'categories':
           return <CategoriesView key="categories" />;
         case 'archive':
           return <ArchiveView key="archive" />;
         case 'profile':
           return <ProfileView key="profile" />;
-        case 'invite':
-          return <InvitationPage key="invite" />;
         default:
-          return <DashboardView key="dashboard-default" onCalendarView={handleDashboardCalendarView} />;
+          return <DashboardView key="dashboard-default" onCalendarView={handleDashboardCalendarView} onTaskClick={handleTaskClick} />;
       }
     } catch (error) {
       console.error('Error rendering view:', error);
@@ -317,73 +467,7 @@ function App() {
         </div>
       );
     }
-  }, [selectedProjectId, currentView, handleBackToProjects, handleProjectClick, handleCalendarView, handleBackFromCalendar, handleDashboardCalendarView, handleBackFromDashboardCalendar]);
-
-  // Early returns AFTER all hooks
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-pink-50">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 mx-auto mb-4 text-purple-600 animate-spin" />
-          <p className="text-gray-600">Загрузка...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show email verification page
-  if (showVerifyEmail) {
-    return (
-      <ErrorBoundary>
-        <AppProvider>
-          <VerifyEmailPage 
-            onVerified={(hasInvitation) => {
-              setShowVerifyEmail(false);
-              setIsAuthenticated(true);
-              if (!hasInvitation) {
-                // Показываем welcome modal, добавляя параметр в URL
-                const url = new URL(window.location.href);
-                url.searchParams.set('welcome', 'true');
-                window.history.replaceState({}, '', url.toString());
-              }
-            }} 
-          />
-          <Toaster richColors position="top-right" />
-        </AppProvider>
-      </ErrorBoundary>
-    );
-  }
-
-  // Show reset password page
-  if (showResetPassword) {
-    return (
-      <ErrorBoundary>
-        <AppProvider>
-          <ResetPasswordPage onSuccess={() => {
-            setShowResetPassword(false);
-            window.location.href = '/';
-          }} />
-          <Toaster richColors position="top-right" />
-        </AppProvider>
-      </ErrorBoundary>
-    );
-  }
-
-  // Show invite page without authentication
-  if (currentView === 'invite') {
-    return (
-      <ErrorBoundary>
-        <AppProvider>
-          <InvitationPage />
-          <Toaster richColors position="top-right" />
-        </AppProvider>
-      </ErrorBoundary>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <AuthScreen onLogin={handleLogin} />;
-  }
+  }, [selectedProjectId, currentView, handleBackToProjects, handleProjectClick, handleCalendarView, handleBackFromCalendar, handleDashboardCalendarView, handleBackFromDashboardCalendar, handleTaskClick]);
 
   return (
     <ErrorBoundary>
@@ -394,18 +478,39 @@ function App() {
               <WelcomeModal />
               <Header
                 onCreateTask={() => setIsCreateTaskOpen(true)}
-                onNavigate={(view) => setCurrentView(view as View)}
+                onNavigate={(view) => {
+                  setCurrentView(view as View);
+                  navigate('/');
+                }}
                 onLogout={handleLogout}
                 currentProject={currentProject}
               />
               <SidebarNav
                 currentView={currentView}
-                onViewChange={(view) => setCurrentView(view as View)}
+                onViewChange={(view) => {
+                  setCurrentView(view as View);
+                  navigate('/');
+                }}
                 onLogout={handleLogout}
               />
               <SidebarInset className="pt-16 h-screen overflow-hidden">
                 {renderView()}
               </SidebarInset>
+              
+              {/* Global task modal */}
+              {selectedTaskId && (
+                <TaskModal
+                  open={!!selectedTaskId}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      handleTaskClose();
+                    }
+                  }}
+                  mode="view"
+                  taskId={selectedTaskId}
+                />
+              )}
+              
               <TaskModal
                 open={isCreateTaskOpen}
                 onOpenChange={setIsCreateTaskOpen}

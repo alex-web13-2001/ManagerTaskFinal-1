@@ -53,6 +53,7 @@ import { TaskModal } from './task-modal';
 import { ProjectAboutModal } from './project-about-modal';
 import { ProjectMembersModal } from './project-members-modal';
 import { ProjectModal } from './project-modal';
+import { ShareButton } from './share-button';
 import { useApp } from '../contexts/app-context';
 import { useWebSocketContext } from '../contexts/websocket-context';
 import { toast } from 'sonner';
@@ -62,9 +63,10 @@ type ProjectDetailViewProps = {
   projectId: string;
   onBack?: () => void;
   onCalendarView?: (projectId: string) => void;
+  onTaskClick?: (taskId: string) => void;
 };
 
-export function ProjectDetailView({ projectId, onBack, onCalendarView }: ProjectDetailViewProps) {
+export function ProjectDetailView({ projectId, onBack, onCalendarView, onTaskClick }: ProjectDetailViewProps) {
   const { 
     projects, 
     tasks, 
@@ -111,7 +113,6 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
   const [isAboutModalOpen, setIsAboutModalOpen] = React.useState(false);
   const [isMembersModalOpen, setIsMembersModalOpen] = React.useState(false);
   const [isEditProjectModalOpen, setIsEditProjectModalOpen] = React.useState(false);
-  const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   // FIX Problem #6: Add state for leave project dialogs
@@ -207,7 +208,7 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
   ];
 
   const handleTaskClick = (taskId: string) => {
-    setSelectedTaskId(taskId);
+    onTaskClick?.(taskId);
   };
 
   // FIX Problem #6: Add handlers for leave project functionality
@@ -346,6 +347,10 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <ShareButton 
+              url={`/projects/${projectId}`}
+              title={project.name}
+            />
             <Button
               variant="outline"
               size="sm"
@@ -739,15 +744,6 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
       </div>
 
       {/* Модальные окна */}
-      {selectedTaskId && (
-        <TaskModal
-          open={!!selectedTaskId}
-          onOpenChange={(open) => !open && setSelectedTaskId(null)}
-          mode="view"
-          taskId={selectedTaskId}
-        />
-      )}
-
       <TaskModal
         open={isCreateTaskModalOpen}
         onOpenChange={setIsCreateTaskModalOpen}

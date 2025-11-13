@@ -4,7 +4,6 @@ import { Button } from './ui/button';
 import { KanbanBoard } from './kanban-board';
 import { KanbanBoardSkeleton } from './kanban-skeleton';
 import { TaskTable } from './task-table';
-import { TaskModal } from './task-modal';
 import { Badge } from './ui/badge';
 import { Label } from './ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -42,12 +41,12 @@ const prioritiesList = [
 
 type DashboardViewProps = {
   onCalendarView?: () => void;
+  onTaskClick?: (taskId: string) => void;
 };
 
-export function DashboardView({ onCalendarView }: DashboardViewProps = {}) {
+export function DashboardView({ onCalendarView, onTaskClick }: DashboardViewProps = {}) {
   const { projects, teamMembers, currentUser, categories, tasks, customColumns, isLoading, isInitialLoad } = useApp();
   const [viewMode, setViewMode] = React.useState<'kanban' | 'table'>('kanban');
-  const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showMyTasks, setShowMyTasks] = React.useState(false);
   const [showCustomColumns, setShowCustomColumns] = React.useState(() => {
@@ -107,7 +106,7 @@ export function DashboardView({ onCalendarView }: DashboardViewProps = {}) {
   };
 
   const handleTaskClick = (taskId: string) => {
-    setSelectedTaskId(taskId);
+    onTaskClick?.(taskId);
   };
 
   const toggleArrayFilter = (key: keyof Filters, value: string) => {
@@ -650,15 +649,6 @@ export function DashboardView({ onCalendarView }: DashboardViewProps = {}) {
           <TaskTable searchQuery={searchQuery} filters={effectiveFilters} onTaskClick={handleTaskClick} />
         )}
       </div>
-
-      {selectedTaskId && (
-        <TaskModal
-          open={!!selectedTaskId}
-          onOpenChange={(open) => !open && setSelectedTaskId(null)}
-          mode="view"
-          taskId={selectedTaskId}
-        />
-      )}
     </div>
   );
 }
