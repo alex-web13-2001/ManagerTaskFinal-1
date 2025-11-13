@@ -778,15 +778,15 @@ export function TaskModal({
   
   const selectedAssignee = availableMembersWithCurrent.find((m) => m.id === assigneeId);
   
-  // Найти автора задачи (createdBy)
+  // Найти автора задачи (creatorId/userId)
   const taskAuthor = React.useMemo(() => {
-    if (!existingTask?.createdBy) return null;
+    if (!existingTask?.creatorId && !existingTask?.userId && !existingTask?.creator) return null;
     
     // Сначала ищем в teamMembers
-    let author = teamMembers.find(m => m.id === existingTask.createdBy);
+    let author = teamMembers.find(m => m.id === (existingTask.creatorId || existingTask.userId));
     
     // Если не нашли, проверяем, не является ли автором текущий пользователь
-    if (!author && currentUser?.id === existingTask.createdBy) {
+    if (!author && currentUser?.id === (existingTask.creatorId || existingTask.userId)) {
       author = {
         id: currentUser.id,
         name: currentUser.name,
@@ -795,10 +795,15 @@ export function TaskModal({
       };
     }
     
+    // Если creator объект уже есть в existingTask, используем его напрямую
+    if (!author && existingTask.creator) {
+      author = existingTask.creator;
+    }
+    
     // Если все еще не нашли, пробуем найти в project.members
     if (!author && existingTask.projectId && selectedProject?.members) {
       const projectMember = selectedProject.members.find((m: any) => 
-        m.userId === existingTask.createdBy || m.id === existingTask.createdBy
+        m.userId === (existingTask.creatorId || existingTask.userId) || m.id === (existingTask.creatorId || existingTask.userId)
       );
       if (projectMember) {
         author = {
@@ -986,7 +991,7 @@ export function TaskModal({
                             {getInitials(taskAuthor?.name)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-sm">{taskAuthor?.name || 'Unknown'}</span>
+                        <span className="text-sm">{taskAuthor.id === currentUser?.id ? 'Вы' : (taskAuthor.name || 'Unknown')}</span>
                       </div>
                     </div>
                   )}
