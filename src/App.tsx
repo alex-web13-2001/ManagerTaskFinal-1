@@ -22,7 +22,7 @@ import { TaskModal } from './components/task-modal';
 import { SidebarProvider, SidebarInset } from './components/ui/sidebar';
 import { Toaster } from './components/ui/sonner';
 import { authAPI } from './utils/api-client';
-import { AppProvider } from './contexts/app-context';
+import { AppProvider, useApp } from './contexts/app-context';
 import { WebSocketProvider } from './contexts/websocket-context';
 import { ErrorBoundary } from './components/error-boundary';
 import { Loader2 } from 'lucide-react';
@@ -331,32 +331,38 @@ function MainApp() {
   const { taskId, projectId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { tasks } = useApp(); // Get tasks from context
   const [currentView, setCurrentView] = React.useState<View>('dashboard');
   const [isCreateTaskOpen, setIsCreateTaskOpen] = React.useState(false);
   const [currentProject, setCurrentProject] = React.useState<string>('');
   const [selectedProjectId, setSelectedProjectId] = React.useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
 
-  // URL → State synchronization
+  // URL → State synchronization (Problem #3 fix: add task existence check)
   React.useEffect(() => {
+    // If in URL there's a taskId
+    if (taskId) {
+      // Check that task exists before showing it
+      const taskExists = tasks.some(t => t.id === taskId);
+      if (taskExists) {
+        setSelectedTaskId(taskId);
+      } else {
+        // Task doesn't exist, clear it from URL
+        setSelectedTaskId(null);
+      }
+    } else if (!taskId && selectedTaskId) {
+      setSelectedTaskId(null);
+    }
+    
     // If in URL there's a projectId
     if (projectId) {
       setCurrentView('projects');
       setSelectedProjectId(projectId);
-    }
-    
-    // If in URL there's a taskId
-    if (taskId) {
-      setSelectedTaskId(taskId);
-    }
-    
-    // If URL is "/" (home)
-    if (location.pathname === '/') {
-      setCurrentView('dashboard');
+    } else if (selectedProjectId && !projectId) {
+      // Navigated away from project detail
       setSelectedProjectId(null);
-      setSelectedTaskId(null);
     }
-  }, [location.pathname, projectId, taskId]);
+  }, [location.pathname, projectId, taskId, tasks, selectedTaskId, selectedProjectId]); // Add tasks to dependencies
 
   // Handlers with URL updates
   const handleTaskClick = React.useCallback((taskId: string) => {
@@ -381,8 +387,9 @@ function MainApp() {
   }, [navigate]);
 
   const handleBackToProjects = React.useCallback(() => {
-    navigate('/');
+    setCurrentView('projects'); // Problem #4 fix: Set view to 'projects' list
     setSelectedProjectId(null);
+    navigate('/');
   }, [navigate]);
 
   // Sync currentProject with selectedProjectId for task creation
@@ -480,7 +487,12 @@ function MainApp() {
                 onCreateTask={() => setIsCreateTaskOpen(true)}
                 onNavigate={(view) => {
                   setCurrentView(view as View);
-                  navigate('/');
+                  if (view !== 'projects' || !selectedProjectId) {
+                    // Problem #4 fix: Only navigate if needed
+                    navigate('/');
+                  } else {
+                    navigate('/');
+                  }
                 }}
                 onLogout={handleLogout}
                 currentProject={currentProject}
@@ -489,7 +501,10 @@ function MainApp() {
                 currentView={currentView}
                 onViewChange={(view) => {
                   setCurrentView(view as View);
-                  navigate('/');
+                  // Problem #4 fix: Only navigate to root if not already there or in a detail view
+                  if (location.pathname !== '/') {
+                    navigate('/');
+                  }
                 }}
                 onLogout={handleLogout}
               />
@@ -503,6 +518,15 @@ function MainApp() {
                   open={!!selectedTaskId}
                   onOpenChange={(open) => {
                     if (!open) {
+                      // Problem #2 fix: Check if task exists before navigating
+                      const taskExists = tasks.some(t => t.id === selectedTaskId);
+                      if (!taskExists) {
+                        // Task was deleted, just clear state without navigation
+                        setSelectedTaskId(null);
+                        return;
+                      }
+                      
+                      setSelectedTaskId(null);
                       handleTaskClose();
                     }
                   }}
