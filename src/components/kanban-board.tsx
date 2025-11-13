@@ -32,6 +32,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   allTasks: TaskType[];
   baseColumnDefinitions: { id: string; title: string; color: string }[];
   isInitialMount: boolean;
+  availableCategories?: Array<{ id: string; name: string; color?: string }>;
 }>(({
   task,
   onClick,
@@ -41,6 +42,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   allTasks,
   baseColumnDefinitions,
   isInitialMount,
+  availableCategories,
 }, forwardedRef) => {
   const { projects, teamMembers, categories, setIsDragging } = useApp();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
@@ -110,7 +112,10 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
     drop(node);
   };
 
-  const category = categories.find((c) => c.id === task.categoryId);
+  // FIX Problem #1: Use availableCategories prop instead of global categories
+  // This ensures members see categories from project owners
+  const categoriesToUse = availableCategories || categories;
+  const category = categoriesToUse.find((c) => c.id === task.categoryId);
   const project = projects?.find((p) => p.id === task.projectId);
   const assignee = teamMembers?.find((m) => m.id === task.assigneeId);
   
@@ -321,9 +326,11 @@ const MemoizedDraggableTaskCard = React.memo(DraggableTaskCard, (prevProps, next
     prevProps.task.priority === nextProps.task.priority &&
     prevProps.task.deadline === nextProps.task.deadline &&
     prevProps.task.updatedAt === nextProps.task.updatedAt &&
+    prevProps.task.categoryId === nextProps.task.categoryId &&
     prevProps.isOverdue === nextProps.isOverdue &&
     prevProps.index === nextProps.index &&
-    prevProps.isInitialMount === nextProps.isInitialMount
+    prevProps.isInitialMount === nextProps.isInitialMount &&
+    prevProps.availableCategories === nextProps.availableCategories
   );
 });
 
@@ -341,6 +348,7 @@ const DroppableColumn = ({
   allTasks,
   baseColumnDefinitions,
   isInitialMount,
+  availableCategories,
 }: {
   columnId: string;
   title: string;
@@ -354,6 +362,7 @@ const DroppableColumn = ({
   allTasks: TaskType[];
   baseColumnDefinitions: { id: string; title: string; color: string }[];
   isInitialMount: boolean;
+  availableCategories?: Array<{ id: string; name: string; color?: string }>;
 }) => {
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: ITEM_TYPE,
@@ -455,6 +464,7 @@ const DroppableColumn = ({
               allTasks={allTasks}
               baseColumnDefinitions={baseColumnDefinitions}
               isInitialMount={isInitialMount}
+              availableCategories={availableCategories}
             />
           ))}
         </AnimatePresence>
@@ -470,11 +480,13 @@ export function KanbanBoard({
   filters,
   onTaskClick,
   showCustomColumns = false,
+  availableCategories,
 }: {
   searchQuery: string;
   filters: Filters;
   onTaskClick: (taskId: string) => void;
   showCustomColumns?: boolean;
+  availableCategories?: Array<{ id: string; name: string; color?: string }>;
 }) {
   const { tasks, updateTask, customColumns } = useApp();
   const [groupBy, setGroupBy] = React.useState<GroupBy>('none');
@@ -700,6 +712,7 @@ export function KanbanBoard({
                 allTasks={tasks}
                 baseColumnDefinitions={baseColumnDefinitions}
                 isInitialMount={isInitialMount}
+                availableCategories={availableCategories}
               />
             );
           })}
