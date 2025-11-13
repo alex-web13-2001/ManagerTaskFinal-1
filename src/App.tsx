@@ -358,7 +358,7 @@ function MainApp() {
     if (projectId) {
       setCurrentView('projects');
       setSelectedProjectId(projectId);
-    } else if (selectedProjectId && !projectId) {
+} else if (selectedProjectId && !projectId) {
       // Navigated away from project detail
       setSelectedProjectId(null);
     }
@@ -518,7 +518,7 @@ function MainApp() {
                   open={!!selectedTaskId}
                   onOpenChange={(open) => {
                     if (!open) {
-                      // Problem #2 fix: Check if task exists before navigating
+// Problem #2 fix: Check if task exists before navigating
                       const taskExists = tasks.some(t => t.id === selectedTaskId);
                       if (!taskExists) {
                         // Task was deleted, just clear state without navigation
