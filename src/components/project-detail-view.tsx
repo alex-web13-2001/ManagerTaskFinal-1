@@ -1,5 +1,18 @@
 import React from 'react';
-import { LayoutGrid, Table as TableIcon, Info, ArrowLeft, Loader2, Users, Plus, Search, Calendar } from 'lucide-react';
+import { 
+  LayoutGrid, 
+  Table as TableIcon, 
+  Info, 
+  ArrowLeft, 
+  Loader2, 
+  Users, 
+  Plus, 
+  Search, 
+  Calendar,
+  MoreVertical,
+  LogOut,
+  UserCog
+} from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -7,6 +20,31 @@ import { Badge } from './ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Checkbox } from './ui/checkbox';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
+} from './ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProjectKanbanBoard } from './project-kanban-board';
 import { KanbanBoardSkeleton } from './kanban-skeleton';
@@ -17,6 +55,7 @@ import { ProjectMembersModal } from './project-members-modal';
 import { ProjectModal } from './project-modal';
 import { useApp } from '../contexts/app-context';
 import { useWebSocketContext } from '../contexts/websocket-context';
+import { toast } from 'sonner';
 import type { Filters } from './filters-panel';
 
 type ProjectDetailViewProps = {
@@ -39,8 +78,10 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
     canEditProject,
     canDeleteProject,
     canCreateTask,
+    leaveProject: leaveProjectContext,
+    transferProjectOwnership,
   } = useApp();
-  const { joinProject, leaveProject, isConnected } = useWebSocketContext();
+  const { joinProject, leaveProject: leaveProjectWS, isConnected } = useWebSocketContext();
   const project = projects.find((p) => p.id === projectId);
   
   // Auto-join project room when viewing the project
@@ -50,11 +91,11 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
       console.log(`📥 Joined project room: ${projectId}`);
       
       return () => {
-        leaveProject(projectId);
+        leaveProjectWS(projectId);
         console.log(`📤 Left project room: ${projectId}`);
       };
     }
-  }, [isConnected, projectId, joinProject, leaveProject]);
+  }, [isConnected, projectId, joinProject, leaveProjectWS]);
   
   // Debug logging
   React.useEffect(() => {
@@ -73,6 +114,10 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
   const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
+  // FIX Problem #6: Add state for leave project dialogs
+  const [showLeaveDialog, setShowLeaveDialog] = React.useState(false);
+  const [showTransferDialog, setShowTransferDialog] = React.useState(false);
+  const [selectedNewOwner, setSelectedNewOwner] = React.useState<string>('');
 
   // Определяем роль текущего пользователя в проекте
   const currentUserRole = getUserRoleInProject(projectId);
@@ -154,6 +199,52 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
 
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
+  };
+
+  // FIX Problem #6: Add handlers for leave project functionality
+  const handleLeaveClick = () => {
+    if (currentUserRole === 'owner') {
+      // Check if there are other members who can become owner
+      const otherCollaborators = project?.members?.filter(
+        (m: any) => (m.userId || m.id) !== currentUser?.id && m.role === 'collaborator'
+      ) || [];
+      
+      if (otherCollaborators.length === 0) {
+        toast.error('Нельзя выйти из проекта: вы единственный владелец. Удалите проект или добавьте других участников.');
+        return;
+      }
+      
+      setShowTransferDialog(true);
+    } else {
+      setShowLeaveDialog(true);
+    }
+  };
+
+  const handleLeaveConfirm = async () => {
+    try {
+      await leaveProjectContext(projectId);
+      setShowLeaveDialog(false);
+      onBack?.();
+    } catch (error: any) {
+      console.error('Leave project error:', error);
+    }
+  };
+
+  const handleTransferAndLeave = async () => {
+    if (!selectedNewOwner) {
+      toast.error('Выберите нового владельца');
+      return;
+    }
+
+    try {
+      await transferProjectOwnership(projectId, selectedNewOwner);
+      await leaveProjectContext(projectId);
+      setShowTransferDialog(false);
+      setSelectedNewOwner('');
+      onBack?.();
+    } catch (error: any) {
+      console.error('Transfer and leave error:', error);
+    }
   };
 
   const toggleArrayFilter = (key: keyof Filters, value: string) => {
@@ -270,6 +361,20 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
               <Users className="w-4 h-4 mr-2" />
               Участники
             </Button>
+            {/* FIX Problem #6: Add dropdown menu for project actions */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleLeaveClick}>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Выйти из проекта
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -671,6 +776,75 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
         mode="edit"
         projectId={projectId}
       />
+
+      {/* FIX Problem #6: Leave project confirmation dialog */}
+      <AlertDialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Выйти из проекта?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены, что хотите выйти из проекта "{project.name}"? Вы будете сняты со всех задач в этом проекте.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLeaveConfirm}>
+              Выйти
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* FIX Problem #6: Transfer ownership dialog */}
+      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Передать владение проектом</DialogTitle>
+            <DialogDescription>
+              Чтобы выйти из проекта, вы должны сначала передать владение другому участнику.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Новый владелец</Label>
+              <Select value={selectedNewOwner} onValueChange={setSelectedNewOwner}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите нового владельца" />
+                </SelectTrigger>
+                <SelectContent>
+                  {project?.members
+                    ?.filter((m: any) => {
+                      const memberId = m.userId || m.id;
+                      return memberId !== currentUser?.id && m.role === 'collaborator';
+                    })
+                    .map((member: any) => {
+                      const memberId = member.userId || member.id;
+                      return (
+                        <SelectItem key={memberId} value={memberId}>
+                          {member.name || member.email || 'Без имени'}
+                        </SelectItem>
+                      );
+                    })}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowTransferDialog(false);
+                setSelectedNewOwner('');
+              }}
+            >
+              Отмена
+            </Button>
+            <Button onClick={handleTransferAndLeave} disabled={!selectedNewOwner}>
+              Передать и выйти
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
