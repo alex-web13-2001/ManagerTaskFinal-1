@@ -2,6 +2,7 @@ import React from 'react';
 import { tasksAPI, projectsAPI, authAPI, teamAPI, userSettingsAPI, categoriesAPI, getAuthToken } from '../utils/api-client';
 // Removed: import { projectId } from '../utils/supabase/info';
 import { toast } from 'sonner@2.0.3';
+import { hasRolePermission, type Permission, type UserRole as RBACUserRole } from '../lib/rbac';
 
 /**
  * Helper function to get user ID from JWT token
@@ -211,6 +212,7 @@ interface AppContextType {
   canCreateTask: (projectId?: string) => boolean;
   canEditProject: (projectId: string) => boolean;
   canDeleteProject: (projectId: string) => boolean;
+  hasPermission: (permission: Permission, projectId?: string) => boolean;
 }
 
 const AppContext = React.createContext<AppContextType | undefined>(undefined);
@@ -1351,6 +1353,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return role === 'owner';
   }, [getUserRoleInProject]);
 
+  /**
+   * Check if user has a specific permission in a project
+   * FIX Problem #2: Generic permission checker using RBAC system
+   */
+  const hasPermission = React.useCallback((permission: Permission, projectId?: string): boolean => {
+    if (!currentUser) return false;
+    
+    // For permissions that don't require a project context
+    if (!projectId) {
+      // Global permissions - can be extended later
+      return false;
+    }
+    
+    // Get user's role in the project
+    const role = getUserRoleInProject(projectId);
+    if (!role) return false;
+    
+    // Check if role has the permission
+    return hasRolePermission(role as RBACUserRole, permission);
+  }, [currentUser, getUserRoleInProject]);
+
   const value: AppContextType = {
     tasks,
     projects,
@@ -1403,6 +1426,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     canCreateTask,
     canEditProject,
     canDeleteProject,
+    hasPermission,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

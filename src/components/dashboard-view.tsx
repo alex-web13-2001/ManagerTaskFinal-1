@@ -644,6 +644,7 @@ export function DashboardView({ onCalendarView, onTaskClick }: DashboardViewProp
             filters={effectiveFilters} 
             onTaskClick={handleTaskClick}
             showCustomColumns={showCustomColumns}
+            availableCategories={availableCategories}
           />
         ) : (
           <TaskTable searchQuery={searchQuery} filters={effectiveFilters} onTaskClick={handleTaskClick} />
