@@ -528,16 +528,50 @@ export const projectsAPI = {
 
   /**
    * Archive a project
+   * FIX Problem #5: Use dedicated archive endpoint
    */
   archive: async (projectId: string) => {
-    return projectsAPI.update(projectId, { archived: true });
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/archive`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to archive project');
+    }
+
+    return response.json();
   },
 
   /**
    * Restore an archived project
+   * FIX Problem #5: Use dedicated unarchive endpoint
    */
   restore: async (projectId: string) => {
-    return projectsAPI.update(projectId, { archived: false });
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/unarchive`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to unarchive project');
+    }
+
+    return response.json();
   },
 
   /**
@@ -560,6 +594,55 @@ export const projectsAPI = {
     }
 
     return true;
+  },
+
+  /**
+   * Leave a project
+   * FIX Problem #6: Add leave project method
+   */
+  leave: async (projectId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/leave`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to leave project');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Transfer project ownership to another member
+   * FIX Problem #6: Add transfer ownership method
+   */
+  transferOwnership: async (projectId: string, newOwnerId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/transfer-ownership`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ newOwnerId }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to transfer ownership');
+    }
+
+    return response.json();
   },
 
   /**

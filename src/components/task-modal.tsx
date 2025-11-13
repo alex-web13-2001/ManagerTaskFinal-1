@@ -529,9 +529,14 @@ export function TaskModal({
     
     try {
       setIsLoading(true);
+      // FIX Problem #4: Add await and proper error handling for file deletion
       await deleteTaskAttachment(existingTask.id, attachmentId);
+      console.log(`✅ File deleted successfully: ${attachmentId}`);
+      // The task list will be automatically updated by the context
+      // which will trigger a re-render with updated existingTask
     } catch (error) {
-      console.error('Delete attachment error:', error);
+      console.error('❌ Delete attachment error:', error);
+      toast.error('Ошибка при удалении файла');
     } finally {
       setIsLoading(false);
     }

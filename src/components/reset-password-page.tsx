@@ -46,6 +46,8 @@ export function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps) {
 
       if (res.ok) {
         toast.success('Пароль успешно изменен!');
+        // FIX Problem #3: Clear reset-token from URL to prevent errors on page refresh
+        window.history.replaceState({}, document.title, window.location.pathname);
         setTimeout(() => onSuccess(), 2000);
       } else {
         const data = await res.json();
