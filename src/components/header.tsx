@@ -28,7 +28,7 @@ type HeaderProps = {
 
 export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: HeaderProps) {
   const { currentUser, refreshData, canCreateTask } = useApp();
-  const { isConnected: isWebSocketConnected } = useWebSocketContext();
+  const { isConnected: isWebSocketConnected, on, off } = useWebSocketContext();
   const [pendingInvitations, setPendingInvitations] = React.useState<any[]>([]);
   const [isInvitationsModalOpen, setIsInvitationsModalOpen] = React.useState(false);
 
@@ -64,6 +64,37 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
       fetchInvitations();
     }
   }, [currentUser, fetchInvitations]);
+
+  // Listen for WebSocket invitation events
+  React.useEffect(() => {
+    if (!isWebSocketConnected || !currentUser) return;
+
+    const handleInviteReceived = (data: { invitation: any; userId: string }) => {
+      console.log('📥 Header: invite:received', data);
+      
+      // Refresh invitations to update the badge
+      if (data.userId === currentUser.id) {
+        fetchInvitations();
+      }
+    };
+
+    const handleInviteAccepted = (data: { invitationId: string; projectId: string; userId: string }) => {
+      console.log('📥 Header: invite:accepted', data);
+      
+      // Refresh invitations to update the badge
+      fetchInvitations();
+    };
+
+    // Subscribe to invitation events
+    on('invite:received', handleInviteReceived);
+    on('invite:accepted', handleInviteAccepted);
+
+    // Cleanup
+    return () => {
+      off('invite:received', handleInviteReceived);
+      off('invite:accepted', handleInviteAccepted);
+    };
+  }, [isWebSocketConnected, currentUser, fetchInvitations, on, off]);
 
   const handleInvitationAccepted = async () => {
     await fetchInvitations();
