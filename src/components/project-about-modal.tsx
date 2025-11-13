@@ -8,7 +8,7 @@ import {
 } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
 import {
   Link as LinkIcon,
@@ -20,13 +20,18 @@ import {
   Edit,
   Calendar,
   User,
-  RefreshCw,
 } from 'lucide-react';
 import { useApp } from '../contexts/app-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { diagnosticsAPI } from '../utils/api-client';
 import { toast } from 'sonner@2.0.3';
+
+const roleLabels: Record<string, string> = {
+  owner: 'Владелец',
+  collaborator: 'Участник с правами',
+  member: 'Участник',
+  viewer: 'Наблюдатель',
+};
 
 type ProjectAboutModalProps = {
   open: boolean;
@@ -67,8 +72,6 @@ export function ProjectAboutModal({
     fetchTasks,
     canEditProject,
   } = useApp();
-  const [isMigrating, setIsMigrating] = React.useState(false);
-  const [diagnostics, setDiagnostics] = React.useState<any>(null);
   
   const project = React.useMemo(() => 
     projects.find(p => p.id === projectId),
@@ -272,25 +275,45 @@ export function ProjectAboutModal({
                   <h4>Участники проекта ({members.length})</h4>
                 </div>
                 <div className="space-y-2">
-                  {members.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-10 h-10">
-                          <AvatarFallback className="text-sm bg-purple-100 text-purple-600">
-                            {member.short || member.name?.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm">{member.name}</p>
-                          <p className="text-xs text-gray-500">{member.role || 'Участник'}</p>
+                  {members.map((member) => {
+                    // Handle nested user structure from server
+                    const memberData = member.user || member;
+                    const memberName = memberData.name || member.name || member.email || 'Без имени';
+                    const memberEmail = memberData.email || member.email || '';
+                    const memberAvatar = memberData.avatarUrl || member.avatarUrl;
+                    const memberRole = member.role || 'member';
+                    
+                    // Generate initials
+                    const initials = memberName
+                      .split(' ')
+                      .slice(0, 2)
+                      .map(n => n[0])
+                      .join('')
+                      .toUpperCase() || memberEmail[0]?.toUpperCase() || '?';
+                    
+                    return (
+                      <div
+                        key={member.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-10 h-10">
+                            {memberAvatar && (
+                              <AvatarImage src={memberAvatar} alt={memberName} />
+                            )}
+                            <AvatarFallback className="text-sm bg-purple-100 text-purple-600">
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm">{memberName}</p>
+                            <p className="text-xs text-gray-500">{roleLabels[memberRole] || roleLabels.member}</p>
+                          </div>
                         </div>
+                        <Badge variant="outline">{roleLabels[memberRole] || roleLabels.member}</Badge>
                       </div>
-                      <Badge variant="outline">{member.role || 'Участник'}</Badge>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
               <Separator />
@@ -371,78 +394,6 @@ export function ProjectAboutModal({
           )}
 
           <Separator />
-
-          {/* Диагностика и миграция задач (только для владельца) */}
-          {isOwner && (
-            <>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h4 className="mb-2 flex items-center gap-2">
-                  <RefreshCw className="w-4 h-4 text-yellow-700" />
-                  <span className="text-yellow-700">Миграция задач</span>
-                </h4>
-                <p className="text-sm text-gray-600 mb-3">
-                  Если приглашенные участники не видят задачи проекта, нужно выполнить миграцию.
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      try {
-                        const result = await diagnosticsAPI.diagnoseProjectTasks(projectId);
-                        setDiagnostics(result);
-                        console.log('Diagnostics:', result);
-                        if (result.needsMigration) {
-                          toast.info(`Найдено ${result.oldFormatTasksCount} задач требующих миграции`);
-                        } else {
-                          toast.success('Все задачи в правильном формате');
-                        }
-                      } catch (error: any) {
-                        console.error('Diagnostics error:', error);
-                        toast.error(error.message || 'Ошибка диагностики');
-                      }
-                    }}
-                  >
-                    Проверить задачи
-                  </Button>
-                  {diagnostics?.needsMigration && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="bg-yellow-600 hover:bg-yellow-700"
-                      onClick={async () => {
-                        try {
-                          setIsMigrating(true);
-                          const result = await diagnosticsAPI.migrateProjectTasks(projectId);
-                          console.log('Migration result:', result);
-                          toast.success(`Перенесено ${result.migratedCount} задач`);
-                          await fetchTasks();
-                          setDiagnostics(null);
-                        } catch (error: any) {
-                          console.error('Migration error:', error);
-                          toast.error(error.message || 'Ошибка миграции');
-                        } finally {
-                          setIsMigrating(false);
-                        }
-                      }}
-                      disabled={isMigrating}
-                    >
-                      {isMigrating ? 'Миграция...' : `Мигрировать ${diagnostics.oldFormatTasksCount} задач`}
-                    </Button>
-                  )}
-                </div>
-                {diagnostics && (
-                  <div className="mt-3 text-xs text-gray-600 space-y-1">
-                    <p>✅ Задач в новом формате: {diagnostics.projectTasksCount}</p>
-                    {diagnostics.needsMigration && (
-                      <p>⚠️ Задач в старом формате: {diagnostics.oldFormatTasksCount}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-              <Separator />
-            </>
-          )}
 
           {/* Кнопки действий */}
           <div className="flex gap-3">
