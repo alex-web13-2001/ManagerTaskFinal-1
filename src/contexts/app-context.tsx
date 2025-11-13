@@ -195,6 +195,8 @@ interface AppContextType {
   archiveProject: (projectId: string) => Promise<void>;
   restoreProject: (projectId: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
+  leaveProject: (projectId: string) => Promise<void>;
+  transferProjectOwnership: (projectId: string, newOwnerId: string) => Promise<void>;
   refreshData: () => Promise<void>;
   // Drag state management
   setIsDragging: (isDragging: boolean) => void;
@@ -1069,6 +1071,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  /**
+   * Leave a project
+   * FIX Problem #6: Add leave project functionality
+   */
+  const leaveProject = async (projectId: string): Promise<void> => {
+    try {
+      await projectsAPI.leave(projectId);
+      
+      // Remove project from local state
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      setArchivedProjects((prev) => prev.filter((p) => p.id !== projectId));
+      
+      toast.success('Вы вышли из проекта');
+    } catch (error: any) {
+      console.error('Leave project error:', error);
+      toast.error(error.message || 'Ошибка выхода из проекта');
+      throw error;
+    }
+  };
+
+  /**
+   * Transfer project ownership to another member
+   * FIX Problem #6: Add transfer ownership functionality
+   */
+  const transferProjectOwnership = async (projectId: string, newOwnerId: string): Promise<void> => {
+    try {
+      const result = await projectsAPI.transferOwnership(projectId, newOwnerId);
+      
+      // Update project in local state
+      if (result.project) {
+        setProjects((prev) =>
+          prev.map((p) => (p.id === projectId ? result.project : p))
+        );
+      }
+      
+      toast.success('Владелец проекта изменён');
+    } catch (error: any) {
+      console.error('Transfer ownership error:', error);
+      toast.error(error.message || 'Ошибка передачи владения');
+      throw error;
+    }
+  };
+
   const uploadTaskAttachment = async (taskId: string, file: File): Promise<TaskAttachment> => {
     try {
       console.log(`📎 uploadTaskAttachment: Starting upload for task ${taskId}, file: ${file.name}`);
@@ -1328,6 +1373,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     archiveProject,
     restoreProject,
     deleteProject,
+    leaveProject,
+    transferProjectOwnership,
     refreshData,
     setIsDragging,
     // Direct state setters for WebSocket updates

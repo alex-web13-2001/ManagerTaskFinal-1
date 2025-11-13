@@ -831,6 +831,92 @@ apiRouter.delete('/projects/:id', uploadRateLimiter, canAccessProject, async (re
 });
 
 /**
+ * PATCH /api/projects/:id/archive
+ * Archive a project (only Owner can archive)
+ * FIX Problem #5: Add dedicated archive endpoint
+ */
+apiRouter.patch('/projects/:id/archive', canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const role = req.user!.roleInProject!;
+
+    // Check permission - only owner can archive
+    if (role !== 'owner') {
+      return res.status(403).json({ error: 'Only the project owner can archive the project' });
+    }
+
+    const updatedProject = await prisma.project.update({
+      where: { id: projectId },
+      data: { archived: true },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Emit WebSocket event for real-time synchronization
+    emitProjectUpdated(updatedProject);
+
+    console.log(`📦 Project archived: ${projectId}`);
+    res.json(updatedProject);
+  } catch (error: any) {
+    console.error('Archive project error:', error);
+    res.status(500).json({ error: 'Failed to archive project' });
+  }
+});
+
+/**
+ * PATCH /api/projects/:id/unarchive
+ * Unarchive a project (only Owner can unarchive)
+ * FIX Problem #5: Add dedicated unarchive endpoint
+ */
+apiRouter.patch('/projects/:id/unarchive', canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const role = req.user!.roleInProject!;
+
+    // Check permission - only owner can unarchive
+    if (role !== 'owner') {
+      return res.status(403).json({ error: 'Only the project owner can unarchive the project' });
+    }
+
+    const updatedProject = await prisma.project.update({
+      where: { id: projectId },
+      data: { archived: false },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Emit WebSocket event for real-time synchronization
+    emitProjectUpdated(updatedProject);
+
+    console.log(`📦 Project unarchived: ${projectId}`);
+    res.json(updatedProject);
+  } catch (error: any) {
+    console.error('Unarchive project error:', error);
+    res.status(500).json({ error: 'Failed to unarchive project' });
+  }
+});
+
+/**
  * GET /api/projects/:projectId/tasks
  * Get all tasks in a project (filtered by role)
  */
@@ -1047,6 +1133,151 @@ apiRouter.delete('/projects/:projectId/members/:memberId', canAccessProject, asy
   } catch (error: any) {
     console.error('Remove member error:', error);
     res.status(500).json({ error: 'Failed to remove member' });
+  }
+});
+
+/**
+ * POST /api/projects/:projectId/leave
+ * Allow a member to leave a project
+ * FIX Problem #6: Add endpoint for members to leave projects
+ */
+apiRouter.post('/projects/:projectId/leave', canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const userId = req.user!.sub;
+
+    // Get user's membership in the project
+    const membership = await prisma.projectMember.findFirst({
+      where: { projectId, userId },
+    });
+
+    if (!membership) {
+      return res.status(404).json({ error: 'You are not a member of this project' });
+    }
+
+    // If user is owner, check if they're the only owner
+    if (membership.role === 'owner') {
+      const ownerCount = await prisma.projectMember.count({
+        where: { projectId, role: 'owner' },
+      });
+      
+      if (ownerCount <= 1) {
+        return res.status(400).json({ 
+          error: 'Cannot leave: You are the only owner. Please transfer ownership first or delete the project.' 
+        });
+      }
+    }
+
+    // Unassign user from all tasks in this project
+    await prisma.task.updateMany({
+      where: { 
+        projectId,
+        assigneeId: userId,
+      },
+      data: { assigneeId: null },
+    });
+
+    // Remove user from project members
+    await prisma.projectMember.delete({
+      where: { id: membership.id },
+    });
+
+    // Emit WebSocket event for real-time synchronization
+    emitProjectMemberRemoved(projectId, membership.id);
+
+    console.log(`👋 User ${userId} left project ${projectId}`);
+    res.json({ success: true, message: 'Successfully left the project' });
+  } catch (error: any) {
+    console.error('Leave project error:', error);
+    res.status(500).json({ error: 'Failed to leave project' });
+  }
+});
+
+/**
+ * POST /api/projects/:id/transfer-ownership
+ * Transfer project ownership to another member
+ * FIX Problem #6: Add endpoint to transfer ownership before leaving
+ */
+apiRouter.post('/projects/:id/transfer-ownership', canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const projectId = req.params.id;
+    const userId = req.user!.sub;
+    const { newOwnerId } = req.body;
+
+    if (!newOwnerId) {
+      return res.status(400).json({ error: 'newOwnerId is required' });
+    }
+
+    // Verify current user is owner
+    const currentUserRole = await getUserRoleInProject(userId, projectId);
+    if (currentUserRole !== 'owner') {
+      return res.status(403).json({ error: 'Only the project owner can transfer ownership' });
+    }
+
+    // Verify new owner is a member of the project
+    const newOwnerMembership = await prisma.projectMember.findFirst({
+      where: { projectId, userId: newOwnerId },
+    });
+
+    if (!newOwnerMembership) {
+      return res.status(400).json({ error: 'New owner must be a member of the project' });
+    }
+
+    // Get current owner membership
+    const currentOwnerMembership = await prisma.projectMember.findFirst({
+      where: { projectId, userId },
+    });
+
+    if (!currentOwnerMembership) {
+      return res.status(404).json({ error: 'Current owner membership not found' });
+    }
+
+    // Update in a transaction
+    await prisma.$transaction([
+      // Change new owner's role to owner
+      prisma.projectMember.update({
+        where: { id: newOwnerMembership.id },
+        data: { role: 'owner' },
+      }),
+      // Change current owner's role to collaborator
+      prisma.projectMember.update({
+        where: { id: currentOwnerMembership.id },
+        data: { role: 'collaborator' },
+      }),
+      // Update project owner
+      prisma.project.update({
+        where: { id: projectId },
+        data: { ownerId: newOwnerId },
+      }),
+    ]);
+
+    // Fetch updated project
+    const updatedProject = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Emit WebSocket event for real-time synchronization
+    if (updatedProject) {
+      emitProjectUpdated(updatedProject);
+    }
+
+    console.log(`👑 Ownership transferred from ${userId} to ${newOwnerId} for project ${projectId}`);
+    res.json({ success: true, message: 'Ownership transferred successfully', project: updatedProject });
+  } catch (error: any) {
+    console.error('Transfer ownership error:', error);
+    res.status(500).json({ error: 'Failed to transfer ownership' });
   }
 });
 
