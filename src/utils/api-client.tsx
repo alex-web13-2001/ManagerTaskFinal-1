@@ -649,8 +649,20 @@ export const projectsAPI = {
    * Get archived projects
    */
   getArchived: async () => {
-    const projects = await projectsAPI.getAll();
-    return projects.filter((p: any) => p.archived);
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/archived`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch archived projects');
+    }
+
+    return response.json();
   },
 
   /**

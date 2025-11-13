@@ -654,6 +654,70 @@ apiRouter.get('/projects', async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * GET /api/projects/archived
+ * Get all archived projects accessible to the user (owned + member of)
+ */
+apiRouter.get('/projects/archived', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+
+    // Get all archived projects where user is owner
+    const ownedProjects = await prisma.project.findMany({
+      where: {
+        ownerId: userId,
+        archived: true,
+      },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Get all archived projects where user is a member
+    const memberProjects = await prisma.project.findMany({
+      where: {
+        archived: true,
+        members: {
+          some: {
+            userId: userId,
+          },
+        },
+        ownerId: {
+          not: userId, // Exclude owned projects (already fetched above)
+        },
+      },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Combine and return all archived projects
+    const allArchivedProjects = [...ownedProjects, ...memberProjects];
+    res.json(allArchivedProjects);
+  } catch (error: any) {
+    console.error('Get archived projects error:', error);
+    res.status(500).json({ error: 'Failed to fetch archived projects' });
+  }
+});
+
+/**
  * GET /api/projects/:id
  * Get a specific project by ID
  */

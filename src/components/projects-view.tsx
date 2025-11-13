@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Search, MoreVertical, Users, Calendar, AlertCircle, Loader2, Archive, ArchiveRestore, Trash2, FolderOpen, Info, Pencil } from 'lucide-react';
+import { Plus, Search, MoreVertical, Users, Calendar, AlertCircle, Loader2, Archive, ArchiveRestore, Trash2, FolderOpen, Info, Pencil, LogOut } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -115,7 +115,7 @@ type ProjectsViewProps = {
 };
 
 export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
-  const { projects, tasks, isLoading, deleteProject, updateProject, archiveProject, restoreProject, currentUser } = useApp();
+  const { projects, tasks, isLoading, deleteProject, updateProject, archiveProject, restoreProject, leaveProject, currentUser } = useApp();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [typeFilter, setTypeFilter] = React.useState('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
@@ -123,6 +123,7 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
   const [aboutProject, setAboutProject] = React.useState<string | null>(null);
   const [membersProject, setMembersProject] = React.useState<string | null>(null);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
+  const [projectToLeave, setProjectToLeave] = React.useState<string | null>(null);
 
   // Calculate project stats
   const projectsWithStats = React.useMemo(() => {
@@ -216,6 +217,22 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
       } finally {
         setActionLoading(null);
       }
+    } else if (action === 'leave') {
+      setProjectToLeave(projectId);
+    }
+  };
+
+  const handleLeaveProject = async () => {
+    if (!projectToLeave) return;
+    
+    setActionLoading(projectToLeave);
+    try {
+      await leaveProject(projectToLeave);
+      setProjectToLeave(null);
+    } catch (error) {
+      console.error('Error leaving project:', error);
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -392,6 +409,19 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
                             </DropdownMenuItem>
                           </>
                         )}
+                        {project.userRole !== 'owner' && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={(e) => { e.stopPropagation(); handleProjectAction(project.id, 'leave'); }}
+                              disabled={actionLoading === project.id}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <LogOut className="w-4 h-4 mr-2" />
+                              Выйти из проекта
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -546,6 +576,28 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
           currentUserRole="owner"
         />
       )}
+
+      {/* Диалог подтверждения выхода из проекта */}
+      <AlertDialog open={!!projectToLeave} onOpenChange={(open) => !open && setProjectToLeave(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Выйти из проекта?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы уверены, что хотите выйти из проекта "{projects.find(p => p.id === projectToLeave)?.name}"?
+              Все ваши задачи в этом проекте будут сняты с вас (станут без исполнителя).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLeaveProject}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Выйти
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
