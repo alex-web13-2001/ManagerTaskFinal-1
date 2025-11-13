@@ -348,6 +348,9 @@ function MainApp() {
     // If in URL there's a taskId
     if (taskId) {
       setSelectedTaskId(taskId);
+    } else {
+      // Clear selected task if taskId is not in URL
+      setSelectedTaskId(null);
     }
     
     // If URL is "/" (home)
@@ -503,6 +506,8 @@ function MainApp() {
                   open={!!selectedTaskId}
                   onOpenChange={(open) => {
                     if (!open) {
+                      // Clear state immediately to prevent re-opening
+                      setSelectedTaskId(null);
                       handleTaskClose();
                     }
                   }}
