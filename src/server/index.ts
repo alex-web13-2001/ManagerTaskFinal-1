@@ -2148,6 +2148,87 @@ apiRouter.get('/tasks', async (req: AuthRequest, res: Response) => {
 });
 
 /**
+ * GET /api/tasks/:taskId
+ * Get a specific task by ID with access control
+ * User has access if:
+ * - They are the creator
+ * - They are the assignee
+ * - Task is in a project where they are a member
+ * - Task is personal (no project) AND they are the creator
+ */
+apiRouter.get('/tasks/:taskId', async (req: AuthRequest, res: Response) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user!.sub;
+
+    // Find task with all necessary relations
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        creator: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        assignee: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        project: {
+          select: { 
+            id: true, 
+            name: true, 
+            color: true,
+            ownerId: true,
+          },
+        },
+        attachments: true,
+      },
+    });
+
+    // Task not found
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Check access permissions
+    let hasAccess = false;
+
+    // User is creator or assignee
+    if (task.creatorId === userId || task.assigneeId === userId) {
+      hasAccess = true;
+    }
+
+    // Task is in a project - check if user is a member
+    if (task.projectId && !hasAccess) {
+      const membership = await prisma.projectMember.findUnique({
+        where: {
+          userId_projectId: {
+            userId,
+            projectId: task.projectId,
+          },
+        },
+      });
+
+      if (membership || task.project?.ownerId === userId) {
+        hasAccess = true;
+      }
+    }
+
+    // Task is personal - only creator can access
+    if (!task.projectId && task.creatorId !== userId) {
+      hasAccess = false;
+    }
+
+    // Deny access if no permission found
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Transform task for response
+    const transformedTask = transformTaskForResponse(task);
+    
+    res.json(transformedTask);
+  } catch (error: any) {
+    console.error('Get task by ID error:', error);
+    res.status(500).json({ error: 'Failed to fetch task' });
+  }
+});
+
+/**
  * POST /api/tasks
  * Create a new task with permission validation
  * Handles all task fields including tags, deadline, category, etc.
