@@ -190,6 +190,7 @@ interface AppContextType {
   uploadMultipleTaskAttachments: (taskId: string, files: File[]) => Promise<TaskAttachment[]>;
   deleteTaskAttachment: (taskId: string, attachmentId: string) => Promise<void>;
   uploadProjectAttachment: (projectId: string, file: File) => Promise<any>;
+  deleteProjectAttachment: (projectId: string, attachmentId: string) => Promise<void>;
   createProject: (projectData: Partial<Project>) => Promise<Project>;
   updateProject: (projectId: string, updates: Partial<Project>) => Promise<Project>;
   archiveProject: (projectId: string) => Promise<void>;
@@ -333,11 +334,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           project.members.forEach((member: any) => {
             // Handle both flat and nested user structures
             const memberId = member.userId || member.id;
-            const memberName = member.user?.name || member.name || member.user?.email || member.email || 'Без имени';
+            const memberName = member.user?.name || member.name || '';
             const memberEmail = member.user?.email || member.email || '';
             const memberAvatar = member.user?.avatarUrl || member.avatarUrl;
             
-            if (memberId && !membersMap.has(memberId)) {
+            // Only add members that have at least a name or email
+            if (memberId && (memberName || memberEmail) && !membersMap.has(memberId)) {
               membersMap.set(memberId, {
                 id: memberId,
                 name: memberName,
@@ -1200,6 +1202,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const deleteProjectAttachment = async (projectId: string, attachmentId: string): Promise<void> => {
+    try {
+      console.log(`🗑️ deleteProjectAttachment: Deleting attachment ${attachmentId} from project ${projectId}`);
+      await tasksAPI.deleteProjectAttachment(projectId, attachmentId);
+      console.log(`✅ deleteProjectAttachment: Attachment deleted successfully`);
+      toast.success('Файл удалён');
+    } catch (error: any) {
+      console.error(`❌ deleteProjectAttachment: Error deleting attachment:`, error);
+      toast.error(error.message || 'Ошибка удаления файла');
+      throw error;
+    }
+  };
+
   // ========== PERMISSION HELPERS ==========
 
   /**
@@ -1368,6 +1383,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     uploadMultipleTaskAttachments,
     deleteTaskAttachment,
     uploadProjectAttachment,
+    deleteProjectAttachment,
     createProject,
     updateProject,
     archiveProject,

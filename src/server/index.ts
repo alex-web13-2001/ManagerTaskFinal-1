@@ -644,12 +644,126 @@ apiRouter.get('/projects', async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Combine and return all projects
+    // Combine all projects
     const allProjects = [...ownedProjects, ...memberProjects];
-    res.json(allProjects);
+    
+    // Enrich projects with full category objects
+    const enrichedProjects = await Promise.all(
+      allProjects.map(async (project) => {
+        if (project.availableCategories && Array.isArray(project.availableCategories) && project.availableCategories.length > 0) {
+          // Fetch the owner's categories
+          const categories = await prisma.category.findMany({
+            where: {
+              userId: project.ownerId,
+              id: { in: project.availableCategories as string[] },
+            },
+          });
+          
+          return {
+            ...project,
+            categoriesDetails: categories, // Add full category objects
+          };
+        }
+        return {
+          ...project,
+          categoriesDetails: [], // Empty array if no categories
+        };
+      })
+    );
+    
+    res.json(enrichedProjects);
   } catch (error: any) {
     console.error('Get projects error:', error);
     res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
+/**
+ * GET /api/projects/archived
+ * Get all archived projects accessible to the user (owned + member of)
+ */
+apiRouter.get('/projects/archived', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+
+    // Get all archived projects where user is owner
+    const ownedProjects = await prisma.project.findMany({
+      where: {
+        ownerId: userId,
+        archived: true,
+      },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Get all archived projects where user is a member
+    const memberProjects = await prisma.project.findMany({
+      where: {
+        archived: true,
+        members: {
+          some: {
+            userId: userId,
+          },
+        },
+        ownerId: {
+          not: userId, // Exclude owned projects (already fetched above)
+        },
+      },
+      include: {
+        owner: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        members: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatarUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Combine all archived projects
+    const allArchivedProjects = [...ownedProjects, ...memberProjects];
+    
+    // Enrich projects with full category objects
+    const enrichedProjects = await Promise.all(
+      allArchivedProjects.map(async (project) => {
+        if (project.availableCategories && Array.isArray(project.availableCategories) && project.availableCategories.length > 0) {
+          // Fetch the owner's categories
+          const categories = await prisma.category.findMany({
+            where: {
+              userId: project.ownerId,
+              id: { in: project.availableCategories as string[] },
+            },
+          });
+          
+          return {
+            ...project,
+            categoriesDetails: categories, // Add full category objects
+          };
+        }
+        return {
+          ...project,
+          categoriesDetails: [], // Empty array if no categories
+        };
+      })
+    );
+    
+    res.json(enrichedProjects);
+  } catch (error: any) {
+    console.error('Get archived projects error:', error);
+    res.status(500).json({ error: 'Failed to fetch archived projects' });
   }
 });
 

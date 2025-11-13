@@ -55,7 +55,7 @@ export function ProjectModal({
   onSave,
   onManageMembers,
 }: ProjectModalProps) {
-  const { projects, createProject, updateProject, categories, uploadProjectAttachment } = useApp();
+  const { projects, createProject, updateProject, categories, uploadProjectAttachment, deleteProjectAttachment } = useApp();
   const [isLoading, setIsLoading] = React.useState(false);
   const [isUploadingFile, setIsUploadingFile] = React.useState(false);
   const prevOpenRef = React.useRef(false);
@@ -216,8 +216,20 @@ export function ProjectModal({
     }
   };
 
-  const removeAttachment = (attachmentId: string) => {
-    setAttachments(attachments.filter((a) => a.id !== attachmentId));
+  const removeAttachment = async (attachmentId: string) => {
+    if (!projectId || !isEditMode) {
+      // If not editing or no project ID, just remove from local state
+      setAttachments(attachments.filter((a) => a.id !== attachmentId));
+      return;
+    }
+
+    try {
+      await deleteProjectAttachment(projectId, attachmentId);
+      setAttachments(attachments.filter((a) => a.id !== attachmentId));
+    } catch (error: any) {
+      console.error('Delete attachment error:', error);
+      toast.error(error.message || 'Ошибка удаления файла');
+    }
   };
 
   return (

@@ -450,6 +450,28 @@ export const tasksAPI = {
     const data = await response.json();
     return data.attachment;
   },
+
+  /**
+   * Delete a project attachment
+   */
+  deleteProjectAttachment: async (projectId: string, attachmentId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete project attachment');
+    }
+
+    return response.json();
+  },
 };
 
 // ========== PROJECTS API ==========
@@ -649,8 +671,20 @@ export const projectsAPI = {
    * Get archived projects
    */
   getArchived: async () => {
-    const projects = await projectsAPI.getAll();
-    return projects.filter((p: any) => p.archived);
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/archived`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch archived projects');
+    }
+
+    return response.json();
   },
 
   /**
