@@ -144,7 +144,9 @@ export function TaskModal({
     deleteTaskAttachment,
     canDeleteTask,
     canCreateTask,
+    canEditProject,
     getUserRoleInProject,
+    hasPermission,
   } = useApp();
   const [mode, setMode] = React.useState<TaskModalMode>(initialMode);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -1269,7 +1271,8 @@ export function TaskModal({
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Поле исполнителя скрыто для личных задач */}
-                {projectId !== 'personal' && (
+                {/* FIX Problem #2: Show assignee selector if user can edit project OR has task:assign permission */}
+                {projectId !== 'personal' && (canEditProject(projectId) || hasPermission('task:assign', projectId)) && (
                   <div className="space-y-2">
                     <Label>Исполнитель</Label>
                     <Select 

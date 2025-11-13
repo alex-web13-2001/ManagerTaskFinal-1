@@ -4,6 +4,7 @@
  */
 
 import prisma from '../server/db';
+import { hasRolePermission, type UserRole as RBACUserRole } from './rbac';
 
 export type UserRole = 'owner' | 'collaborator' | 'member' | 'viewer';
 
@@ -167,7 +168,10 @@ export async function canViewTask(
  * Check if user can create a task in project
  * - Personal tasks: user can only create for themselves or without assignee
  * - Owner, Collaborator, Member can create tasks in projects
- * - Member can only create tasks assigned to themselves or without assignee
+ * - Member with task:assign permission can create tasks assigned to anyone
+ * - Member without task:assign permission can only create tasks assigned to themselves
+ * 
+ * FIX Problem #2: Members now have task:assign permission by default
  */
 export async function canCreateTask(
   userId: string,
@@ -190,12 +194,16 @@ export async function canCreateTask(
     return false;
   }
 
-  // Member can only create tasks assigned to themselves or without assignee
-  if (role === 'member') {
-    return assigneeId === userId || assigneeId === null;
+  // Check if assigning to someone else
+  const isAssigningToOther = assigneeId && assigneeId !== userId;
+  
+  // If assigning to someone else, check task:assign permission
+  if (isAssigningToOther) {
+    const hasAssignPermission = hasRolePermission(role as RBACUserRole, 'task:assign');
+    return hasAssignPermission;
   }
 
-  // Owner and Collaborator can create any task
+  // Can always create tasks for yourself or without assignee
   return true;
 }
 

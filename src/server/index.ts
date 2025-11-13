@@ -2340,6 +2340,29 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // FIX Problem #2: Check task:assign permission if assigneeId is being changed
+    const { assigneeId } = req.body;
+    if (assigneeId !== undefined && assigneeId !== existingTask.assigneeId) {
+      // User is trying to change the assignee
+      if (existingTask.projectId) {
+        // Get user's role in the project
+        const role = await getUserRoleInProjectFromDB(userId, existingTask.projectId);
+        
+        // If not owner/collaborator, check task:assign permission
+        if (role !== 'owner' && role !== 'collaborator') {
+          // Import hasRolePermission at the top of the file if needed
+          const { hasRolePermission } = await import('../lib/rbac.js');
+          const hasAssignPermission = role ? hasRolePermission(role as any, 'task:assign') : false;
+          
+          if (!hasAssignPermission) {
+            return res.status(403).json({ 
+              error: 'You do not have permission to assign tasks to others.' 
+            });
+          }
+        }
+      }
+    }
+
     // Extract all possible update fields from request body
     const { 
       title, 
