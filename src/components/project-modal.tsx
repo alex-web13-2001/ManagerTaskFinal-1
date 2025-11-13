@@ -39,6 +39,12 @@ const colorOptions = [
   { id: 'indigo', color: 'bg-indigo-500', label: 'Индиго' },
 ];
 
+const roleLabels: Record<string, string> = {
+  owner: 'Владелец',
+  collaborator: 'Участник с правами',
+  member: 'Участник',
+  viewer: 'Наблюдатель',
+};
 
 
 export function ProjectModal({
@@ -525,7 +531,7 @@ export function ProjectModal({
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm truncate">{memberName}</p>
-                          <p className="text-xs text-gray-500">{memberRole}</p>
+                          <p className="text-xs text-gray-500">{roleLabels[memberRole] || 'Участник'}</p>
                         </div>
                       </div>
                     );
