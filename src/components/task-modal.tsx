@@ -52,6 +52,7 @@ import {
 } from './ui/alert-dialog';
 import { useApp } from '../contexts/app-context';
 import { Checkbox } from './ui/checkbox';
+import { ShareButton } from './share-button';
 
 type TaskModalMode = 'create' | 'view' | 'edit';
 
@@ -851,6 +852,15 @@ export function TaskModal({
                   {isViewMode && 'Просмотр задачи'}
                 </DialogDescription>
               </div>
+              {isViewMode && existingTask && (
+                <ShareButton 
+                  url={existingTask.projectId 
+                    ? `/projects/${existingTask.projectId}/tasks/${existingTask.id}`
+                    : `/tasks/${existingTask.id}`
+                  }
+                  title={existingTask.title}
+                />
+              )}
               {isEditMode && canDelete && (
                 <Button
                   variant="ghost"

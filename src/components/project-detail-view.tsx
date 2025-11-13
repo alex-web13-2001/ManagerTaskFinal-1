@@ -53,6 +53,7 @@ import { TaskModal } from './task-modal';
 import { ProjectAboutModal } from './project-about-modal';
 import { ProjectMembersModal } from './project-members-modal';
 import { ProjectModal } from './project-modal';
+import { ShareButton } from './share-button';
 import { useApp } from '../contexts/app-context';
 import { useWebSocketContext } from '../contexts/websocket-context';
 import { toast } from 'sonner';
@@ -346,6 +347,10 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView, onTaskCli
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <ShareButton 
+              url={`/projects/${projectId}`}
+              title={project.name}
+            />
             <Button
               variant="outline"
               size="sm"
