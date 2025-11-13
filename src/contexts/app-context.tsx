@@ -190,6 +190,7 @@ interface AppContextType {
   uploadMultipleTaskAttachments: (taskId: string, files: File[]) => Promise<TaskAttachment[]>;
   deleteTaskAttachment: (taskId: string, attachmentId: string) => Promise<void>;
   uploadProjectAttachment: (projectId: string, file: File) => Promise<any>;
+  deleteProjectAttachment: (projectId: string, attachmentId: string) => Promise<void>;
   createProject: (projectData: Partial<Project>) => Promise<Project>;
   updateProject: (projectId: string, updates: Partial<Project>) => Promise<Project>;
   archiveProject: (projectId: string) => Promise<void>;
@@ -1200,6 +1201,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const deleteProjectAttachment = async (projectId: string, attachmentId: string): Promise<void> => {
+    try {
+      console.log(`🗑️ deleteProjectAttachment: Deleting attachment ${attachmentId} from project ${projectId}`);
+      await tasksAPI.deleteProjectAttachment(projectId, attachmentId);
+      console.log(`✅ deleteProjectAttachment: Attachment deleted successfully`);
+      toast.success('Файл удалён');
+    } catch (error: any) {
+      console.error(`❌ deleteProjectAttachment: Error deleting attachment:`, error);
+      toast.error(error.message || 'Ошибка удаления файла');
+      throw error;
+    }
+  };
+
   // ========== PERMISSION HELPERS ==========
 
   /**
@@ -1368,6 +1382,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     uploadMultipleTaskAttachments,
     deleteTaskAttachment,
     uploadProjectAttachment,
+    deleteProjectAttachment,
     createProject,
     updateProject,
     archiveProject,
