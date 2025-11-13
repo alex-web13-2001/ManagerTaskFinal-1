@@ -34,6 +34,7 @@ import {
   emitProjectMemberAdded,
   emitProjectMemberRemoved
 } from './websocket.js';
+import { startRecurringTaskProcessor } from './recurringTaskProcessor.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -2168,7 +2169,9 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
       projectId, 
       assigneeId, 
       orderKey,
-      version
+      version,
+      isRecurring,
+      recurrencePattern
     } = req.body;
 
     if (!title) {
@@ -2201,6 +2204,8 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
         assigneeId: assigneeId || null,
         orderKey: orderKey || 'n',
         version: version || 1,
+        isRecurring: isRecurring || false,
+        recurrencePattern: recurrencePattern || null,
       },
       include: {
         project: true,
@@ -2267,7 +2272,9 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
       deadline, // Support both dueDate and deadline (frontend compatibility)
       assigneeId, 
       orderKey, 
-      version 
+      version,
+      isRecurring,
+      recurrencePattern 
     } = req.body;
     
     // Build update data object - only include fields that are explicitly provided
@@ -2306,6 +2313,15 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
     // Assignee - support explicit null to unassign
     if (assigneeId !== undefined) {
       updateData.assigneeId = assigneeId || null;
+    }
+    
+    // Recurring task fields
+    if (isRecurring !== undefined) updateData.isRecurring = isRecurring;
+    if (recurrencePattern !== undefined) updateData.recurrencePattern = recurrencePattern || null;
+    
+    // Track when recurring task is completed
+    if (status === 'done' && existingTask.isRecurring && existingTask.status !== 'done') {
+      updateData.lastCompleted = new Date();
     }
     
     // Ordering and versioning
@@ -2628,6 +2644,9 @@ if (isMainModule()) {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`🔌 WebSocket server ready`);
     console.log(`📁 Serving uploads from: ${uploadsDir}`);
+    
+    // Start recurring task processor (runs every hour)
+    startRecurringTaskProcessor(60);
   });
 
   httpServer.on('error', (error: NodeJS.ErrnoException) => {
