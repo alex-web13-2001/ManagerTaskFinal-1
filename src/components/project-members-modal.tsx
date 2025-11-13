@@ -678,16 +678,16 @@ export function ProjectMembersModal({
                   <Separator />
                   <div className="space-y-3">
                     <Label>Пригласить нового участника</Label>
-                    <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex gap-3">
                       <Input
                         type="email"
                         placeholder="Email участника"
                         value={inviteEmail}
                         onChange={(e) => setInviteEmail(e.target.value)}
-                        className="flex-1 w-full"
+                        className="flex-1"
                       />
                       <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as Role)}>
-                        <SelectTrigger className="w-full sm:w-52">
+                        <SelectTrigger className="w-52">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -702,7 +702,7 @@ export function ProjectMembersModal({
                         type="button"
                         onClick={handleInvite} 
                         disabled={isLoading}
-                        className="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto"
+                        className="bg-purple-600 hover:bg-purple-700"
                       >
                         {isLoading ? (
                           <>
