@@ -78,7 +78,8 @@ const getColorForProject = (color?: string) => {
 };
 
 // Helper to get initials from name
-const getInitials = (name: string) => {
+const getInitials = (name: string | undefined) => {
+  if (!name) return '?';
   return name
     .split(' ')
     .map(part => part[0])
@@ -948,14 +949,14 @@ export function TaskModal({
                       <span className="text-gray-600">Исполнитель:</span>
                       <div className="flex items-center gap-2">
                         <Avatar className="w-6 h-6">
-                          {selectedAssignee.avatarUrl && (
+                          {selectedAssignee?.avatarUrl && (
                             <AvatarImage src={selectedAssignee.avatarUrl} alt={selectedAssignee.name} />
                           )}
                           <AvatarFallback className="text-xs bg-purple-100 text-purple-700">
-                            {getInitials(selectedAssignee.name)}
+                            {getInitials(selectedAssignee?.name)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-sm">{selectedAssignee.name}</span>
+                        <span className="text-sm">{selectedAssignee?.name || 'Unknown'}</span>
                       </div>
                     </div>
                   )}
@@ -968,14 +969,14 @@ export function TaskModal({
                       <span className="text-gray-600">Автор:</span>
                       <div className="flex items-center gap-2">
                         <Avatar className="w-6 h-6">
-                          {taskAuthor.avatarUrl && (
+                          {taskAuthor?.avatarUrl && (
                             <AvatarImage src={taskAuthor.avatarUrl} alt={taskAuthor.name} />
                           )}
                           <AvatarFallback className="text-xs bg-green-100 text-green-700">
-                            {getInitials(taskAuthor.name)}
+                            {getInitials(taskAuthor?.name)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-sm">{taskAuthor.name}</span>
+                        <span className="text-sm">{taskAuthor?.name || 'Unknown'}</span>
                       </div>
                     </div>
                   )}

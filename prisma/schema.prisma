@@ -110,6 +110,12 @@ model Task {
   dueDate     DateTime?
   orderKey    String?   @default("n") // Лексикографический ключ для сортировки (Base36)
   version     Int       @default(1) // Монотонный счетчик для оптимистичной конкурентности
+  
+  // Recurring task fields
+  isRecurring      Boolean   @default(false) // Is this a recurring task?
+  recurrencePattern String?  // 'daily', 'weekly', 'monthly', 'yearly'
+  lastCompleted    DateTime? // When the task was last marked as completed
+  
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
@@ -126,6 +132,7 @@ model Task {
   @@index([creatorId])
   @@index([assigneeId])
   @@index([status, orderKey]) // Индекс для быстрой сортировки по колонкам
+  @@index([isRecurring, status]) // Индекс для поиска завершенных повторяющихся задач
   @@map("tasks")
 }
 

@@ -34,6 +34,7 @@ import {
   emitProjectMemberAdded,
   emitProjectMemberRemoved
 } from './websocket.js';
+import { startRecurringTaskProcessor } from './recurringTaskProcessor.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1857,7 +1858,15 @@ apiRouter.get('/users/:userId/custom_columns', async (req: AuthRequest, res: Res
       orderBy: { order: 'asc' },
     });
     
-    res.json(columns);
+    // Map 'name' field to 'title' for frontend compatibility
+    const mappedColumns = columns.map(col => ({
+      id: col.id,
+      title: col.name,
+      color: col.color,
+      order: col.order,
+    }));
+    
+    res.json(mappedColumns);
   } catch (error: any) {
     console.error('Get custom columns error:', error);
     res.status(500).json({ error: 'Failed to fetch custom columns' });
@@ -2058,17 +2067,29 @@ apiRouter.get('/tasks', async (req: AuthRequest, res: Response) => {
       ],
     });
 
-    // Get project memberships
+    // Get project memberships with roles
     const projectMemberships = await prisma.projectMember.findMany({
       where: { userId },
       select: { projectId: true, role: true },
     });
 
-    // Get tasks from projects where user is a member
+    // Build role map for efficient lookup
+    const roleMap = new Map<string, string>();
+    projectMemberships.forEach(m => roleMap.set(m.projectId, m.role));
+
+    // Get project IDs and separate by role
     const projectIds = projectMemberships.map((m) => m.projectId);
-    const projectTasks = await prisma.task.findMany({
+    const memberProjectIds = projectMemberships.filter(m => m.role === 'member').map(m => m.projectId);
+    const otherProjectIds = projectMemberships.filter(m => m.role !== 'member').map(m => m.projectId);
+
+    // For 'member' role projects, only fetch tasks where user is creator or assignee
+    const memberProjectTasks = memberProjectIds.length > 0 ? await prisma.task.findMany({
       where: {
-        projectId: { in: projectIds },
+        projectId: { in: memberProjectIds },
+        OR: [
+          { creatorId: userId },
+          { assigneeId: userId },
+        ],
       },
       include: {
         project: true,
@@ -2084,27 +2105,34 @@ apiRouter.get('/tasks', async (req: AuthRequest, res: Response) => {
         { status: 'asc' },
         { orderKey: 'asc' },
       ],
-    });
+    }) : [];
 
-    // Filter project tasks based on role (Member only sees their own)
-    const filteredProjectTasks = await Promise.all(
-      projectTasks.map(async (task) => {
-        if (task.projectId) {
-          const role = await getUserRoleInProject(userId, task.projectId);
-          if (role === 'member') {
-            // Member can only see tasks assigned to them or created by them
-            if (task.creatorId === userId || task.assigneeId === userId) {
-              return task;
-            }
-            return null;
-          }
-        }
-        return task;
-      })
-    );
+    // For other roles (owner, collaborator, viewer), fetch all tasks
+    const otherProjectTasks = otherProjectIds.length > 0 ? await prisma.task.findMany({
+      where: {
+        projectId: { in: otherProjectIds },
+      },
+      include: {
+        project: true,
+        creator: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        assignee: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
+        attachments: true,
+      },
+      orderBy: [
+        { status: 'asc' },
+        { orderKey: 'asc' },
+      ],
+    }) : [];
+
+    // Combine project tasks
+    const filteredProjectTasks = [...memberProjectTasks, ...otherProjectTasks];
 
     // Combine and deduplicate
-    const allTasks = [...personalTasks, ...filteredProjectTasks.filter(Boolean)];
+    const allTasks = [...personalTasks, ...filteredProjectTasks];
     const uniqueTasks = Array.from(
       new Map(allTasks.map((task) => [task.id, task])).values()
     );
@@ -2141,7 +2169,9 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
       projectId, 
       assigneeId, 
       orderKey,
-      version
+      version,
+      isRecurring,
+      recurrencePattern
     } = req.body;
 
     if (!title) {
@@ -2174,6 +2204,8 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
         assigneeId: assigneeId || null,
         orderKey: orderKey || 'n',
         version: version || 1,
+        isRecurring: isRecurring || false,
+        recurrencePattern: recurrencePattern || null,
       },
       include: {
         project: true,
@@ -2240,7 +2272,9 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
       deadline, // Support both dueDate and deadline (frontend compatibility)
       assigneeId, 
       orderKey, 
-      version 
+      version,
+      isRecurring,
+      recurrencePattern 
     } = req.body;
     
     // Build update data object - only include fields that are explicitly provided
@@ -2279,6 +2313,15 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
     // Assignee - support explicit null to unassign
     if (assigneeId !== undefined) {
       updateData.assigneeId = assigneeId || null;
+    }
+    
+    // Recurring task fields
+    if (isRecurring !== undefined) updateData.isRecurring = isRecurring;
+    if (recurrencePattern !== undefined) updateData.recurrencePattern = recurrencePattern || null;
+    
+    // Track when recurring task is completed
+    if (status === 'done' && existingTask.isRecurring && existingTask.status !== 'done') {
+      updateData.lastCompleted = new Date();
     }
     
     // Ordering and versioning
@@ -2601,6 +2644,9 @@ if (isMainModule()) {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`🔌 WebSocket server ready`);
     console.log(`📁 Serving uploads from: ${uploadsDir}`);
+    
+    // Start recurring task processor (runs every hour)
+    startRecurringTaskProcessor(60);
   });
 
   httpServer.on('error', (error: NodeJS.ErrnoException) => {
