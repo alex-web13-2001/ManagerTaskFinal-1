@@ -77,11 +77,11 @@ export function ProjectTaskTable({ projectId, searchQuery, filters, onTaskClick 
       // Must be from this project
       if (task.projectId !== projectId) return false;
 
-      // Role-based access control: Members should only see tasks assigned to them
+      // Role-based access control: Members should only see tasks assigned to them or created by them
       if (!canViewAllProjectTasks(projectId)) {
-        // Member role - only show tasks assigned to current user
+        // Member role - only show tasks assigned to or created by current user
         const currentUserId = currentUser?.id;
-        if (!currentUserId || task.assigneeId !== currentUserId) {
+        if (!currentUserId || (task.assigneeId !== currentUserId && task.userId !== currentUserId)) {
           return false;
         }
       }
