@@ -328,6 +328,20 @@ function AppRouter() {
 }
 
 function MainApp() {
+  return (
+    <ErrorBoundary>
+      <DndProviderWrapper>
+        <AppProvider>
+          <WebSocketProvider>
+            <MainAppContent />
+          </WebSocketProvider>
+        </AppProvider>
+      </DndProviderWrapper>
+    </ErrorBoundary>
+  );
+}
+
+function MainAppContent() {
   const { taskId, projectId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -477,77 +491,69 @@ function MainApp() {
   }, [selectedProjectId, currentView, handleBackToProjects, handleProjectClick, handleCalendarView, handleBackFromCalendar, handleDashboardCalendarView, handleBackFromDashboardCalendar, handleTaskClick]);
 
   return (
-    <ErrorBoundary>
-      <DndProviderWrapper>
-        <AppProvider>
-          <WebSocketProvider>
-            <SidebarProvider>
-              <WelcomeModal />
-              <Header
-                onCreateTask={() => setIsCreateTaskOpen(true)}
-                onNavigate={(view) => {
-                  setCurrentView(view as View);
-                  if (view !== 'projects' || !selectedProjectId) {
-                    // Problem #4 fix: Only navigate if needed
-                    navigate('/');
-                  } else {
-                    navigate('/');
-                  }
-                }}
-                onLogout={handleLogout}
-                currentProject={currentProject}
-              />
-              <SidebarNav
-                currentView={currentView}
-                onViewChange={(view) => {
-                  setCurrentView(view as View);
-                  // Problem #4 fix: Only navigate to root if not already there or in a detail view
-                  if (location.pathname !== '/') {
-                    navigate('/');
-                  }
-                }}
-                onLogout={handleLogout}
-              />
-              <SidebarInset className="pt-16 h-screen overflow-hidden">
-                {renderView()}
-              </SidebarInset>
-              
-              {/* Global task modal */}
-              {selectedTaskId && (
-                <TaskModal
-                  open={!!selectedTaskId}
-                  onOpenChange={(open) => {
-                    if (!open) {
+    <SidebarProvider>
+      <WelcomeModal />
+      <Header
+        onCreateTask={() => setIsCreateTaskOpen(true)}
+        onNavigate={(view) => {
+          setCurrentView(view as View);
+          if (view !== 'projects' || !selectedProjectId) {
+            // Problem #4 fix: Only navigate if needed
+            navigate('/');
+          } else {
+            navigate('/');
+          }
+        }}
+        onLogout={handleLogout}
+        currentProject={currentProject}
+      />
+      <SidebarNav
+        currentView={currentView}
+        onViewChange={(view) => {
+          setCurrentView(view as View);
+          // Problem #4 fix: Only navigate to root if not already there or in a detail view
+          if (location.pathname !== '/') {
+            navigate('/');
+          }
+        }}
+        onLogout={handleLogout}
+      />
+      <SidebarInset className="pt-16 h-screen overflow-hidden">
+        {renderView()}
+      </SidebarInset>
+      
+      {/* Global task modal */}
+      {selectedTaskId && (
+        <TaskModal
+          open={!!selectedTaskId}
+          onOpenChange={(open) => {
+            if (!open) {
 // Problem #2 fix: Check if task exists before navigating
-                      const taskExists = tasks.some(t => t.id === selectedTaskId);
-                      if (!taskExists) {
-                        // Task was deleted, just clear state without navigation
-                        setSelectedTaskId(null);
-                        return;
-                      }
-                      
-                      setSelectedTaskId(null);
-                      handleTaskClose();
-                    }
-                  }}
-                  mode="view"
-                  taskId={selectedTaskId}
-                />
-              )}
+              const taskExists = tasks.some(t => t.id === selectedTaskId);
+              if (!taskExists) {
+                // Task was deleted, just clear state without navigation
+                setSelectedTaskId(null);
+                return;
+              }
               
-              <TaskModal
-                open={isCreateTaskOpen}
-                onOpenChange={setIsCreateTaskOpen}
-                mode="create"
-                initialProject={currentProject}
-                onSave={() => {}}
-              />
-              <Toaster />
-            </SidebarProvider>
-          </WebSocketProvider>
-        </AppProvider>
-      </DndProviderWrapper>
-    </ErrorBoundary>
+              setSelectedTaskId(null);
+              handleTaskClose();
+            }
+          }}
+          mode="view"
+          taskId={selectedTaskId}
+        />
+      )}
+      
+      <TaskModal
+        open={isCreateTaskOpen}
+        onOpenChange={setIsCreateTaskOpen}
+        mode="create"
+        initialProject={currentProject}
+        onSave={() => {}}
+      />
+      <Toaster />
+    </SidebarProvider>
   );
 }
 
