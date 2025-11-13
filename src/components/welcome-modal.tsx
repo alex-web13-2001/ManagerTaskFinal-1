@@ -30,7 +30,7 @@ export function WelcomeModal() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="w-[90%] sm:w-auto sm:max-w-md">
         <DialogHeader>
           <div className="flex justify-center mb-4">
             <CheckCircle className="w-16 h-16 text-green-600" />
