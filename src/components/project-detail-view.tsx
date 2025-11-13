@@ -114,6 +114,18 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
     return members;
   }, [project, teamMembers]);
   
+  // FIX Problem #1: Get categories from project.availableCategories
+  const projectCategories = React.useMemo(() => {
+    if (!project?.availableCategories || !Array.isArray(project.availableCategories)) {
+      return [];
+    }
+    
+    // Map category IDs to full category objects
+    return project.availableCategories
+      .map(catId => categories.find(c => c.id === catId))
+      .filter((cat): cat is { id: string; name: string; color?: string } => cat !== undefined);
+  }, [project, categories]);
+  
   // Фильтры
   const [filters, setFilters] = React.useState<Filters>({
     projects: [projectId],
@@ -344,21 +356,25 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
                     </Button>
                   )}
                 </div>
-                {categories.map((category) => (
-                  <div key={category.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`category-${category.id}`}
-                      checked={filters.categories.includes(category.id)}
-                      onCheckedChange={() => toggleArrayFilter('categories', category.id)}
-                    />
-                    <label
-                      htmlFor={`category-${category.id}`}
-                      className="text-sm cursor-pointer flex-1"
-                    >
-                      {category.name}
-                    </label>
-                  </div>
-                ))}
+                {projectCategories.length === 0 ? (
+                  <div className="text-sm text-gray-500 py-2">Нет категорий</div>
+                ) : (
+                  projectCategories.map((category) => (
+                    <div key={category.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`category-${category.id}`}
+                        checked={filters.categories.includes(category.id)}
+                        onCheckedChange={() => toggleArrayFilter('categories', category.id)}
+                      />
+                      <label
+                        htmlFor={`category-${category.id}`}
+                        className="text-sm cursor-pointer flex-1"
+                      >
+                        {category.name}
+                      </label>
+                    </div>
+                  ))
+                )}
               </div>
             </PopoverContent>
           </Popover>
@@ -482,6 +498,20 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
                     </Button>
                   )}
                 </div>
+                {/* FIX Problem #2: Add special option for unassigned tasks */}
+                <div className="flex items-center space-x-2 pb-2 border-b">
+                  <Checkbox
+                    id="assignee-unassigned"
+                    checked={filters.assignees.includes('unassigned')}
+                    onCheckedChange={() => toggleArrayFilter('assignees', 'unassigned')}
+                  />
+                  <label
+                    htmlFor="assignee-unassigned"
+                    className="text-sm cursor-pointer flex-1 text-gray-500 italic"
+                  >
+                    Не назначено
+                  </label>
+                </div>
                 {projectMembers.length === 0 ? (
                   <div className="text-sm text-gray-500 py-2">Нет участников</div>
                 ) : (
@@ -496,7 +526,8 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView }: Project
                         htmlFor={`assignee-${member.id}`}
                         className="text-sm cursor-pointer flex-1"
                       >
-                        {member.name}
+                        {/* FIX Problem #2: Use email as fallback for members without name */}
+                        {member.name || member.email || 'Без имени'}
                       </label>
                     </div>
                   ))

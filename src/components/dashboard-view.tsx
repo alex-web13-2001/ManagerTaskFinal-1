@@ -64,6 +64,31 @@ export function DashboardView({ onCalendarView }: DashboardViewProps = {}) {
     deadline: 'all',
   });
 
+  // FIX Problem #1: Collect all categories from projects where user is a member + personal categories
+  const availableCategories = React.useMemo(() => {
+    const categoryMap = new Map<string, { id: string; name: string; color?: string }>();
+    
+    // Add personal categories (from global categories list)
+    categories.forEach(cat => {
+      categoryMap.set(cat.id, cat);
+    });
+    
+    // Add categories from all projects where user is a member
+    projects.forEach(project => {
+      if (project.availableCategories && Array.isArray(project.availableCategories)) {
+        project.availableCategories.forEach(catId => {
+          // Find the category details from the global categories list
+          const category = categories.find(c => c.id === catId);
+          if (category && !categoryMap.has(category.id)) {
+            categoryMap.set(category.id, category);
+          }
+        });
+      }
+    });
+    
+    return Array.from(categoryMap.values());
+  }, [projects, categories]);
+
   // Save showCustomColumns to localStorage
   React.useEffect(() => {
     localStorage.setItem('dashboard-show-custom-columns', String(showCustomColumns));
@@ -349,10 +374,10 @@ export function DashboardView({ onCalendarView }: DashboardViewProps = {}) {
                     </Button>
                   )}
                 </div>
-                {categories.length === 0 ? (
+                {availableCategories.length === 0 ? (
                   <div className="text-sm text-gray-500 py-2">Нет категорий</div>
                 ) : (
-                  categories.map((category) => (
+                  availableCategories.map((category) => (
                     <div key={category.id} className="flex items-center space-x-2">
                       <Checkbox
                         id={`category-${category.id}`}
@@ -491,24 +516,44 @@ export function DashboardView({ onCalendarView }: DashboardViewProps = {}) {
                     </Button>
                   )}
                 </div>
+                {/* FIX Problem #2: Add special option for unassigned tasks */}
+                <div className="flex items-center space-x-2 pb-2 border-b">
+                  <Checkbox
+                    id="assignee-unassigned"
+                    checked={filters.assignees.includes('unassigned')}
+                    onCheckedChange={() => toggleArrayFilter('assignees', 'unassigned')}
+                  />
+                  <label
+                    htmlFor="assignee-unassigned"
+                    className="text-sm cursor-pointer flex-1 text-gray-500 italic"
+                  >
+                    Не назначено
+                  </label>
+                </div>
                 {teamMembers.length === 0 ? (
                   <div className="text-sm text-gray-500 py-2">Нет участников</div>
                 ) : (
-                  teamMembers.map((member) => (
-                    <div key={member.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`assignee-${member.id}`}
-                        checked={filters.assignees.includes(member.id)}
-                        onCheckedChange={() => toggleArrayFilter('assignees', member.id)}
-                      />
-                      <label
-                        htmlFor={`assignee-${member.id}`}
-                        className="text-sm cursor-pointer flex-1"
-                      >
-                        {member.name}
-                      </label>
-                    </div>
-                  ))
+                  // FIX Problem #2: Deduplicate members by ID and use email as fallback
+                  (() => {
+                    const uniqueMembers = Array.from(
+                      new Map(teamMembers.map(m => [m.id, m])).values()
+                    );
+                    return uniqueMembers.map((member) => (
+                      <div key={member.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`assignee-${member.id}`}
+                          checked={filters.assignees.includes(member.id)}
+                          onCheckedChange={() => toggleArrayFilter('assignees', member.id)}
+                        />
+                        <label
+                          htmlFor={`assignee-${member.id}`}
+                          className="text-sm cursor-pointer flex-1"
+                        >
+                          {member.name || member.email || 'Без имени'}
+                        </label>
+                      </div>
+                    ));
+                  })()
                 )}
               </div>
             </PopoverContent>

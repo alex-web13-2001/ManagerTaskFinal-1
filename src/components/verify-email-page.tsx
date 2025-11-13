@@ -29,6 +29,9 @@ export function VerifyEmailPage({ onVerified }: VerifyEmailPageProps) {
           setStatus('success');
           setMessage('Email успешно подтвержден!');
           
+          // FIX Problem #3: Clear token from URL to prevent auth errors on page refresh
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
           // Проверяем, есть ли отложенное приглашение
           const pendingToken = sessionStorage.getItem('pendingInvitation');
           
