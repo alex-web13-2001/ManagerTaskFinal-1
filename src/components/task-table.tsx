@@ -55,7 +55,7 @@ type TaskTableProps = {
 };
 
 export function TaskTable({ searchQuery, filters, onTaskClick }: TaskTableProps) {
-  const { tasks, projects, teamMembers, currentUser, customColumns, updateTask, categories } = useApp();
+  const { tasks, projects, teamMembers, currentUser, customColumns, updateTask, categories, canViewAllProjectTasks } = useApp();
   const [sortColumn, setSortColumn] = React.useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = React.useState<SortDirection>(null);
 
@@ -190,6 +190,20 @@ export function TaskTable({ searchQuery, filters, onTaskClick }: TaskTableProps)
         passed: true,
         reason: '',
       };
+      
+      // Role-based access control: Members should only see tasks assigned to them or created by them
+      if (task.projectId) {
+        if (!canViewAllProjectTasks(task.projectId)) {
+          // Member role - only show tasks assigned to or created by current user
+          const currentUserId = currentUser?.id;
+          if (!currentUserId || (task.assigneeId !== currentUserId && task.userId !== currentUserId)) {
+            debug.passed = false;
+            debug.reason = 'role-based access control';
+            debugLog.push(debug);
+            return false;
+          }
+        }
+      }
       
       // Search query
       if (searchQuery) {
