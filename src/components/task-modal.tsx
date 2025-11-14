@@ -172,6 +172,25 @@ export function TaskModal({
   React.useEffect(() => {
     setMode(initialMode);
   }, [initialMode, open]);
+  
+  // ISSUE #5 FIX: Track when projects or teamMembers update for real-time member list updates
+  React.useEffect(() => {
+    if (open && projectId && projectId !== 'personal') {
+      const project = projects.find(p => p.id === projectId);
+      console.log('🔄 ISSUE #5: Projects/TeamMembers updated while modal is open:', {
+        projectId,
+        projectMembersCount: project?.members?.length || 0,
+        projectMembers: project?.members?.map((m: any) => ({ 
+          id: m.userId || m.id, 
+          name: m.name || m.email,
+          role: m.role 
+        })) || [],
+        teamMembersCount: teamMembers.length,
+        teamMembers: teamMembers.map(m => ({ id: m.id, name: m.name })),
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [projects, teamMembers, open, projectId]);
 
   // Загрузка данных задачи для режима просмотра/редактирования
   const existingTask = taskId && !isCreateMode ? tasks.find(t => t.id === taskId) : null;
@@ -581,8 +600,25 @@ export function TaskModal({
       const projCat = projectCategories.find((c) => c.id === categoryId);
       if (projCat) return projCat;
     }
-    return categories.find((c) => c.id === categoryId);
-  }, [categories, categoryId, projectId, projectCategories]);
+    
+    // Check user's own categories
+    const userCategory = categories.find((c) => c.id === categoryId);
+    if (userCategory) return userCategory;
+    
+    // ISSUE #1 FIX: If category not found in loaded categories, check if task has category data embedded
+    // This handles the case when viewing a task before projectCategories are loaded
+    if (existingTask?.category) {
+      return {
+        id: categoryId || existingTask.categoryId || 'none',
+        name: typeof existingTask.category === 'string' ? existingTask.category : existingTask.category.name,
+        color: typeof existingTask.category === 'object' && existingTask.category.color 
+          ? existingTask.category.color 
+          : 'bg-gray-500',
+      };
+    }
+    
+    return undefined;
+  }, [categories, categoryId, projectId, projectCategories, existingTask]);
   
   // Load project categories when project changes
   React.useEffect(() => {
@@ -1282,6 +1318,7 @@ export function TaskModal({
                   <div className="space-y-2">
                     <Label>Исполнитель</Label>
                     <Select 
+                      key={`assignee-select-${projectId}-${availableMembersWithCurrent.length}-${JSON.stringify(availableMembersWithCurrent.map(m => m.id).sort())}`}
                       value={(() => {
                         // Проверяем, что выбранное значение есть в списке
                         if (!assigneeId) return 'unassigned';
