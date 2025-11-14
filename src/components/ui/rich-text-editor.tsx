@@ -72,7 +72,7 @@ export function RichTextEditor({
   }
 
   return (
-    <div className={`border rounded-md ${className}`}>
+    <div className={`border rounded-md focus-within:ring-2 focus-within:ring-purple-500 focus-within:ring-offset-2 ${className}`}>
       {/* Toolbar */}
       <div className="flex items-center gap-1 border-b p-2 bg-gray-50">
         <Button
@@ -130,7 +130,7 @@ export function RichTextEditor({
       {/* Editor */}
       <EditorContent 
         editor={editor} 
-        className="prose prose-sm max-w-none p-3 min-h-[120px] max-h-[300px] overflow-y-auto focus-within:ring-2 focus-within:ring-purple-500 focus-within:ring-offset-2"
+        className="prose prose-sm max-w-none p-3 min-h-[120px] max-h-[300px] overflow-y-auto"
       />
     </div>
   );
