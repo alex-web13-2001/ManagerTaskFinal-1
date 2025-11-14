@@ -1,5 +1,5 @@
+import React, { useState } from 'react';
 import { Share2, Check } from 'lucide-react';
-import { useState } from 'react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 
