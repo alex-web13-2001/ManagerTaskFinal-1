@@ -13,6 +13,7 @@ import {
   emitProjectMemberAdded 
 } from '../websocket.js';
 import emailService from '../../lib/email.js';
+import { sendProjectInvitationNotification } from '../telegram-bot.js';
 
 // --- СОЗДАНИЕ ПРИГЛАШЕНИЯ (CREATE INVITATION) ---
 export async function createInvitation(req: AuthRequest, res: Response) {
@@ -153,6 +154,27 @@ export async function createInvitation(req: AuthRequest, res: Response) {
     } catch (emailError) {
       console.error('❌ Failed to send invitation email:', emailError);
       // Не прерываем процесс, если email не отправился
+    }
+
+    // Send Telegram notification
+    try {
+      const inviterUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true },
+      });
+      
+      await sendProjectInvitationNotification(
+        invitation.email,
+        invitation.project.name,
+        inviterUser?.name || 'Пользователь',
+        invitation.role,
+        invitation.token
+      );
+      
+      console.log('✅ Telegram invitation notification sent to:', invitation.email);
+    } catch (telegramError) {
+      console.error('❌ Failed to send Telegram invitation notification:', telegramError);
+      // Не прерываем процесс, если Telegram уведомление не отправилось
     }
 
     // Return invitation with token (not id) as the public identifier
