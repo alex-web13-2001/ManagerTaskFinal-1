@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CheckCircle, MessageCircle } from 'lucide-react';
 import {
   Dialog,

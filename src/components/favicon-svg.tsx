@@ -1,3 +1,5 @@
+import React from 'react';
+
 // SVG компонент для использования в качестве favicon или в других местах
 export function FaviconSVG() {
   return (
