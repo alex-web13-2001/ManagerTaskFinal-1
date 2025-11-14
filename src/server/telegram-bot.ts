@@ -125,11 +125,11 @@ async function handleCallbackQuery(query: TelegramBot.CallbackQuery) {
     // Handle invitation responses (accept/decline)
     if (data.startsWith('accept_') || data.startsWith('decline_')) {
       const action = data.startsWith('accept_') ? 'accept' : 'decline';
-      const token = data.substring(action === 'accept' ? 7 : 8); // Remove "accept_" or "decline_"
+      const invitationId = data.substring(action === 'accept' ? 7 : 8); // Remove "accept_" or "decline_"
       
       // Find the invitation
       const invitation = await prisma.invitation.findUnique({
-        where: { token },
+        where: { id: invitationId },
         include: {
           project: true,
           invitedByUser: {
@@ -406,7 +406,7 @@ export async function sendProjectInvitationNotification(
   projectName: string,
   inviterName: string,
   role: string,
-  token: string
+  invitationId: string
 ) {
   if (!bot) {
     console.log('⚠️  Telegram bot not initialized, skipping notification');
@@ -447,8 +447,8 @@ export async function sendProjectInvitationNotification(
     const keyboard = {
       inline_keyboard: [
         [
-          { text: '✅ Принять', callback_data: `accept_${token}` },
-          { text: '❌ Отклонить', callback_data: `decline_${token}` },
+          { text: '✅ Принять', callback_data: `accept_${invitationId}` },
+          { text: '❌ Отклонить', callback_data: `decline_${invitationId}` },
         ],
       ],
     };

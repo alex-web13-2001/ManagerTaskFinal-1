@@ -168,7 +168,7 @@ export async function createInvitation(req: AuthRequest, res: Response) {
         invitation.project.name,
         inviterUser?.name || 'Пользователь',
         invitation.role,
-        invitation.token
+        invitation.id
       );
       
       console.log('✅ Telegram invitation notification sent to:', invitation.email);
