@@ -2354,7 +2354,8 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
     }
 
     // FIX Problem #2: Check task:assign permission if assigneeId is being changed
-    const { assigneeId } = req.body;
+    // const { assigneeId } = req.body; // DUPLICATE - assigneeId is extracted below on line 2390
+    const assigneeId = req.body.assigneeId; // Extract assigneeId early for permission check
     if (assigneeId !== undefined && assigneeId !== existingTask.assigneeId) {
       // User is trying to change the assignee
       if (existingTask.projectId) {
@@ -2387,7 +2388,7 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
       tags, 
       dueDate, 
       deadline, // Support both dueDate and deadline (frontend compatibility)
-      assigneeId, 
+      // assigneeId, // Already extracted above for permission check
       orderKey, 
       version,
       isRecurring,
