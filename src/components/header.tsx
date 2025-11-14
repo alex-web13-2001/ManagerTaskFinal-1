@@ -131,19 +131,19 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
         onClick={() => onNavigate('dashboard')}
       />
 
-      {/* Telegram Bot Button - moved to leftmost position after logo */}
-      <Button 
-        variant="outline" 
-        size="sm"
-        className="flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-300 ml-3"
-        onClick={() => setIsTelegramModalOpen(true)}
-      >
-        <MessageCircle className="w-4 h-4" />
-        <span className="hidden md:inline">Т24 Бот</span>
-      </Button>
-
       {/* Правая часть */}
       <div className="flex items-center gap-2 md:gap-4 ml-auto">
+        {/* Telegram Bot Button - moved to right side, left of WiFi icon */}
+        <Button 
+          variant="outline" 
+          size="sm"
+          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-300"
+          onClick={() => setIsTelegramModalOpen(true)}
+        >
+          <MessageCircle className="w-4 h-4" />
+          <span className="hidden md:inline">Т24 Бот</span>
+        </Button>
+
         {/* WebSocket connection indicator - icon only with color coding */}
         <div className="hidden md:flex items-center">
           {isWebSocketConnected ? (
