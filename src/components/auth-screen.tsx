@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Alert, AlertDescription } from './ui/alert';
 import { ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { authAPI } from '../utils/api-client';
 import { AnimatedLogo } from './logo';
 import { RegistrationSuccessPage } from './registration-success-page';
