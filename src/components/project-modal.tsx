@@ -9,8 +9,8 @@ import {
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
+import { RichTextEditor } from './ui/rich-text-editor';
 import { X, Plus, Upload, Paperclip, Link as LinkIcon, Users, UserPlus, Loader2, Download } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
@@ -265,73 +265,12 @@ export function ProjectModal({
           {/* Описание */}
           <div className="space-y-2">
             <Label htmlFor="project-description">Описание</Label>
-            <Textarea
-              id="project-description"
-              placeholder="Опишите проект подробнее"
+            <RichTextEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              onKeyDown={(e) => {
-                // ISSUE #4 FIX: Keyboard shortcuts for text formatting
-                if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-                  e.preventDefault();
-                  const textarea = e.currentTarget;
-                  const start = textarea.selectionStart;
-                  const end = textarea.selectionEnd;
-                  const selectedText = description.substring(start, end);
-                  const beforeText = description.substring(0, start);
-                  const afterText = description.substring(end);
-                  
-                  // Toggle bold: if already bold, remove **; otherwise add **
-                  let newText;
-                  if (selectedText.startsWith('**') && selectedText.endsWith('**')) {
-                    newText = selectedText.slice(2, -2);
-                  } else {
-                    newText = `**${selectedText}**`;
-                  }
-                  
-                  const newDescription = beforeText + newText + afterText;
-                  setDescription(newDescription);
-                  
-                  // Restore selection after state update
-                  setTimeout(() => {
-                    textarea.focus();
-                    textarea.setSelectionRange(start, start + newText.length);
-                  }, 0);
-                }
-                
-                if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
-                  e.preventDefault();
-                  const textarea = e.currentTarget;
-                  const start = textarea.selectionStart;
-                  const end = textarea.selectionEnd;
-                  const selectedText = description.substring(start, end);
-                  const beforeText = description.substring(0, start);
-                  const afterText = description.substring(end);
-                  
-                  // Toggle italic: if already italic, remove *; otherwise add *
-                  let newText;
-                  if (selectedText.startsWith('*') && selectedText.endsWith('*') && !selectedText.startsWith('**')) {
-                    newText = selectedText.slice(1, -1);
-                  } else {
-                    newText = `*${selectedText}*`;
-                  }
-                  
-                  const newDescription = beforeText + newText + afterText;
-                  setDescription(newDescription);
-                  
-                  // Restore selection after state update
-                  setTimeout(() => {
-                    textarea.focus();
-                    textarea.setSelectionRange(start, start + newText.length);
-                  }, 0);
-                }
-              }}
-              rows={3}
-              className="resize-none max-h-[120px] overflow-y-auto"
+              onChange={setDescription}
+              placeholder="Опишите проект подробнее"
+              className="resize-none"
             />
-            <p className="text-xs text-gray-500">
-              💡 Используйте Ctrl+B (Cmd+B) для <strong>жирного текста</strong> и Ctrl+I (Cmd+I) для <em>курсива</em>
-            </p>
           </div>
 
           {/* Цвет */}
