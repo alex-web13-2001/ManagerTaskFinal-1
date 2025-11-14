@@ -89,12 +89,19 @@ export function createRateLimiter(options: {
 
 /**
  * Strict rate limiter for authentication endpoints (signup, signin)
- * Allows 5 requests per 15 minutes per IP
+ * Allows 20 requests per 15 minutes per IP+email combination
  */
 export const authRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5,
+  max: 20,
   message: 'Слишком много попыток входа/регистрации. Попробуйте через 15 минут.',
+  keyGenerator: (req: Request) => {
+    // Generate key based on IP + email (each user gets their own limit)
+    const email = req.body?.email || '';
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    // If email is provided, use combination of IP:email, otherwise just IP
+    return email ? `${ip}:${email}`.toLowerCase() : ip;
+  },
 });
 
 /**

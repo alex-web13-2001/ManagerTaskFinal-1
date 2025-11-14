@@ -146,7 +146,6 @@ function AppRouter() {
   // Check for existing session on mount
   React.useEffect(() => {
     let isMounted = true;
-    let subscription: any = null;
 
     const checkAuth = async () => {
       try {
@@ -204,27 +203,8 @@ function AppRouter() {
 
     checkAuth();
 
-    // Listen for auth changes
-    try {
-      const { data } = authAPI.onAuthStateChange((user) => {
-        if (isMounted) {
-          setIsAuthenticated(!!user);
-        }
-      });
-      subscription = data.subscription;
-    } catch (error) {
-      console.error('Auth subscription error:', error);
-    }
-
     return () => {
       isMounted = false;
-      if (subscription) {
-        try {
-          subscription.unsubscribe();
-        } catch (error) {
-          console.error('Error unsubscribing:', error);
-        }
-      }
     };
   }, [location.pathname, location.search]);
 
