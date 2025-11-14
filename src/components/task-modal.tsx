@@ -156,7 +156,44 @@ export function TaskModal({
   const isViewMode = mode === 'view';
   const isCreateMode = mode === 'create';
 
-  // Debug: log every render
+  // Загрузка данных задачи для режима просмотра/редактирования
+  const existingTask = taskId && !isCreateMode ? tasks.find(t => t.id === taskId) : null;
+  
+  // Проверка прав на удаление задачи с использованием context helper
+  const canDelete = React.useMemo(() => {
+    if (!existingTask) return false;
+    return canDeleteTask(existingTask);
+  }, [existingTask, canDeleteTask]);
+
+  // Form state - ALL useState declarations BEFORE useEffect hooks to prevent TDZ errors
+  const [title, setTitle] = React.useState(existingTask?.title || '');
+  const [description, setDescription] = React.useState(existingTask?.description || '');
+  const [projectId, setProjectId] = React.useState(existingTask?.projectId || initialProject || 'personal');
+  const [categoryId, setCategoryId] = React.useState(existingTask?.categoryId || 'none');
+  const [priority, setPriority] = React.useState(existingTask?.priority || 'medium');
+  const [status, setStatus] = React.useState(existingTask?.status || 'todo');
+  const [assigneeId, setAssigneeId] = React.useState(existingTask?.assigneeId || '');
+  const [dueDate, setDueDate] = React.useState<Date | undefined>(
+    existingTask?.deadline ? new Date(existingTask.deadline) : undefined
+  );
+  const [tags, setTags] = React.useState<string[]>(existingTask?.tags || []);
+  const [newTag, setNewTag] = React.useState('');
+  const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
+  const [isUploadingFiles, setIsUploadingFiles] = React.useState(false);
+  // Поля для повторяющихся задач
+  const [isRecurring, setIsRecurring] = React.useState(existingTask?.isRecurring || false);
+  const [recurringStartDate, setRecurringStartDate] = React.useState<Date | undefined>(
+    existingTask?.recurringStartDate ? new Date(existingTask.recurringStartDate) : undefined
+  );
+  const [recurringIntervalDays, setRecurringIntervalDays] = React.useState<number>(
+    existingTask?.recurringIntervalDays || 1
+  );
+  
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
+  const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [customColumns, setCustomColumns] = React.useState<Array<{ id: string; title: string; color: string }>>([]);
+
+  // Debug: log every render - NOW projectId and assigneeId are declared
   React.useEffect(() => {
     console.log('🔄 TaskModal render:', {
       mode,
@@ -191,43 +228,6 @@ export function TaskModal({
       });
     }
   }, [projects, teamMembers, open, projectId]);
-
-  // Загрузка данных задачи для режима просмотра/редактирования
-  const existingTask = taskId && !isCreateMode ? tasks.find(t => t.id === taskId) : null;
-  
-  // Проверка прав на удаление задачи с использованием context helper
-  const canDelete = React.useMemo(() => {
-    if (!existingTask) return false;
-    return canDeleteTask(existingTask);
-  }, [existingTask, canDeleteTask]);
-
-  // Form state
-  const [title, setTitle] = React.useState(existingTask?.title || '');
-  const [description, setDescription] = React.useState(existingTask?.description || '');
-  const [projectId, setProjectId] = React.useState(existingTask?.projectId || initialProject || 'personal');
-  const [categoryId, setCategoryId] = React.useState(existingTask?.categoryId || 'none');
-  const [priority, setPriority] = React.useState(existingTask?.priority || 'medium');
-  const [status, setStatus] = React.useState(existingTask?.status || 'todo');
-  const [assigneeId, setAssigneeId] = React.useState(existingTask?.assigneeId || '');
-  const [dueDate, setDueDate] = React.useState<Date | undefined>(
-    existingTask?.deadline ? new Date(existingTask.deadline) : undefined
-  );
-  const [tags, setTags] = React.useState<string[]>(existingTask?.tags || []);
-  const [newTag, setNewTag] = React.useState('');
-  const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
-  const [isUploadingFiles, setIsUploadingFiles] = React.useState(false);
-  // Поля для повторяющихся задач
-  const [isRecurring, setIsRecurring] = React.useState(existingTask?.isRecurring || false);
-  const [recurringStartDate, setRecurringStartDate] = React.useState<Date | undefined>(
-    existingTask?.recurringStartDate ? new Date(existingTask.recurringStartDate) : undefined
-  );
-  const [recurringIntervalDays, setRecurringIntervalDays] = React.useState<number>(
-    existingTask?.recurringIntervalDays || 1
-  );
-  
-  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
-  const [errors, setErrors] = React.useState<Record<string, string>>({});
-  const [customColumns, setCustomColumns] = React.useState<Array<{ id: string; title: string; color: string }>>([]);
 
   // Load custom columns from localStorage
   React.useEffect(() => {
