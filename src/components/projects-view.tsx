@@ -428,10 +428,6 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
                 </CardHeader>
 
                 <CardContent className="space-y-3">
-                  <p className="text-sm text-gray-600 line-clamp-2">
-                    {project.description || 'Нет описания'}
-                  </p>
-
                   {/* Роль пользователя */}
                   <div>
                     <Badge variant="outline" className={roleColors[project.userRole]}>

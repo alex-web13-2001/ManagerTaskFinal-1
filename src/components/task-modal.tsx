@@ -1020,6 +1020,16 @@ export function TaskModal({
                       </div>
                     </div>
                   )}
+
+                  {(selectedCategory && selectedCategory.id !== 'none') || existingTask.category ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Tag className="w-4 h-4 text-gray-500" />
+                      <span className="text-gray-600">Категория:</span>
+                      <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300">
+                        {selectedCategory?.name || (typeof existingTask.category === 'string' ? existingTask.category : existingTask.category?.name) || 'Без категории'}
+                      </Badge>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="space-y-3">
