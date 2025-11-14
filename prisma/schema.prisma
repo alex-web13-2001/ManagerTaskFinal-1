@@ -21,6 +21,12 @@ model User {
   emailVerificationToken String?
   resetPasswordToken    String?
   resetPasswordExpires  DateTime?
+  
+  // Telegram integration fields
+  telegramChatId        String?   @unique  // Telegram Chat ID for sending messages
+  telegramUsername      String?            // Username in Telegram
+  telegramLinkedAt      DateTime?          // When the account was linked
+  
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -32,6 +38,7 @@ model User {
   receivedInvitations   Invitation[]
   customColumns         CustomColumn[]
   categories            Category[]
+  telegramLinkToken     TelegramLinkToken?
 
   @@map("users")
 }
@@ -196,4 +203,17 @@ model Category {
   @@unique([userId, name])
   @@index([userId])
   @@map("categories")
+}
+
+// TelegramLinkToken model - stores temporary tokens for linking Telegram accounts
+model TelegramLinkToken {
+  id          String   @id @default(uuid())
+  token       String   @unique  // Unique code for linking (format: LINK-ABC123)
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime // Expires after 15 minutes
+  createdAt   DateTime @default(now())
+  
+  @@index([token])
+  @@map("telegram_link_tokens")
 }

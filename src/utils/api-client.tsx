@@ -1110,3 +1110,73 @@ export const categoriesAPI = {
     return categories;
   },
 };
+
+
+// ========== TELEGRAM API ==========
+
+export const telegramAPI = {
+  /**
+   * Get Telegram connection status
+   */
+  async getStatus(): Promise<{
+    linked: boolean;
+    username?: string;
+    linkedAt?: string;
+  }> {
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE_URL}/api/telegram/status`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!res.ok) {
+      throw new Error('Failed to get Telegram status');
+    }
+    
+    return res.json();
+  },
+
+  /**
+   * Generate token for linking Telegram account
+   */
+  async generateLinkToken(): Promise<{
+    linked: boolean;
+    token?: string;
+    expiresAt?: string;
+    username?: string;
+  }> {
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE_URL}/api/telegram/generate-link-token`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!res.ok) {
+      throw new Error('Failed to generate link token');
+    }
+    
+    return res.json();
+  },
+
+  /**
+   * Unlink Telegram account
+   */
+  async unlink(): Promise<{ success: boolean }> {
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE_URL}/api/telegram/unlink`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!res.ok) {
+      throw new Error('Failed to unlink Telegram');
+    }
+    
+    return res.json();
+  },
+};

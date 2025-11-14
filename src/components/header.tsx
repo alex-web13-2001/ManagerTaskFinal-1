@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Bell, Wifi, WifiOff } from 'lucide-react';
+import { Plus, Bell, Wifi, WifiOff, MessageCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { RealtimeIndicator } from './realtime-indicator';
 import { Logo } from './logo';
 import { InvitationsModal } from './invitations-modal';
+import { TelegramLinkModal } from './telegram-link-modal';
 
 type HeaderProps = {
   onCreateTask: () => void;
@@ -31,6 +32,7 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
   const { isConnected: isWebSocketConnected, on, off } = useWebSocketContext();
   const [pendingInvitations, setPendingInvitations] = React.useState<any[]>([]);
   const [isInvitationsModalOpen, setIsInvitationsModalOpen] = React.useState(false);
+  const [isTelegramModalOpen, setIsTelegramModalOpen] = React.useState(false);
 
   const getInitials = (name?: string) => {
     if (!name) return 'U';
@@ -143,6 +145,17 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
           <span className="hidden md:inline">Новая задача</span>
         </Button>
 
+        {/* Telegram Bot Button */}
+        <Button 
+          variant="ghost" 
+          size="sm"
+          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+          onClick={() => setIsTelegramModalOpen(true)}
+        >
+          <MessageCircle className="w-5 h-5" />
+          <span className="hidden md:inline">Т24 Бот</span>
+        </Button>
+
         {/* Уведомления о приглашениях */}
         <Button 
           variant="ghost" 
@@ -200,6 +213,12 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
         open={isInvitationsModalOpen}
         onOpenChange={setIsInvitationsModalOpen}
         onInvitationAccepted={handleInvitationAccepted}
+      />
+
+      {/* Telegram Link Modal */}
+      <TelegramLinkModal
+        open={isTelegramModalOpen}
+        onOpenChange={setIsTelegramModalOpen}
       />
     </header>
   );
