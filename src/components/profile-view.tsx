@@ -10,7 +10,7 @@ import { Separator } from './ui/separator';
 import { useApp } from '../contexts/app-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 // Removed: import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 export function ProfileView() {

@@ -26,7 +26,7 @@ import { useApp } from '../contexts/app-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { KanbanBoardSkeleton } from './kanban-skeleton';
 import { compareOrderKeys } from '../utils/orderKey';
 import { useKanbanDnD } from '../hooks/useKanbanDnD';
