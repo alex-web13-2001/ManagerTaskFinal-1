@@ -35,6 +35,7 @@ import {
   emitProjectMemberRemoved
 } from './websocket.js';
 import { startRecurringTaskProcessor } from './recurringTaskProcessor.js';
+import { initializeTelegramBot, sendTaskAssignedNotification } from './telegram-bot.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -2304,6 +2305,18 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
     const transformedTask = transformTaskForResponse(task);
     emitTaskCreated(transformedTask, task.projectId || undefined);
 
+    // Send Telegram notification if task is assigned to someone else
+    if (task.assigneeId && task.assigneeId !== userId) {
+      await sendTaskAssignedNotification(task.assigneeId, {
+        id: task.id,
+        title: task.title,
+        description: task.description || undefined,
+        priority: task.priority,
+        projectName: task.project?.name,
+        assignerName: task.creator.name,
+      });
+    }
+
     // Transform task for response (field mapping for frontend compatibility)
     res.status(201).json(transformedTask);
   } catch (error: any) {
@@ -2454,6 +2467,21 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
     // If status changed, also emit task:moved for drag-and-drop visualization
     if (status !== undefined && status !== existingTask.status) {
       emitTaskMoved(taskId, existingTask.status, status, updatedTask.projectId || undefined);
+    }
+
+    // Send Telegram notification if assignee changed and task is assigned to someone else
+    if (assigneeId !== undefined && 
+        assigneeId !== existingTask.assigneeId && 
+        assigneeId && 
+        assigneeId !== userId) {
+      await sendTaskAssignedNotification(assigneeId, {
+        id: updatedTask.id,
+        title: updatedTask.title,
+        description: updatedTask.description || undefined,
+        priority: updatedTask.priority,
+        projectName: updatedTask.project?.name,
+        assignerName: req.user!.name,
+      });
     }
 
     // Transform task for response (field mapping for frontend compatibility)
@@ -2703,6 +2731,109 @@ apiRouter.post('/tasks/check-permissions', async (req: AuthRequest, res: Respons
   }
 });
 
+// ========== TELEGRAM BOT ENDPOINTS ==========
+
+/**
+ * POST /api/telegram/generate-link-token
+ * Generate a token for linking Telegram account
+ */
+apiRouter.post('/telegram/generate-link-token', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    
+    // Check if account is already linked
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { telegramChatId: true, telegramUsername: true },
+    });
+    
+    if (user?.telegramChatId) {
+      return res.json({
+        linked: true,
+        username: user.telegramUsername,
+      });
+    }
+    
+    // Delete any existing token for this user
+    await prisma.telegramLinkToken.deleteMany({
+      where: { userId },
+    });
+    
+    // Generate new token (format: LINK-ABC123)
+    const token = `LINK-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    
+    await prisma.telegramLinkToken.create({
+      data: {
+        token,
+        userId,
+        expiresAt,
+      },
+    });
+    
+    res.json({
+      linked: false,
+      token,
+      expiresAt,
+    });
+  } catch (error) {
+    console.error('Generate link token error:', error);
+    res.status(500).json({ error: 'Failed to generate link token' });
+  }
+});
+
+/**
+ * GET /api/telegram/status
+ * Get Telegram connection status
+ */
+apiRouter.get('/telegram/status', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        telegramChatId: true,
+        telegramUsername: true,
+        telegramLinkedAt: true,
+      },
+    });
+    
+    res.json({
+      linked: !!user?.telegramChatId,
+      username: user?.telegramUsername,
+      linkedAt: user?.telegramLinkedAt,
+    });
+  } catch (error) {
+    console.error('Get Telegram status error:', error);
+    res.status(500).json({ error: 'Failed to get Telegram status' });
+  }
+});
+
+/**
+ * POST /api/telegram/unlink
+ * Unlink Telegram account
+ */
+apiRouter.post('/telegram/unlink', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        telegramChatId: null,
+        telegramUsername: null,
+        telegramLinkedAt: null,
+      },
+    });
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Unlink Telegram error:', error);
+    res.status(500).json({ error: 'Failed to unlink Telegram' });
+  }
+});
+
 // ========== MOUNT API ROUTER ==========
 // Mount all protected routes under /api
 app.use('/api', apiRouter);
@@ -2742,6 +2873,9 @@ if (isMainModule()) {
   
   // Initialize WebSocket server
   initializeWebSocket(httpServer);
+  
+  // Initialize Telegram bot
+  initializeTelegramBot();
   
   // Start listening
   httpServer.listen(PORT, () => {
