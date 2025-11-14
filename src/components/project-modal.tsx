@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
 import { toast } from 'sonner';
 import { useApp, type ProjectLink, type ProjectAttachment } from '../contexts/app-context';
+import { truncateUrl } from '../utils/truncate-url';
 
 type ProjectModalMode = 'create' | 'edit';
 
@@ -45,18 +46,6 @@ const roleLabels: Record<string, string> = {
   member: 'Участник',
   viewer: 'Наблюдатель',
 };
-
-// ISSUE #2 FIX: Helper function to truncate long URLs
-const truncateUrl = (url: string, maxLength: number = 60): string => {
-  if (url.length <= maxLength) return url;
-  
-  // Smart truncation: beginning + "..." + end
-  const startLength = Math.floor(maxLength * 0.6); // 36 characters
-  const endLength = Math.floor(maxLength * 0.3);   // 18 characters
-  
-  return `${url.slice(0, startLength)}...${url.slice(-endLength)}`;
-};
-
 
 export function ProjectModal({
   open,

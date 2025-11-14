@@ -25,6 +25,7 @@ import { useApp } from '../contexts/app-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { toast } from 'sonner@2.0.3';
+import { truncateUrl } from '../utils/truncate-url';
 
 const roleLabels: Record<string, string> = {
   owner: 'Владелец',
@@ -55,17 +56,6 @@ const getColorClass = (color?: string) => {
     indigo: 'bg-indigo-500',
   };
   return colorMap[color || ''] || 'bg-gray-500';
-};
-
-// Helper to smartly truncate long URLs
-const truncateUrl = (url: string, maxLength: number = 60): string => {
-  if (url.length <= maxLength) return url;
-  
-  // Smart truncation: beginning + "..." + end
-  const startLength = Math.floor(maxLength * 0.6); // 36 characters
-  const endLength = Math.floor(maxLength * 0.3);   // 18 characters
-  
-  return `${url.slice(0, startLength)}...${url.slice(-endLength)}`;
 };
 
 export function ProjectAboutModal({
