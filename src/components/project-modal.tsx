@@ -46,6 +46,17 @@ const roleLabels: Record<string, string> = {
   viewer: 'Наблюдатель',
 };
 
+// ISSUE #2 FIX: Helper function to truncate long URLs
+const truncateUrl = (url: string, maxLength: number = 60): string => {
+  if (url.length <= maxLength) return url;
+  
+  // Smart truncation: beginning + "..." + end
+  const startLength = Math.floor(maxLength * 0.6); // 36 characters
+  const endLength = Math.floor(maxLength * 0.3);   // 18 characters
+  
+  return `${url.slice(0, startLength)}...${url.slice(-endLength)}`;
+};
+
 
 export function ProjectModal({
   open,
@@ -270,8 +281,68 @@ export function ProjectModal({
               placeholder="Опишите проект подробнее"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              onKeyDown={(e) => {
+                // ISSUE #4 FIX: Keyboard shortcuts for text formatting
+                if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+                  e.preventDefault();
+                  const textarea = e.currentTarget;
+                  const start = textarea.selectionStart;
+                  const end = textarea.selectionEnd;
+                  const selectedText = description.substring(start, end);
+                  const beforeText = description.substring(0, start);
+                  const afterText = description.substring(end);
+                  
+                  // Toggle bold: if already bold, remove **; otherwise add **
+                  let newText;
+                  if (selectedText.startsWith('**') && selectedText.endsWith('**')) {
+                    newText = selectedText.slice(2, -2);
+                  } else {
+                    newText = `**${selectedText}**`;
+                  }
+                  
+                  const newDescription = beforeText + newText + afterText;
+                  setDescription(newDescription);
+                  
+                  // Restore selection after state update
+                  setTimeout(() => {
+                    textarea.focus();
+                    textarea.setSelectionRange(start, start + newText.length);
+                  }, 0);
+                }
+                
+                if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+                  e.preventDefault();
+                  const textarea = e.currentTarget;
+                  const start = textarea.selectionStart;
+                  const end = textarea.selectionEnd;
+                  const selectedText = description.substring(start, end);
+                  const beforeText = description.substring(0, start);
+                  const afterText = description.substring(end);
+                  
+                  // Toggle italic: if already italic, remove *; otherwise add *
+                  let newText;
+                  if (selectedText.startsWith('*') && selectedText.endsWith('*') && !selectedText.startsWith('**')) {
+                    newText = selectedText.slice(1, -1);
+                  } else {
+                    newText = `*${selectedText}*`;
+                  }
+                  
+                  const newDescription = beforeText + newText + afterText;
+                  setDescription(newDescription);
+                  
+                  // Restore selection after state update
+                  setTimeout(() => {
+                    textarea.focus();
+                    textarea.setSelectionRange(start, start + newText.length);
+                  }, 0);
+                }
+              }}
               rows={3}
+              className="resize-none max-h-[120px] overflow-y-auto"
             />
+            <p className="text-xs text-gray-500">
+              💡 Используйте Ctrl+B (Cmd+B) для <strong>жирного текста</strong> и Ctrl+I (Cmd+I) для <em>курсива</em>
+            </p>
           </div>
 
           {/* Цвет */}
@@ -336,16 +407,16 @@ export function ProjectModal({
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <LinkIcon className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate" title={link.name}>{link.name}</p>
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <p className="text-sm font-medium truncate whitespace-nowrap overflow-hidden text-ellipsis" title={link.name}>{link.name}</p>
                         <a 
                           href={link.url} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-700 truncate block"
+                          className="text-xs text-blue-600 hover:text-blue-700 block whitespace-nowrap overflow-hidden text-ellipsis max-w-[400px]"
                           title={link.url}
                         >
-                          {link.url}
+                          {truncateUrl(link.url, 50)}
                         </a>
                       </div>
                     </div>
