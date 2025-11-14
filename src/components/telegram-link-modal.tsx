@@ -48,12 +48,33 @@ export function TelegramLinkModal({ open, onOpenChange }: TelegramLinkModalProps
     }
   };
 
-  const handleCopyToken = () => {
-    if (linkToken) {
-      navigator.clipboard.writeText(linkToken);
-      setCopied(true);
-      toast.success('Код скопирован в буфер обмена');
-      setTimeout(() => setCopied(false), 2000);
+  const handleCopyToken = async () => {
+    if (!linkToken) return;
+    
+    try {
+      // Попытка современного API
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(linkToken);
+        setCopied(true);
+        toast.success('Код скопирован в буфер обмена');
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        // Fallback для старых браузеров
+        const textArea = document.createElement('textarea');
+        textArea.value = linkToken;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        setCopied(true);
+        toast.success('Код скопирован');
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      toast.error('Не удалось скопировать. Выделите код вручную.');
     }
   };
 
@@ -155,7 +176,11 @@ export function TelegramLinkModal({ open, onOpenChange }: TelegramLinkModalProps
           <div className="space-y-2">
             <label className="text-sm font-medium">Код подключения:</label>
             <div className="flex gap-2">
-              <div className="flex-1 bg-gray-100 border rounded-lg px-4 py-3 font-mono text-lg text-center">
+              <div 
+                className="flex-1 bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 font-mono text-lg text-center text-gray-900 font-bold select-all cursor-pointer hover:bg-gray-200 transition-colors"
+                onClick={handleCopyToken}
+                title="Нажмите для копирования"
+              >
                 {linkToken}
               </div>
               <Button
@@ -171,6 +196,12 @@ export function TelegramLinkModal({ open, onOpenChange }: TelegramLinkModalProps
                 )}
               </Button>
             </div>
+            {copied && (
+              <p className="text-xs text-green-600 font-medium mt-1 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" />
+                Код скопирован в буфер обмена
+              </p>
+            )}
             {expiresAt && (
               <p className="text-xs text-gray-500">
                 Код действителен до: {expiresAt.toLocaleTimeString('ru-RU')}
