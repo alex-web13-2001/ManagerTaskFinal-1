@@ -26,6 +26,7 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { truncateUrl } from '../utils/truncate-url';
+import { sanitizeHtml } from '../utils/sanitize-html';
 
 const roleLabels: Record<string, string> = {
   owner: 'Владелец',
@@ -158,7 +159,10 @@ export function ProjectAboutModal({
             <>
               <div>
                 <h4 className="mb-2">Описание проекта</h4>
-                <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap max-h-[300px] overflow-y-auto break-words">{project.description}</p>
+                <div 
+                  className="text-sm text-gray-600 leading-relaxed max-h-[300px] overflow-y-auto break-words prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(project.description) }}
+                />
               </div>
               <Separator />
             </>

@@ -9,8 +9,8 @@ import {
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
+import { RichTextEditor } from './ui/rich-text-editor';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
 import {
@@ -53,6 +53,7 @@ import {
 import { useApp } from '../contexts/app-context';
 import { Checkbox } from './ui/checkbox';
 import { ShareButton } from './share-button';
+import { sanitizeHtml } from '../utils/sanitize-html';
 
 type TaskModalMode = 'create' | 'view' | 'edit';
 
@@ -1068,9 +1069,10 @@ export function TaskModal({
               {description && (
                 <div>
                   <h4 className="mb-2">Описание</h4>
-                  <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-                    {description}
-                  </p>
+                  <div 
+                    className="text-sm text-gray-600 leading-relaxed prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(description) }}
+                  />
                 </div>
               )}
 
@@ -1185,16 +1187,11 @@ export function TaskModal({
 
               <div className="space-y-2">
                 <Label htmlFor="task-description">Описание</Label>
-                <Textarea
-                  id="task-description"
-                  placeholder="Опишите задачу подробнее. Вы можете добавлять ссылки - они будут активными."
+                <RichTextEditor
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={5}
+                  onChange={setDescription}
+                  placeholder="Опишите задачу подробнее"
                 />
-                <p className="text-xs text-gray-500">
-                  Ссылки будут автоматически распознаны и станут активными
-                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
