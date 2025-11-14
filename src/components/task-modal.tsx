@@ -575,8 +575,14 @@ export function TaskModal({
   }, [projectId, projects]);
   
   const selectedCategory = React.useMemo(() => {
+    // For project tasks, search in projectCategories first, then fallback to categories
+    // This ensures the category is found even when viewing a task before project categories are loaded
+    if (projectId && projectId !== 'personal' && projectCategories.length > 0) {
+      const projCat = projectCategories.find((c) => c.id === categoryId);
+      if (projCat) return projCat;
+    }
     return categories.find((c) => c.id === categoryId);
-  }, [categories, categoryId]);
+  }, [categories, categoryId, projectId, projectCategories]);
   
   // Load project categories when project changes
   React.useEffect(() => {

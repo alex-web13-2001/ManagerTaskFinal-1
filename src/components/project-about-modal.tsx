@@ -57,6 +57,17 @@ const getColorClass = (color?: string) => {
   return colorMap[color || ''] || 'bg-gray-500';
 };
 
+// Helper to smartly truncate long URLs
+const truncateUrl = (url: string, maxLength: number = 60): string => {
+  if (url.length <= maxLength) return url;
+  
+  // Smart truncation: beginning + "..." + end
+  const startLength = Math.floor(maxLength * 0.6); // 36 characters
+  const endLength = Math.floor(maxLength * 0.3);   // 18 characters
+  
+  return `${url.slice(0, startLength)}...${url.slice(-endLength)}`;
+};
+
 export function ProjectAboutModal({
   open,
   onOpenChange,
@@ -157,7 +168,7 @@ export function ProjectAboutModal({
             <>
               <div>
                 <h4 className="mb-2">Описание проекта</h4>
-                <p className="text-sm text-gray-600 leading-relaxed">{project.description}</p>
+                <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap max-h-[300px] overflow-y-auto break-words">{project.description}</p>
               </div>
               <Separator />
             </>
@@ -184,7 +195,7 @@ export function ProjectAboutModal({
                         <LinkIcon className="w-4 h-4 text-gray-500 flex-shrink-0" />
                         <div className="flex-1 min-w-0 overflow-hidden">
                           <p className="text-sm truncate whitespace-nowrap overflow-hidden text-ellipsis">{link.name}</p>
-                          <p className="text-xs text-gray-500 truncate whitespace-nowrap overflow-hidden text-ellipsis">{link.url}</p>
+                          <p className="text-xs text-gray-500 truncate whitespace-nowrap overflow-hidden text-ellipsis" title={link.url}>{truncateUrl(link.url, 60)}</p>
                         </div>
                       </div>
                       <LinkIcon className="w-4 h-4 text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
@@ -270,9 +281,24 @@ export function ProjectAboutModal({
           {members.length > 0 && (
             <>
               <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Users className="w-4 h-4" />
-                  <h4>Участники проекта ({members.length})</h4>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    <h4>Участники проекта ({members.length})</h4>
+                  </div>
+                  {canEdit && onManageMembers && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        onManageMembers();
+                        onOpenChange(false);
+                      }}
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      Управление участниками
+                    </Button>
+                  )}
                 </div>
                 <div className="space-y-2">
                   {members.map((member) => {
@@ -400,19 +426,6 @@ export function ProjectAboutModal({
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
               Закрыть
             </Button>
-            {isOwner && onManageMembers && (
-              <Button
-                onClick={() => {
-                  onManageMembers();
-                  onOpenChange(false);
-                }}
-                variant="outline"
-                className="flex-1"
-              >
-                <Users className="w-4 h-4 mr-2" />
-                Управление участниками
-              </Button>
-            )}
             {canEdit && onEdit && (
               <Button
                 onClick={() => {
