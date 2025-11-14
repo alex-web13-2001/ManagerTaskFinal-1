@@ -105,6 +105,19 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
     await refreshData(); // Refresh projects list and tasks
   };
 
+  // Listen for custom event to open Telegram modal
+  React.useEffect(() => {
+    const handleOpenTelegramModal = () => {
+      setIsTelegramModalOpen(true);
+    };
+
+    window.addEventListener('openTelegramModal', handleOpenTelegramModal);
+
+    return () => {
+      window.removeEventListener('openTelegramModal', handleOpenTelegramModal);
+    };
+  }, []);
+
   return (
     <header className="fixed top-0 left-0 right-0 h-16 bg-white border-b z-50 flex items-center px-4 md:px-6">
       {/* Мобильное меню */}
