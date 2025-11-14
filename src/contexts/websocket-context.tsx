@@ -13,6 +13,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const { 
     fetchTasks, 
     fetchProjects,
+    fetchTeamMembers,
     currentUser,
     tasks,
     setTasks
@@ -116,8 +117,9 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     const handleInviteAccepted = (data: { invitationId: string; projectId: string; userId: string }) => {
       console.log('📥 WebSocket: invite:accepted', data);
       
-      // Refresh projects when someone accepts an invitation
+      // Refresh projects and team members when someone accepts an invitation
       fetchProjects();
+      fetchTeamMembers();
     };
 
     // Subscribe to invitation events
@@ -129,7 +131,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       websocket.off('invite:received', handleInviteReceived);
       websocket.off('invite:accepted', handleInviteAccepted);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, currentUser, fetchProjects]);
+  }, [websocket.isConnected, websocket.on, websocket.off, currentUser, fetchProjects, fetchTeamMembers]);
 
   // Handle project events
   useEffect(() => {
@@ -145,8 +147,9 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     const handleProjectMemberAdded = (data: { projectId: string; member: any }) => {
       console.log('📥 WebSocket: project:member_added', data);
       
-      // Refresh projects to get updated member list
+      // Refresh projects and team members to get updated member list
       fetchProjects();
+      fetchTeamMembers();
       
       toast.info(`New member joined: ${data.member.user?.name || data.member.email}`);
     };
@@ -169,7 +172,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       websocket.off('project:member_added', handleProjectMemberAdded);
       websocket.off('project:member_removed', handleProjectMemberRemoved);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, fetchProjects]);
+  }, [websocket.isConnected, websocket.on, websocket.off, fetchProjects, fetchTeamMembers]);
 
   // Handle user status events
   useEffect(() => {

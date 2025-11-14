@@ -825,7 +825,7 @@ export function TaskModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto" hideCloseButton={isViewMode}>
           <DialogHeader>
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">

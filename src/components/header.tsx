@@ -131,20 +131,25 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
         onClick={() => onNavigate('dashboard')}
       />
 
+      {/* Telegram Bot Button - moved to leftmost position after logo */}
+      <Button 
+        variant="outline" 
+        size="sm"
+        className="flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-300 ml-3"
+        onClick={() => setIsTelegramModalOpen(true)}
+      >
+        <MessageCircle className="w-4 h-4" />
+        <span className="hidden md:inline">Т24 Бот</span>
+      </Button>
+
       {/* Правая часть */}
       <div className="flex items-center gap-2 md:gap-4 ml-auto">
-        {/* WebSocket connection indicator */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 text-sm">
+        {/* WebSocket connection indicator - icon only with color coding */}
+        <div className="hidden md:flex items-center">
           {isWebSocketConnected ? (
-            <>
-              <Wifi className="w-4 h-4 text-green-500" />
-              <span className="text-gray-700">Connected</span>
-            </>
+            <Wifi className="w-5 h-5 text-green-500" title="Подключено" />
           ) : (
-            <>
-              <WifiOff className="w-4 h-4 text-gray-400" />
-              <span className="text-gray-500">Offline</span>
-            </>
+            <WifiOff className="w-5 h-5 text-red-500" title="Отключено" />
           )}
         </div>
 
@@ -156,17 +161,6 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
         >
           <Plus className="w-4 h-4 md:mr-2" />
           <span className="hidden md:inline">Новая задача</span>
-        </Button>
-
-        {/* Telegram Bot Button */}
-        <Button 
-          variant="ghost" 
-          size="sm"
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-          onClick={() => setIsTelegramModalOpen(true)}
-        >
-          <MessageCircle className="w-5 h-5" />
-          <span className="hidden md:inline">Т24 Бот</span>
         </Button>
 
         {/* Уведомления о приглашениях */}

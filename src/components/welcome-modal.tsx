@@ -43,7 +43,7 @@ export function WelcomeModal() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="w-[90%] sm:w-auto sm:max-w-md">
+      <DialogContent className="max-w-[600px]">
         <DialogHeader>
           <div className="flex justify-center mb-4">
             <CheckCircle className="w-16 h-16 text-green-600" />
@@ -74,7 +74,7 @@ export function WelcomeModal() {
               </p>
               <Button
                 onClick={handleOpenTelegram}
-                className="w-full bg-blue-600 hover:bg-blue-700"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 size="sm"
               >
                 Подключить сейчас

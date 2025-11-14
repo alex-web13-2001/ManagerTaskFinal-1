@@ -332,13 +332,21 @@ export function ProjectModal({
                 {links.map((link) => (
                   <div
                     key={link.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg gap-2"
                   >
-                    <div className="flex items-center gap-3 flex-1 min-w-0 max-w-[400px]">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                       <LinkIcon className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                      <div className="flex-1 min-w-0 overflow-hidden">
-                        <p className="text-sm truncate whitespace-nowrap overflow-hidden text-ellipsis">{link.name}</p>
-                        <p className="text-xs text-gray-500 truncate whitespace-nowrap overflow-hidden text-ellipsis">{link.url}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" title={link.name}>{link.name}</p>
+                        <a 
+                          href={link.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-700 truncate block"
+                          title={link.url}
+                        >
+                          {link.url}
+                        </a>
                       </div>
                     </div>
                     <Button
@@ -346,7 +354,7 @@ export function ProjectModal({
                       variant="ghost"
                       size="sm"
                       onClick={() => removeLink(link.id)}
-                      className="text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 flex-shrink-0"
                     >
                       <X className="w-4 h-4" />
                     </Button>
@@ -554,22 +562,6 @@ export function ProjectModal({
                     </p>
                   )}
                 </div>
-
-                {onManageMembers && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      onManageMembers();
-                      onOpenChange(false);
-                    }}
-                    className="w-full"
-                  >
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Пригласить участника
-                  </Button>
-                )}
               </div>
             </>
           )}
