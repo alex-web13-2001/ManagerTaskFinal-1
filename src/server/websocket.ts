@@ -317,6 +317,30 @@ export function emitProjectMemberRemoved(projectId: string, memberId: string) {
   console.log(`📤 Emitted ${event} to room ${room}`);
 }
 
+/**
+ * Emit comment added event
+ */
+export function emitCommentAdded(taskId: string, comment: any, projectId?: string) {
+  const io = getIO();
+  if (!io) return;
+
+  const event = {
+    taskId,
+    comment,
+    timestamp: new Date().toISOString()
+  };
+
+  if (projectId) {
+    // Broadcast to project room
+    io.to(`project:${projectId}`).emit('comment:added', event);
+    console.log(`📡 [WebSocket] Broadcasted comment:added to project:${projectId}`);
+  } else {
+    // Broadcast globally for personal tasks
+    io.emit('comment:added', event);
+    console.log(`📡 [WebSocket] Broadcasted comment:added globally`);
+  }
+}
+
 export default {
   initializeWebSocket,
   getIO,
@@ -331,4 +355,5 @@ export default {
   emitProjectUpdated,
   emitProjectMemberAdded,
   emitProjectMemberRemoved,
+  emitCommentAdded,
 };
