@@ -2707,11 +2707,13 @@ apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) =>
 
     console.log(`💬 Comment added to task ${id} by user ${userId}`);
     res.json({
-      id: comment.id,
-      text: comment.text,
-      createdBy: comment.createdBy,
-      createdAt: comment.createdAt.toISOString(),
-      user: comment.user
+      comment: {
+        id: comment.id,
+        text: comment.text,
+        createdBy: comment.createdBy,
+        createdAt: comment.createdAt.toISOString(),
+        user: comment.user
+      }
     });
   } catch (error: any) {
     console.error('Error adding comment:', error);
