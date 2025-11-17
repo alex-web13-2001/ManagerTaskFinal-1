@@ -69,6 +69,13 @@ export interface TaskAttachment {
   uploadedBy: string;
 }
 
+export interface Comment {
+  id: string;
+  text: string;
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -82,6 +89,7 @@ export interface Task {
   userId?: string; // Создатель задачи
   tags?: string[];
   attachments?: TaskAttachment[];
+  comments?: Comment[];
   completed?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -190,6 +198,7 @@ interface AppContextType {
   uploadTaskAttachment: (taskId: string, file: File) => Promise<TaskAttachment>;
   uploadMultipleTaskAttachments: (taskId: string, files: File[]) => Promise<TaskAttachment[]>;
   deleteTaskAttachment: (taskId: string, attachmentId: string) => Promise<void>;
+  addTaskComment: (taskId: string, text: string) => Promise<Comment>;
   uploadProjectAttachment: (projectId: string, file: File) => Promise<any>;
   deleteProjectAttachment: (projectId: string, attachmentId: string) => Promise<void>;
   createProject: (projectData: Partial<Project>) => Promise<Project>;
@@ -1191,6 +1200,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const addTaskComment = async (taskId: string, text: string): Promise<Comment> => {
+    try {
+      const { comment } = await tasksAPI.addComment(taskId, text);
+      
+      // Update task in state, adding the new comment
+      setTasks((prev) => prev.map((t) => {
+        if (t.id === taskId) {
+          return {
+            ...t,
+            comments: [...(t.comments || []), comment],
+          };
+        }
+        return t;
+      }));
+      
+      return comment;
+    } catch (error: any) {
+      console.error('Add comment error:', error);
+      toast.error(error.message || 'Ошибка добавления комментария');
+      throw error;
+    }
+  };
+
   const uploadProjectAttachment = async (projectId: string, file: File): Promise<any> => {
     try {
       console.log(`📎 uploadProjectAttachment: Uploading file ${file.name} for project ${projectId}`);
@@ -1405,6 +1437,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     uploadTaskAttachment,
     uploadMultipleTaskAttachments,
     deleteTaskAttachment,
+    addTaskComment,
     uploadProjectAttachment,
     deleteProjectAttachment,
     createProject,

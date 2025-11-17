@@ -13,6 +13,7 @@ import { Badge } from './ui/badge';
 import { RichTextEditor } from './ui/rich-text-editor';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
+import { Textarea } from './ui/textarea';
 import {
   Select,
   SelectContent,
@@ -36,8 +37,10 @@ import {
   History,
   Loader2,
   Repeat,
+  MessageSquare,
+  Send,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { toast } from 'sonner';
 import {
@@ -143,6 +146,7 @@ export function TaskModal({
     uploadTaskAttachment,
     uploadMultipleTaskAttachments,
     deleteTaskAttachment,
+    addTaskComment,
     canDeleteTask,
     canCreateTask,
     canEditProject,
@@ -193,6 +197,11 @@ export function TaskModal({
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [customColumns, setCustomColumns] = React.useState<Array<{ id: string; title: string; color: string }>>([]);
+  
+  // Comment-related state
+  const [commentText, setCommentText] = React.useState('');
+  const [showAllComments, setShowAllComments] = React.useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = React.useState(false);
 
   // Debug: log every render - NOW projectId and assigneeId are declared
   React.useEffect(() => {
@@ -563,6 +572,22 @@ export function TaskModal({
       toast.error('Ошибка при удалении файла');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSubmitComment = async () => {
+    if (!commentText.trim() || !existingTask) return;
+    
+    setIsSubmittingComment(true);
+    try {
+      await addTaskComment(existingTask.id, commentText.trim());
+      setCommentText('');
+      toast.success('Комментарий добавлен');
+    } catch (error) {
+      console.error('❌ Add comment error:', error);
+      toast.error('Ошибка при добавлении комментария');
+    } finally {
+      setIsSubmittingComment(false);
     }
   };
 
@@ -1021,15 +1046,20 @@ export function TaskModal({
                     </div>
                   )}
 
-                  {(selectedCategory && selectedCategory.id !== 'none') || existingTask.category ? (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Tag className="w-4 h-4 text-gray-500" />
-                      <span className="text-gray-600">Категория:</span>
-                      <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300">
-                        {selectedCategory?.name || (typeof existingTask.category === 'string' ? existingTask.category : existingTask.category?.name) || 'Без категории'}
-                      </Badge>
-                    </div>
-                  ) : null}
+                  {existingTask.categoryId && existingTask.categoryId !== 'none' ? (() => {
+                    // FIX: Use same approach as kanban-board to find category by ID
+                    const categoriesToUse = availableCategories || categories;
+                    const category = categoriesToUse.find((c) => c.id === existingTask.categoryId);
+                    return category ? (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Tag className="w-4 h-4 text-gray-500" />
+                        <span className="text-gray-600">Категория:</span>
+                        <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300">
+                          {category.name}
+                        </Badge>
+                      </div>
+                    ) : null;
+                  })() : null}
                 </div>
 
                 <div className="space-y-3">
@@ -1151,6 +1181,117 @@ export function TaskModal({
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Комментарии */}
+              {existingTask && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-purple-600" />
+                    <h3 className="font-semibold text-lg">
+                      Комментарии ({existingTask.comments?.length || 0})
+                    </h3>
+                  </div>
+
+                  {/* Форма добавления комментария */}
+                  <div className="space-y-2">
+                    <Textarea
+                      placeholder="Напишите комментарий..."
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      className="min-h-[80px]"
+                      disabled={isSubmittingComment}
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={handleSubmitComment}
+                        disabled={!commentText.trim() || isSubmittingComment}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        {isSubmittingComment ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Отправка...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4 mr-2" />
+                            Отправить
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Список комментариев */}
+                  {existingTask.comments && existingTask.comments.length > 0 && (
+                    <div className="space-y-3">
+                      {(() => {
+                        const comments = existingTask.comments;
+                        const sortedComments = [...comments].sort(
+                          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                        );
+                        const displayComments = showAllComments ? sortedComments : [sortedComments[0]];
+
+                        return (
+                          <>
+                            {displayComments.map((comment) => {
+                              const author = teamMembers.find((m) => m.id === comment.createdBy) || 
+                                (currentUser?.id === comment.createdBy ? currentUser : null);
+                              
+                              return (
+                                <div key={comment.id} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
+                                  <Avatar className="w-8 h-8">
+                                    {author?.avatarUrl && (
+                                      <AvatarImage src={author.avatarUrl} alt={author.name} />
+                                    )}
+                                    <AvatarFallback className="text-xs bg-purple-100 text-purple-700">
+                                      {getInitials(author?.name)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-medium text-sm">
+                                        {author?.id === currentUser?.id ? 'Вы' : (author?.name || 'Unknown')}
+                                      </span>
+                                      <span className="text-xs text-gray-500">
+                                        {formatDistanceToNow(new Date(comment.createdAt), {
+                                          addSuffix: true,
+                                          locale: ru,
+                                        })}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.text}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {comments.length > 1 && !showAllComments && (
+                              <Button
+                                variant="outline"
+                                onClick={() => setShowAllComments(true)}
+                                className="w-full"
+                              >
+                                Показать все комментарии ({comments.length})
+                              </Button>
+                            )}
+
+                            {comments.length > 1 && showAllComments && (
+                              <Button
+                                variant="outline"
+                                onClick={() => setShowAllComments(false)}
+                                className="w-full"
+                              >
+                                Скрыть комментарии
+                              </Button>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               )}
 

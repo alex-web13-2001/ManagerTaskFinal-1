@@ -423,6 +423,27 @@ export const tasksAPI = {
     return true;
   },
 
+  addComment: async (taskId: string, text: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/comments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to add comment');
+    }
+
+    return response.json();
+  },
+
   /**
    * Upload project attachment
    */
