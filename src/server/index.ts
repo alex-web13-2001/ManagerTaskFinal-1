@@ -2177,6 +2177,21 @@ apiRouter.get('/tasks/:taskId', async (req: AuthRequest, res: Response) => {
           },
         },
         attachments: true,
+        comments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                avatarUrl: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        }
       },
     });
 
@@ -2609,6 +2624,98 @@ apiRouter.delete('/tasks/:taskId/attachments/:attachmentId', uploadRateLimiter, 
   } catch (error: any) {
     console.error('Delete task attachment error:', error);
     res.status(500).json({ error: 'Failed to delete attachment' });
+  }
+});
+
+/**
+ * POST /api/tasks/:id/comments
+ * Add comment to task with WebSocket real-time updates
+ */
+apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { text } = req.body;
+    const userId = req.user!.sub;
+
+    // Validate comment text
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ error: 'Текст комментария не может быть пустым' });
+    }
+
+    // Check if task exists and user has access
+    const task = await prisma.task.findUnique({
+      where: { id },
+      include: {
+        project: {
+          include: {
+            members: {
+              where: { userId }
+            }
+          }
+        }
+      }
+    });
+
+    if (!task) {
+      return res.status(404).json({ error: 'Задача не найдена' });
+    }
+
+    // Check access: task creator, assignee, or project member
+    const isCreator = task.creatorId === userId;
+    const isAssignee = task.assigneeId === userId;
+    const isProjectMember = task.project?.members.length > 0;
+    const isProjectOwner = task.project?.ownerId === userId;
+
+    if (!isCreator && !isAssignee && !isProjectMember && !isProjectOwner) {
+      return res.status(403).json({ error: 'Нет доступа к этой задаче' });
+    }
+
+    // Create comment
+    const comment = await prisma.comment.create({
+      data: {
+        text: text.trim(),
+        taskId: id,
+        createdBy: userId
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatarUrl: true
+          }
+        }
+      }
+    });
+
+    // Emit WebSocket event for real-time updates
+    const { getIO } = await import('./websocket.js');
+    const io = getIO();
+    if (io && task.projectId) {
+      io.to(`project:${task.projectId}`).emit('comment:added', {
+        taskId: id,
+        comment: {
+          id: comment.id,
+          text: comment.text,
+          createdBy: comment.createdBy,
+          createdAt: comment.createdAt.toISOString(),
+          user: comment.user
+        }
+      });
+    }
+
+    console.log(`💬 Comment added to task ${id} by user ${userId}`);
+    res.json({
+      id: comment.id,
+      text: comment.text,
+      createdBy: comment.createdBy,
+      createdAt: comment.createdAt.toISOString(),
+      user: comment.user
+    });
+  } catch (error: any) {
+    console.error('Error adding comment:', error);
+    res.status(500).json({ error: 'Ошибка при добавлении комментария' });
   }
 });
 
