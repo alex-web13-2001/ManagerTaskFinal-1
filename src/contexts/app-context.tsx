@@ -74,6 +74,12 @@ export interface Comment {
   text: string;
   createdBy: string;
   createdAt: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    avatarUrl?: string;
+  };
 }
 
 export interface Task {

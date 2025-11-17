@@ -1237,7 +1237,9 @@ export function TaskModal({
                         return (
                           <>
                             {displayComments.map((comment) => {
-                              const author = teamMembers.find((m) => m.id === comment.createdBy) || 
+                              // Prefer comment.user if available, fall back to teamMembers or currentUser
+                              const author = comment.user || 
+                                teamMembers.find((m) => m.id === comment.createdBy) || 
                                 (currentUser?.id === comment.createdBy ? currentUser : null);
                               
                               return (
