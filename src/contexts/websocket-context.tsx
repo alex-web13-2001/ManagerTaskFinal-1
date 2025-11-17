@@ -206,6 +206,43 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, [websocket.isConnected, websocket.on, websocket.off]);
 
+  // Handle comment events
+  useEffect(() => {
+    if (!websocket.isConnected) return;
+
+    const handleCommentAdded = (data: { taskId: string; comment: any; timestamp?: string }) => {
+      console.log('📥 WebSocket: comment:added', data);
+      
+      // Update the task in state to include the new comment
+      setTasks((prevTasks) => {
+        return prevTasks.map((task) => {
+          if (task.id === data.taskId) {
+            // Check if comment already exists (to avoid duplicates)
+            const commentExists = task.comments?.some(c => c.id === data.comment.id);
+            if (commentExists) {
+              return task;
+            }
+            
+            // Add the new comment to the task
+            return {
+              ...task,
+              comments: [...(task.comments || []), data.comment]
+            };
+          }
+          return task;
+        });
+      });
+    };
+
+    // Subscribe to comment events
+    websocket.on('comment:added', handleCommentAdded);
+
+    // Cleanup
+    return () => {
+      websocket.off('comment:added', handleCommentAdded);
+    };
+  }, [websocket.isConnected, websocket.on, websocket.off, setTasks]);
+
   // Auto-join project rooms when WebSocket connects or when user navigates to projects
   // This will be handled per-page/component basis for better control
 

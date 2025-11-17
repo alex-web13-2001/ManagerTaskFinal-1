@@ -32,7 +32,8 @@ import {
   emitInviteRejected,
   emitProjectUpdated,
   emitProjectMemberAdded,
-  emitProjectMemberRemoved
+  emitProjectMemberRemoved,
+  emitCommentAdded
 } from './websocket.js';
 import { startRecurringTaskProcessor } from './recurringTaskProcessor.js';
 import { initializeTelegramBot, sendTaskAssignedNotification } from './telegram-bot.js';
@@ -202,6 +203,14 @@ function transformTaskForResponse(task: any): any {
     // Keep original fields as well for backwards compatibility
     dueDate: task.dueDate ? task.dueDate.toISOString() : undefined,
     category: task.category,
+    // Preserve comments array with user info
+    comments: task.comments ? task.comments.map((comment: any) => ({
+      id: comment.id,
+      text: comment.text,
+      createdBy: comment.createdBy,
+      createdAt: comment.createdAt instanceof Date ? comment.createdAt.toISOString() : comment.createdAt,
+      user: comment.user
+    })) : undefined,
   };
 }
 
@@ -2689,20 +2698,16 @@ apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) =>
       }
     });
 
-    // Emit WebSocket event for real-time updates
-    const { getIO } = await import('./websocket.js');
-    const io = getIO();
-    if (io && task.projectId) {
-      io.to(`project:${task.projectId}`).emit('comment:added', {
-        taskId: id,
-        comment: {
-          id: comment.id,
-          text: comment.text,
-          createdBy: comment.createdBy,
-          createdAt: comment.createdAt.toISOString(),
-          user: comment.user
-        }
-      });
+    // Emit WebSocket event for real-time updates (only for project tasks)
+    if (task.projectId) {
+      const commentData = {
+        id: comment.id,
+        text: comment.text,
+        createdBy: comment.createdBy,
+        createdAt: comment.createdAt.toISOString(),
+        user: comment.user
+      };
+      emitCommentAdded(id, commentData, task.projectId);
     }
 
     console.log(`💬 Comment added to task ${id} by user ${userId}`);
