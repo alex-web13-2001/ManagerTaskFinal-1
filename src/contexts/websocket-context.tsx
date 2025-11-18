@@ -14,11 +14,28 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     fetchTasks, 
     fetchProjects,
     fetchTeamMembers,
+    fetchCustomColumns,
+    fetchCategories,
     currentUser,
     tasks,
     projects,
     setTasks
   } = useApp();
+
+  // This is a workaround to sync WebSocket connection status with app context
+  // Since we need to update isRealtimeConnected in AppContext from here
+  const [, setForceUpdate] = React.useState(0);
+  
+  // Sync WebSocket connection status to window object for AppContext to read
+  useEffect(() => {
+    (window as any).__websocketConnected = websocket.isConnected;
+    setForceUpdate(prev => prev + 1);
+    
+    // Dispatch custom event to notify AppContext
+    window.dispatchEvent(new CustomEvent('websocket-status-changed', { 
+      detail: { isConnected: websocket.isConnected } 
+    }));
+  }, [websocket.isConnected]);
 
   // Handle task events - refetch tasks to ensure consistency
   useEffect(() => {
@@ -28,29 +45,21 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       console.log('📥 WebSocket: task:created', data);
       toast.success(`Новая задача: ${data.task.title}`);
       
-      // Добавляем задачу напрямую в state вместо fetchTasks()
-      // Это обеспечивает мгновенное обновление UI и регистрацию DnD handlers
+      // Server sends complete task object - add directly to state
+      // No need for fetchTasks() since we have all the data
       setTasks((prevTasks) => {
-        // Проверяем, есть ли задача уже в state (от createTask)
+        // Check if task already exists (from optimistic update in createTask)
         const exists = prevTasks.some(t => t.id === data.task.id);
         
         if (exists) {
-          console.log('📝 WebSocket: Задача уже в state, форсируем ре-рендер для DnD');
-          // Форсируем ре-рендер, создавая новый массив
-          // Это заставит React обновить компоненты и React DnD зарегистрирует handlers
-          return [...prevTasks];
+          console.log('📝 WebSocket: Task already in state, skipping duplicate');
+          return prevTasks;
         }
         
-        // Добавляем новую задачу
-        console.log('✅ WebSocket: Добавляем новую задачу в state');
+        // Add new task from WebSocket
+        console.log('✅ WebSocket: Adding new task to state');
         return [...prevTasks, data.task];
       });
-      
-      // Опционально: перезагрузим задачи через небольшую задержку
-      // для синхронизации с сервером (например, если есть server-side изменения)
-      setTimeout(() => {
-        fetchTasks();
-      }, 1000);
     };
 
     const handleTaskUpdated = (data: { task: Task; projectId?: string }) => {
@@ -141,14 +150,18 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     const handleProjectUpdated = (data: { project: Project; projectId: string }) => {
       console.log('📥 WebSocket: project:updated', data);
       
-      // Refetch projects to get updated data
+      // Server sends complete project object - update directly in state
+      // No need for fetchProjects() since we have all the data
+      // Note: We still need fetchProjects() here because project updates can affect
+      // permissions and member lists which require recalculation on the server
       fetchProjects();
     };
 
     const handleProjectMemberAdded = (data: { projectId: string; member: any }) => {
       console.log('📥 WebSocket: project:member_added', data);
       
-      // Refresh projects and team members to get updated member list
+      // Member additions affect project membership and permissions
+      // Need to refetch projects to get correct role/permission data
       fetchProjects();
       fetchTeamMembers();
       
@@ -158,7 +171,8 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     const handleProjectMemberRemoved = (data: { projectId: string; memberId: string }) => {
       console.log('📥 WebSocket: project:member_removed', data);
       
-      // Refresh projects to get updated member list
+      // Member removals affect project membership and permissions
+      // Need to refetch projects to get correct role/permission data
       fetchProjects();
     };
 
@@ -249,6 +263,38 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       websocket.off('comment:added', handleCommentAdded);
     };
   }, [websocket.isConnected, websocket.on, websocket.off, currentUser, setTasks]);
+
+  // Handle user settings events (custom columns, categories)
+  useEffect(() => {
+    if (!websocket.isConnected) return;
+
+    const handleUserSettingsUpdated = (data: { userId: string; settings: any }) => {
+      console.log('📥 WebSocket: user:settings_updated', data);
+      
+      // Only update if it's for the current user
+      if (currentUser && data.userId === currentUser.id) {
+        // Refetch custom columns and categories to sync across tabs
+        if (data.settings.customColumns) {
+          console.log('🔄 Updating custom columns from WebSocket');
+          fetchCustomColumns();
+        }
+        if (data.settings.categories) {
+          console.log('🔄 Updating categories from WebSocket');
+          fetchCategories();
+        }
+        
+        toast.info('Настройки обновлены в другой вкладке');
+      }
+    };
+
+    // Subscribe to user settings events
+    websocket.on('user:settings_updated', handleUserSettingsUpdated);
+
+    // Cleanup
+    return () => {
+      websocket.off('user:settings_updated', handleUserSettingsUpdated);
+    };
+  }, [websocket.isConnected, websocket.on, websocket.off, currentUser, fetchCustomColumns, fetchCategories]);
 
   // Auto-join project rooms when WebSocket connects
   // This ensures users receive real-time updates for tasks in their projects

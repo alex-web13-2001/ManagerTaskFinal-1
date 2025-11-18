@@ -776,60 +776,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]); // Only re-run when user ID changes
 
-  // Real-time subscriptions for tasks and projects
-  React.useEffect(() => {
-    // Только если пользователь авторизован
-    if (!currentUser) {
-      console.log('⏸️ Polling не запущен - пользователь не авторизован');
-      return;
-    }
-    
-    console.log('🔴 Подключение polling для синхронизации...');
-    
-    // Use polling instead of realtime for KV store compatibility
-    const intervalId = setInterval(async () => {
-      try {
-        // Skip fetchTasks if currently dragging to prevent conflicts
-        const shouldFetchTasks = !isDraggingRef.current;
-        
-        if (shouldFetchTasks) {
-          // Обновляем данные каждые 5 секунд используя существующие API функции
-          await Promise.all([
-            fetchTasks(),
-            fetchProjects(),
-            fetchCustomColumns(), // Также обновляем кастомные колонки
-            fetchCategories(), // Также обновляем категории
-          ]);
-        } else {
-          // If dragging, only update non-task data
-          console.log('[Polling] Skipping fetchTasks during drag operation');
-          await Promise.all([
-            fetchProjects(),
-            fetchCustomColumns(),
-            fetchCategories(),
-          ]);
-        }
-
-        // Если успешно получили данные, считаем что подключение активно
-        setIsRealtimeConnected(true);
-      } catch (error) {
-        console.error('Polling error:', error);
-        setIsRealtimeConnected(false);
-      }
-    }, 5000); // Обновление каждые 5 секунд (уменьшено с 3 для снижения нагрузки)
-
-    console.log('✅ Polling включен (обновление каждые 5 секунд)');
-    setIsRealtimeConnected(true);
-
-    // Cleanup polling on unmount
-    return () => {
-      console.log('🔴 Отключение polling...');
-      clearInterval(intervalId);
-      setIsRealtimeConnected(false);
-    };
-  }, [currentUser, fetchTasks, fetchProjects, fetchCustomColumns, fetchCategories]); // Re-subscribe when user or fetch functions change
-
-  // RefreshData function for manual refresh
+  // RefreshData function for manual refresh - defined early for use in effects
   const refreshData = React.useCallback(async () => {
     console.log('🔄 Refreshing all data...');
     setIsLoading(true);
@@ -847,6 +794,75 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     }
   }, [fetchTasks, fetchProjects, fetchCurrentUser, fetchTeamMembers, fetchCustomColumns, fetchCategories]);
+
+  // Listen for WebSocket connection status changes from WebSocketProvider
+  React.useEffect(() => {
+    const handleWebSocketStatus = (event: CustomEvent) => {
+      const isConnected = event.detail?.isConnected || false;
+      setIsRealtimeConnected(isConnected);
+      console.log(`🔌 WebSocket status changed: ${isConnected ? 'Connected' : 'Disconnected'}`);
+    };
+
+    window.addEventListener('websocket-status-changed', handleWebSocketStatus as EventListener);
+
+    return () => {
+      window.removeEventListener('websocket-status-changed', handleWebSocketStatus as EventListener);
+    };
+  }, []);
+
+  // Smart Polling - Only active when WebSocket is disconnected (fallback mode)
+  React.useEffect(() => {
+    if (!currentUser) {
+      console.log('⏸️ Polling не запущен - пользователь не авторизован');
+      return;
+    }
+
+    let intervalId: NodeJS.Timeout;
+
+    const startPolling = () => {
+      console.log('⚠️ WebSocket отключен. Запуск резервного поллинга...');
+      intervalId = setInterval(async () => {
+        try {
+          // Не обновляем, если пользователь прямо сейчас тащит карточку
+          if (!isDraggingRef.current) {
+            await Promise.all([
+              fetchTasks(),
+              fetchProjects(),
+              fetchCustomColumns(),
+              fetchCategories(),
+            ]);
+          } else {
+            console.log('[Smart Polling] Skipping update during drag operation');
+          }
+        } catch (error) {
+          console.error('Smart Polling error:', error);
+        }
+      }, 10000); // 10 seconds - slower than before since this is fallback mode
+    };
+
+    if (isRealtimeConnected) {
+      // WebSocket активен - поллинг не нужен
+      console.log('⚡ WebSocket активен. Поллинг отключен.');
+    } else {
+      // WebSocket неактивен - запускаем резервный поллинг
+      startPolling();
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        console.log('🔴 Smart Polling остановлен');
+      }
+    };
+  }, [currentUser, isRealtimeConnected, fetchTasks, fetchProjects, fetchCustomColumns, fetchCategories]);
+
+  // Синхронизация при восстановлении WebSocket
+  React.useEffect(() => {
+    if (isRealtimeConnected && currentUser) {
+      console.log('🔄 WebSocket восстановлен. Синхронизация данных...');
+      refreshData();
+    }
+  }, [isRealtimeConnected, currentUser, refreshData]);
 
   // Show welcome message for new users
   React.useEffect(() => {
