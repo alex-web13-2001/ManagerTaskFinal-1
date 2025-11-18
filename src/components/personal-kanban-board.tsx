@@ -189,7 +189,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
           <div className="flex items-center gap-2 flex-wrap">
             {isNewTask && (
               <Badge className="bg-green-500 text-white text-xs font-bold">
-                NEW
+                Новая
               </Badge>
             )}
             <Badge variant="outline" className={priorityColors[task.priority]}>

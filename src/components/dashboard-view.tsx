@@ -22,6 +22,7 @@ type Filters = {
   assignees: string[];
   tags: string[];
   deadline: 'all' | 'overdue' | 'today' | '3days' | 'week';
+  onlyNew?: boolean;
 };
 
 // Статичные списки статусов и приоритетов
@@ -61,6 +62,7 @@ export function DashboardView({ onCalendarView, onTaskClick }: DashboardViewProp
     assignees: [],
     tags: [],
     deadline: 'all',
+    onlyNew: false,
   });
 
   // FIX Problem #1: Collect all categories from projects where user is a member + personal categories
@@ -101,6 +103,7 @@ export function DashboardView({ onCalendarView, onTaskClick }: DashboardViewProp
       assignees: [],
       tags: [],
       deadline: 'all',
+      onlyNew: false,
     });
     setShowMyTasks(false);
   };

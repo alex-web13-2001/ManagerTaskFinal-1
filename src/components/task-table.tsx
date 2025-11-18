@@ -24,7 +24,7 @@ function NewTaskBadge({ task, currentUserId }: { task: TaskType; currentUserId: 
   
   return (
     <Badge className="bg-green-500 text-white text-xs font-bold ml-2">
-      NEW
+      Новая
     </Badge>
   );
 }
@@ -178,6 +178,47 @@ export function TaskTable({ searchQuery, filters, onTaskClick }: TaskTableProps)
       console.error('Error updating task status:', error);
     }
   };
+
+  // Helper function to check if task is new (same logic as useTaskNewBadge)
+  const isTaskNew = React.useCallback((task: TaskType): boolean => {
+    // Condition 1: Current user must be logged in
+    if (!currentUser?.id) return false;
+
+    // Condition 2: Task must NOT be created by current user
+    if (task.userId === currentUser.id) return false;
+
+    // Condition 3: Task must be less than 7 days old
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const taskCreatedTime = new Date(task.createdAt).getTime();
+    const now = Date.now();
+    const taskAge = now - taskCreatedTime;
+    if (taskAge > SEVEN_DAYS_MS) return false;
+
+    // Condition 4: Check read status and timer
+    const STORAGE_KEY = 'task_views_timestamp';
+    const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
+    
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      const views = stored ? JSON.parse(stored) : {};
+      const viewTimestamp = views[task.id];
+
+      // If task has been read (value is 0), don't show badge
+      if (viewTimestamp === 0) return false;
+
+      // If this is the first time seeing this task, it's new
+      if (viewTimestamp === undefined) return true;
+
+      // If task has been in view for more than 3 hours, don't show badge
+      const timeSinceFirstView = now - viewTimestamp;
+      if (timeSinceFirstView > THREE_HOURS_MS) return false;
+
+      return true;
+    } catch (error) {
+      console.error('Failed to check task view status:', error);
+      return false;
+    }
+  }, [currentUser?.id]);
 
   const filteredAndSortedTasks = React.useMemo(() => {
     console.log('[TaskTable] Starting filtration with:', {
@@ -354,6 +395,16 @@ export function TaskTable({ searchQuery, filters, onTaskClick }: TaskTableProps)
         }
       }
 
+      // Only New filter
+      if (filters.onlyNew === true) {
+        if (!isTaskNew(task)) {
+          debug.passed = false;
+          debug.reason = 'onlyNew filter (task is not new)';
+          debugLog.push(debug);
+          return false;
+        }
+      }
+
       debugLog.push(debug);
       return true;
     };
@@ -432,7 +483,7 @@ export function TaskTable({ searchQuery, filters, onTaskClick }: TaskTableProps)
     }
     
     return result;
-  }, [tasks, projects, teamMembers, currentUser, searchQuery, filters, sortColumn, sortDirection, customColumns]);
+  }, [tasks, projects, teamMembers, currentUser, searchQuery, filters, sortColumn, sortDirection, customColumns, isTaskNew]);
 
 
 
