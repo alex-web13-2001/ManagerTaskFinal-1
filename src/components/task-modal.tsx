@@ -57,6 +57,7 @@ import { useApp } from '../contexts/app-context';
 import { Checkbox } from './ui/checkbox';
 import { ShareButton } from './share-button';
 import { sanitizeHtml } from '../utils/sanitize-html';
+import { markTaskAsRead } from '../hooks/useTaskNewBadge';
 
 type TaskModalMode = 'create' | 'view' | 'edit';
 
@@ -229,6 +230,13 @@ export function TaskModal({
       loadTask(taskId);
     }
   }, [open, taskId, isCreateMode, loadTask]);
+  
+  // Mark task as read when modal opens (for NEW badge feature)
+  React.useEffect(() => {
+    if (open && taskId && !isCreateMode) {
+      markTaskAsRead(taskId);
+    }
+  }, [open, taskId, isCreateMode]);
   
   // ISSUE #5 FIX: Track when projects or teamMembers update for real-time member list updates
   React.useEffect(() => {

@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { KanbanBoardSkeleton } from './kanban-skeleton';
 import { compareOrderKeys } from '../utils/orderKey';
 import { useKanbanDnD } from '../hooks/useKanbanDnD';
+import { useTaskNewBadge } from '../hooks/useTaskNewBadge';
 import type { Task as TaskType, CustomColumn } from '../contexts/app-context';
 
 const ITEM_TYPE = 'PERSONAL_TASK_CARD';
@@ -54,6 +55,14 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
 }, forwardedRef) => {
   const { teamMembers, currentUser, setIsDragging } = useApp();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
+  
+  // Check if task should show NEW badge
+  const isNewTask = useTaskNewBadge(
+    task.id,
+    task.createdAt,
+    task.userId,
+    currentUser?.id || null
+  );
   
   const assignee = teamMembers?.find((m) => m.id === task.assigneeId);
   
@@ -178,6 +187,11 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
         </CardHeader>
         <CardContent className="pb-3 space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
+            {isNewTask && (
+              <Badge className="bg-green-500 text-white text-xs font-bold">
+                NEW
+              </Badge>
+            )}
             <Badge variant="outline" className={priorityColors[task.priority]}>
               {task.priority === 'urgent' && (
                 <Flame className="w-3 h-3 mr-1 fill-current" />
