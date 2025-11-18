@@ -36,7 +36,13 @@ import {
   emitCommentAdded
 } from './websocket.js';
 import { startRecurringTaskProcessor } from './recurringTaskProcessor.js';
-import { initializeTelegramBot, sendTaskAssignedNotification } from './telegram-bot.js';
+import { 
+  initializeTelegramBot, 
+  sendTaskAssignedNotification,
+  sendTaskCommentNotification,
+  sendDailyTasksDigest
+} from './telegram-bot.js';
+import cron from 'node-cron';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -2710,6 +2716,18 @@ apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) =>
       emitCommentAdded(id, commentData, task.projectId);
     }
 
+    // Send Telegram notification
+    await sendTaskCommentNotification(
+      {
+        id: task.id,
+        title: task.title,
+        creatorId: task.creatorId,
+        assigneeId: task.assigneeId,
+        project: task.project ? { name: task.project.name } : null,
+      },
+      comment
+    );
+
     console.log(`💬 Comment added to task ${id} by user ${userId}`);
     res.json({
       comment: {
@@ -2991,6 +3009,13 @@ if (isMainModule()) {
   
   // Initialize Telegram bot
   initializeTelegramBot();
+  
+  // Initialize daily digest cron job (runs at 06:00 UTC = 09:00 Moscow time)
+  cron.schedule('0 6 * * *', () => {
+    console.log('⏰ Running daily tasks digest cron job...');
+    sendDailyTasksDigest();
+  });
+  console.log('⏰ Daily digest cron job initialized (06:00 UTC / 09:00 Moscow time)');
   
   // Start listening
   httpServer.listen(PORT, () => {

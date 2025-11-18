@@ -237,3 +237,17 @@ model Comment {
   @@index([createdBy])
   @@map("comments")
 }
+
+// TelegramPendingReply model - stores pending reply states for Telegram bot
+model TelegramPendingReply {
+  id              String   @id @default(uuid())
+  userId          String
+  chatId          String
+  taskId          String
+  parentCommentId String
+  createdAt       DateTime @default(now())
+  
+  @@index([chatId])
+  @@index([userId])
+  @@map("telegram_pending_replies")
+}
