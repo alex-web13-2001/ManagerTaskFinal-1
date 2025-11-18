@@ -285,6 +285,25 @@ export const tasksAPI = {
     return tasks;
   },
 
+  getTask: async (taskId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to fetch task' }));
+      throw new Error(errorData.error || 'Failed to fetch task');
+    }
+
+    const task = await response.json();
+    return task;
+  },
+
   create: async (taskData: any) => {
     const token = getAuthToken();
     if (!token) throw new Error('Not authenticated');

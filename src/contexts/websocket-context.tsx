@@ -16,6 +16,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     fetchTeamMembers,
     currentUser,
     tasks,
+    projects,
     setTasks
   } = useApp();
 
@@ -243,8 +244,28 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, [websocket.isConnected, websocket.on, websocket.off, setTasks]);
 
-  // Auto-join project rooms when WebSocket connects or when user navigates to projects
-  // This will be handled per-page/component basis for better control
+  // Auto-join project rooms when WebSocket connects
+  // This ensures users receive real-time updates for tasks in their projects
+  useEffect(() => {
+    if (!websocket.isConnected) return;
+    
+    // Join all project rooms the user has access to
+    if (projects && projects.length > 0) {
+      projects.forEach((project: Project) => {
+        websocket.joinProject(project.id);
+        console.log(`📥 Auto-joined project room: project:${project.id}`);
+      });
+    }
+
+    // Cleanup: leave all project rooms when disconnecting
+    return () => {
+      if (projects && projects.length > 0) {
+        projects.forEach((project: Project) => {
+          websocket.leaveProject(project.id);
+        });
+      }
+    };
+  }, [websocket.isConnected, websocket.joinProject, websocket.leaveProject, projects]);
 
   return (
     <WebSocketContext.Provider value={websocket}>

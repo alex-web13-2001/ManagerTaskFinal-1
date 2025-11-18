@@ -185,6 +185,7 @@ interface AppContextType {
   isInitialLoad: boolean;
   isRealtimeConnected: boolean;
   fetchTasks: () => Promise<void>;
+  loadTask: (taskId: string) => Promise<void>;
   fetchProjects: () => Promise<void>;
   fetchArchivedProjects: () => Promise<void>;
   fetchCurrentUser: () => Promise<void>;
@@ -320,6 +321,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!error.message?.includes('авторизован') && !error.message?.includes('Not authenticated')) {
         console.error('❌ Ошибка загрузки задач:', error);
         toast.error('Ошибка загрузки задач');
+      }
+    }
+  }, []);
+
+  const loadTask = React.useCallback(async (taskId: string) => {
+    try {
+      // Fetch the task with all details including comments
+      const fetchedTask = await tasksAPI.getTask(taskId);
+      
+      // Update or add the task in the tasks state
+      setTasks((prevTasks) => {
+        const existingIndex = prevTasks.findIndex(t => t.id === taskId);
+        
+        if (existingIndex >= 0) {
+          // Replace existing task with fresh data from server
+          const updatedTasks = [...prevTasks];
+          updatedTasks[existingIndex] = fetchedTask;
+          console.log(`✅ Task ${taskId} reloaded with comments:`, fetchedTask.comments?.length || 0);
+          return updatedTasks;
+        } else {
+          // Add task if it doesn't exist (edge case)
+          console.log(`✅ Task ${taskId} added to state with comments:`, fetchedTask.comments?.length || 0);
+          return [...prevTasks, fetchedTask];
+        }
+      });
+    } catch (error: any) {
+      // Only log if it's not an auth error
+      if (!error.message?.includes('авторизован') && !error.message?.includes('Not authenticated')) {
+        console.error(`❌ Ошибка загрузки задачи ${taskId}:`, error);
+        // Don't show toast error - this is a background operation
       }
     }
   }, []);
@@ -1424,6 +1455,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     isInitialLoad,
     isRealtimeConnected,
     fetchTasks,
+    loadTask,
     fetchProjects,
     fetchArchivedProjects,
     fetchCurrentUser,
