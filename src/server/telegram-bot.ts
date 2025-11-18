@@ -1,5 +1,12 @@
 import TelegramBot from 'node-telegram-bot-api';
 import prisma from './db';
+import {
+  getPriorityTag,
+  getMoscowDate,
+  getMoscowDayStart,
+  getMoscowDayEnd,
+  formatDeadline,
+} from './telegram-utils.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 let bot: TelegramBot | null = null;
@@ -85,7 +92,7 @@ export function initializeTelegramBot() {
       }
     });
     
-    // Handle link token messages (format: LINK-xxx)
+    // Handle link token messages (format: LINK-xxx) and reply messages
     bot.on('message', async (msg) => {
       const chatId = msg.chat.id;
       const text = msg.text?.trim();
@@ -95,7 +102,11 @@ export function initializeTelegramBot() {
       // Check for link token format: LINK-XXX (6 chars)
       if (text.match(/^LINK-[A-Z0-9]{6}$/i)) {
         await handleLinkToken(chatId, text.toUpperCase(), msg.from?.username);
+        return;
       }
+      
+      // Check for pending reply
+      await handleTextReply(chatId, text);
     });
     
     // Handle callback queries (inline button clicks)
@@ -106,6 +117,90 @@ export function initializeTelegramBot() {
     console.log('🤖 Telegram bot initialized successfully');
   } catch (error) {
     console.error('❌ Failed to initialize Telegram bot:', error);
+  }
+}
+
+/**
+ * Handle reply callback from inline keyboard
+ */
+async function handleReplyCallback(query: TelegramBot.CallbackQuery, chatId: number) {
+  if (!bot || !query.data) return;
+  
+  try {
+    // Parse callback data: reply:{taskId}:{commentId}
+    const parts = query.data.split(':');
+    if (parts.length !== 3) {
+      await bot.answerCallbackQuery(query.id, {
+        text: '❌ Неверный формат данных',
+        show_alert: true,
+      });
+      return;
+    }
+    
+    const taskId = parts[1];
+    const parentCommentId = parts[2];
+    
+    // Find user by telegram chat ID
+    const user = await prisma.user.findUnique({
+      where: { telegramChatId: chatId.toString() },
+    });
+    
+    if (!user) {
+      await bot.answerCallbackQuery(query.id, {
+        text: '❌ Аккаунт не привязан к Telegram',
+        show_alert: true,
+      });
+      return;
+    }
+    
+    // Get task to show its title
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { id: true, title: true },
+    });
+    
+    if (!task) {
+      await bot.answerCallbackQuery(query.id, {
+        text: '❌ Задача не найдена',
+        show_alert: true,
+      });
+      return;
+    }
+    
+    // Delete any existing pending reply for this user/chat
+    await prisma.telegramPendingReply.deleteMany({
+      where: { chatId: chatId.toString() },
+    });
+    
+    // Create new pending reply record
+    await prisma.telegramPendingReply.create({
+      data: {
+        userId: user.id,
+        chatId: chatId.toString(),
+        taskId,
+        parentCommentId,
+      },
+    });
+    
+    // Answer callback query
+    await bot.answerCallbackQuery(query.id, {
+      text: '✍️ Введите ответ одним сообщением',
+    });
+    
+    // Send instruction message
+    await bot.sendMessage(
+      chatId,
+      `✍️ Напишите текст ответа на комментарий к задаче «${task.title}» одним сообщением.\n` +
+      `Ваш следующий текст будет добавлен как комментарий в T24.`
+    );
+    
+    console.log(`📝 Reply callback handled for user ${user.id}, task ${taskId}`);
+  } catch (error) {
+    console.error('❌ Error handling reply callback:', error);
+    await bot!.answerCallbackQuery(query.id, {
+      text: '❌ Произошла ошибка',
+      show_alert: true,
+    });
   }
 }
 
@@ -122,6 +217,12 @@ async function handleCallbackQuery(query: TelegramBot.CallbackQuery) {
   if (!data) return;
   
   try {
+    // Handle reply callback (reply:{taskId}:{commentId})
+    if (data.startsWith('reply:')) {
+      await handleReplyCallback(query, chatId);
+      return;
+    }
+    
     // Handle invitation responses (accept/decline)
     if (data.startsWith('accept_') || data.startsWith('decline_')) {
       const action = data.startsWith('accept_') ? 'accept' : 'decline';
@@ -336,6 +437,129 @@ async function handleLinkToken(chatId: number, token: string, username?: string)
 }
 
 /**
+ * Handle text message as reply to comment
+ */
+async function handleTextReply(chatId: number, text: string) {
+  if (!bot) return;
+  
+  try {
+    // Check for pending reply
+    const pending = await prisma.telegramPendingReply.findFirst({
+      where: { chatId: chatId.toString() },
+      orderBy: { createdAt: 'desc' },
+    });
+    
+    if (!pending) {
+      // No pending reply, ignore message
+      return;
+    }
+    
+    const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173';
+    
+    try {
+      // Create comment from user
+      const comment = await addTaskCommentFromUser(pending.userId, pending.taskId, text);
+      
+      // Delete pending reply
+      await prisma.telegramPendingReply.delete({
+        where: { id: pending.id },
+      });
+      
+      // Send success message
+      await bot.sendMessage(
+        chatId,
+        `✅ Ваш ответ добавлен как комментарий к задаче.\n\n` +
+        `🔗 Открыть задачу: ${frontendBase}/tasks/${pending.taskId}`
+      );
+      
+      console.log(`✅ Reply added as comment for user ${pending.userId}, task ${pending.taskId}`);
+    } catch (error: any) {
+      console.error('❌ Error adding comment from reply:', error);
+      
+      // Delete pending reply
+      await prisma.telegramPendingReply.delete({
+        where: { id: pending.id },
+      });
+      
+      // Send error message
+      await bot.sendMessage(
+        chatId,
+        `❌ Не удалось добавить комментарий. Возможно, у вас нет доступа к этой задаче или задача была удалена.`
+      );
+    }
+  } catch (error) {
+    console.error('❌ Error handling text reply:', error);
+  }
+}
+
+/**
+ * Add comment to task from user (with access checks)
+ */
+async function addTaskCommentFromUser(userId: string, taskId: string, text: string) {
+  // Get task with access info
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: {
+      project: {
+        include: {
+          members: {
+            where: { userId }
+          }
+        }
+      }
+    }
+  });
+  
+  if (!task) {
+    throw new Error('Задача не найдена');
+  }
+  
+  // Check access: task creator, assignee, or project member
+  const isCreator = task.creatorId === userId;
+  const isAssignee = task.assigneeId === userId;
+  const isProjectMember = task.project?.members.length > 0;
+  const isProjectOwner = task.project?.ownerId === userId;
+  
+  if (!isCreator && !isAssignee && !isProjectMember && !isProjectOwner) {
+    throw new Error('Нет доступа к этой задаче');
+  }
+  
+  // Create comment
+  const comment = await prisma.comment.create({
+    data: {
+      text: text.trim(),
+      taskId,
+      createdBy: userId
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatarUrl: true
+        }
+      }
+    }
+  });
+  
+  // Emit WebSocket event for real-time updates (only for project tasks)
+  if (task.projectId) {
+    const { emitCommentAdded } = await import('./websocket.js');
+    const commentData = {
+      id: comment.id,
+      text: comment.text,
+      createdBy: comment.createdBy,
+      createdAt: comment.createdAt.toISOString(),
+      user: comment.user
+    };
+    emitCommentAdded(taskId, commentData, task.projectId);
+  }
+  
+  return comment;
+}
+
+/**
  * Send notification about task assignment
  */
 export async function sendTaskAssignedNotification(
@@ -365,22 +589,8 @@ export async function sendTaskAssignedNotification(
       return;
     }
     
-    const priorityEmoji: Record<string, string> = {
-      low: '🟢',
-      medium: '🟡',
-      high: '🔴',
-      urgent: '🚨',
-    };
-    
-    const priorityTranslation: Record<string, string> = {
-      low: 'Низкий',
-      medium: 'Средний',
-      high: 'Высокий',
-      urgent: 'Срочный',
-    };
-    
-    const emoji = priorityEmoji[task.priority] || '⚪';
-    const priorityText = priorityTranslation[task.priority] || task.priority;
+    const priorityTag = getPriorityTag(task.priority);
+    const [emoji] = priorityTag.split(' ');
     
     const message =
       `${emoji} Вам назначена новая задача!\n\n` +
@@ -388,7 +598,7 @@ export async function sendTaskAssignedNotification(
       (task.description ? `📝 ${task.description.slice(0, 100)}${task.description.length > 100 ? '...' : ''}\n\n` : '\n') +
       (task.projectName ? `📁 Проект: ${task.projectName}\n` : '') +
       `👤 От: ${task.assignerName}\n` +
-      `⏰ Приоритет: ${priorityText}\n\n` +
+      `⏰ Приоритет: ${priorityTag.split(' ').slice(1).join(' ')}\n\n` +
       `🔗 Открыть: ${process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173'}/tasks/${task.id}`;
     
     await bot.sendMessage(user.telegramChatId, message);
@@ -460,6 +670,283 @@ export async function sendProjectInvitationNotification(
     console.log(`📤 Telegram invitation notification sent to ${email}`);
   } catch (error) {
     console.error('Send Telegram invitation notification error:', error);
+  }
+}
+
+/**
+ * Determine who should receive a comment notification
+ * @param task - Task with creatorId and assigneeId
+ * @param commentAuthorId - ID of the user who created the comment
+ * @returns User ID who should receive the notification, or null
+ */
+export function getCommentNotificationRecipient(
+  task: { creatorId: string | null; assigneeId: string | null },
+  commentAuthorId: string
+): string | null {
+  // Collect participants (creator and assignee)
+  const participants: string[] = [];
+  
+  if (task.creatorId) {
+    participants.push(task.creatorId);
+  }
+  if (task.assigneeId && task.assigneeId !== task.creatorId) {
+    participants.push(task.assigneeId);
+  }
+  
+  // If no participants, return null
+  if (participants.length === 0) {
+    console.log(`ℹ️  No participants for comment notification`);
+    return null;
+  }
+  
+  // If only one participant and it's the author, return null
+  if (participants.length === 1 && participants[0] === commentAuthorId) {
+    console.log(`ℹ️  Comment author is the only participant`);
+    return null;
+  }
+  
+  // If there are participants, return the first one that's not the author
+  const recipient = participants.find(p => p !== commentAuthorId);
+  return recipient || null;
+}
+
+/**
+ * Send notification about new comment on task
+ */
+export async function sendTaskCommentNotification(
+  task: {
+    id: string;
+    title: string;
+    creatorId: string | null;
+    assigneeId: string | null;
+    project?: { name?: string | null } | null;
+  },
+  comment: {
+    id: string;
+    text: string;
+    createdBy: string;
+    createdAt: Date;
+    user: {
+      id: string;
+      name: string | null;
+      email: string;
+    } | null;
+  }
+) {
+  if (!bot) {
+    console.log('⚠️  Telegram bot not initialized, skipping notification');
+    return;
+  }
+  
+  try {
+    // Get recipient
+    const recipientId = getCommentNotificationRecipient(task, comment.createdBy);
+    
+    if (!recipientId) {
+      console.log(`ℹ️  No recipient for comment notification on task ${task.id}`);
+      return;
+    }
+    
+    // Get recipient data
+    const recipient = await prisma.user.findUnique({
+      where: { id: recipientId },
+      select: { telegramChatId: true, name: true },
+    });
+    
+    if (!recipient?.telegramChatId) {
+      console.log(`ℹ️  User ${recipientId} has no Telegram linked, skipping notification`);
+      return;
+    }
+    
+    // Get author data
+    const author = await prisma.user.findUnique({
+      where: { id: comment.createdBy },
+      select: { name: true, email: true },
+    });
+    
+    const authorName = author?.name || author?.email || 'Неизвестный пользователь';
+    const projectName = task.project?.name;
+    const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173';
+    const taskUrl = `${frontendBase}/tasks/${task.id}`;
+    
+    // Shorten comment text
+    const shortText = comment.text.length > 200 
+      ? comment.text.substring(0, 200) + '…'
+      : comment.text;
+    
+    // Format created date
+    const createdAtStr = comment.createdAt.toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    
+    // Build message
+    let message = `💬 Новый комментарий к задаче\n\n`;
+    message += `📋 ${task.title}\n`;
+    if (projectName) {
+      message += `📁 Проект: ${projectName}\n`;
+    }
+    message += `👤 От: ${authorName}\n`;
+    message += `🕒 ${createdAtStr}\n\n`;
+    message += `📝 ${shortText}\n\n`;
+    message += `Нажмите «Ответить», чтобы оставить комментарий в задаче.\n`;
+    message += `🔗 Открыть задачу: ${taskUrl}`;
+    
+    // Send message with inline keyboard
+    await bot.sendMessage(recipient.telegramChatId, message, {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: 'Ответить', callback_data: `reply:${task.id}:${comment.id}` },
+          { text: 'Открыть задачу', url: taskUrl },
+        ]],
+      },
+    });
+    
+    console.log(`📤 Comment notification sent to user ${recipientId} for task ${task.id}`);
+  } catch (error) {
+    console.error('❌ Error sending comment notification:', error);
+  }
+}
+
+/**
+ * Send daily tasks digest to all users with Telegram linked
+ * This should be called once a day at 06:00 UTC (09:00 Moscow time)
+ */
+export async function sendDailyTasksDigest() {
+  if (!bot) {
+    console.log('⚠️  Telegram bot not initialized, skipping digest');
+    return;
+  }
+  
+  console.log('📊 Starting daily tasks digest...');
+  
+  try {
+    // Get all users with Telegram linked
+    const users = await prisma.user.findMany({
+      where: {
+        telegramChatId: { not: null },
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        telegramChatId: true,
+      },
+    });
+    
+    console.log(`📊 Found ${users.length} users with Telegram linked`);
+    
+    const now = new Date();
+    const moscowNow = getMoscowDate(now);
+    const todayStart = getMoscowDayStart(moscowNow);
+    const threeDaysEnd = getMoscowDayEnd(new Date(moscowNow.getTime() + 3 * 24 * 60 * 60 * 1000));
+    
+    let sentCount = 0;
+    
+    for (const user of users) {
+      try {
+        // Get user's assigned tasks with deadlines
+        const tasks = await prisma.task.findMany({
+          where: {
+            assigneeId: user.id,
+            status: { not: 'done' }, // Not completed
+            dueDate: { not: null },
+          },
+          include: {
+            project: {
+              select: { name: true },
+            },
+          },
+          orderBy: {
+            dueDate: 'asc',
+          },
+        });
+        
+        // Categorize tasks
+        const overdueTasks = tasks.filter(t => t.dueDate! < todayStart);
+        const upcomingTasks = tasks.filter(t => 
+          t.dueDate! >= todayStart && t.dueDate! <= threeDaysEnd
+        );
+        
+        // Skip if no tasks in either category
+        if (overdueTasks.length === 0 && upcomingTasks.length === 0) {
+          continue;
+        }
+        
+        // Build message
+        const userName = user.name || user.email;
+        let message = `🗓 Ежедневная сводка по задачам\n\n`;
+        message += `Привет, ${userName}!\n\n`;
+        message += `📌 Назначенные на вас задачи:\n\n`;
+        
+        // Overdue tasks section
+        message += `⏰ Просроченные:\n`;
+        if (overdueTasks.length > 0) {
+          const limit = 10;
+          const tasksToShow = overdueTasks.slice(0, limit);
+          tasksToShow.forEach((task, index) => {
+            const priorityTag = getPriorityTag(task.priority);
+            const deadline = formatDeadline(task.dueDate!, moscowNow);
+            message += `${index + 1}) [${priorityTag}] ${task.title} (дедлайн: ${deadline})\n`;
+            if (task.project?.name) {
+              message += `   📁 Проект: ${task.project.name}\n`;
+            }
+            const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173';
+            message += `   🔗 Открыть: ${frontendBase}/tasks/${task.id}\n`;
+          });
+          if (overdueTasks.length > limit) {
+            message += `… и ещё ${overdueTasks.length - limit} задач\n`;
+          }
+        } else {
+          message += `Нет задач\n`;
+        }
+        
+        message += `\n`;
+        
+        // Upcoming tasks section
+        message += `📆 Дедлайн в ближайшие 3 дня:\n`;
+        if (upcomingTasks.length > 0) {
+          const limit = 10;
+          const tasksToShow = upcomingTasks.slice(0, limit);
+          tasksToShow.forEach((task, index) => {
+            const priorityTag = getPriorityTag(task.priority);
+            const deadline = formatDeadline(task.dueDate!, moscowNow);
+            message += `${index + 1}) [${priorityTag}] ${task.title} (дедлайн: ${deadline})\n`;
+            if (task.project?.name) {
+              message += `   📁 Проект: ${task.project.name}\n`;
+            }
+            const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173';
+            message += `   🔗 Открыть: ${frontendBase}/tasks/${task.id}\n`;
+          });
+          if (upcomingTasks.length > limit) {
+            message += `… и ещё ${upcomingTasks.length - limit} задач\n`;
+          }
+        } else {
+          message += `Нет задач\n`;
+        }
+        
+        message += `\n`;
+        message += `Всего просроченных: ${overdueTasks.length}\n`;
+        message += `Задач с дедлайном в ближайшие 3 дня: ${upcomingTasks.length}\n\n`;
+        const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173';
+        message += `🔗 Открыть список задач: ${frontendBase}/tasks?filter=my`;
+        
+        // Send message
+        await bot.sendMessage(user.telegramChatId!, message);
+        sentCount++;
+        
+        console.log(`📤 Daily digest sent to user ${user.id}`);
+      } catch (error) {
+        console.error(`❌ Error sending digest to user ${user.id}:`, error);
+      }
+    }
+    
+    console.log(`✅ Daily digest completed. Sent to ${sentCount} users.`);
+  } catch (error) {
+    console.error('❌ Error in daily digest:', error);
   }
 }
 
