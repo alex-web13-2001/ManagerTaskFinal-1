@@ -127,9 +127,9 @@ async function handleReplyCallback(query: TelegramBot.CallbackQuery, chatId: num
   if (!bot || !query.data) return;
   
   try {
-    // Parse callback data: reply:{taskId}:{commentId}
+    // Parse callback data: reply:{taskId}
     const parts = query.data.split(':');
-    if (parts.length !== 3) {
+    if (parts.length !== 2) {
       await bot.answerCallbackQuery(query.id, {
         text: '❌ Неверный формат данных',
         show_alert: true,
@@ -138,7 +138,7 @@ async function handleReplyCallback(query: TelegramBot.CallbackQuery, chatId: num
     }
     
     const taskId = parts[1];
-    const parentCommentId = parts[2];
+    const parentCommentId = ''; // Empty string placeholder
     
     // Find user by telegram chat ID
     const user = await prisma.user.findUnique({
@@ -799,7 +799,7 @@ export async function sendTaskCommentNotification(
     await bot.sendMessage(recipient.telegramChatId, message, {
       reply_markup: {
         inline_keyboard: [[
-          { text: 'Ответить', callback_data: `reply:${task.id}:${comment.id}` },
+          { text: 'Ответить', callback_data: `reply:${task.id}` },
           { text: 'Открыть задачу', url: taskUrl },
         ]],
       },
