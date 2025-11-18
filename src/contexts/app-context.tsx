@@ -251,6 +251,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Ref to track recently created tasks to prevent polling overwrites
   const recentlyCreatedTasksRef = React.useRef<Set<string>>(new Set());
   
+  // Ref to track previous WebSocket connection state to detect reconnects
+  const prevIsRealtimeConnectedRef = React.useRef<boolean>(false);
+  
   // Function to set drag state
   const setIsDragging = React.useCallback((isDragging: boolean) => {
     isDraggingRef.current = isDragging;
@@ -520,8 +523,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.error('❌ Ошибка загрузки кастомных столбцов из API:', error);
       // Don't show error toast - custom columns are optional, will use localStorage fallback
       // Try to load from localStorage as fallback
-      if (currentUser) {
-        const stored = localStorage.getItem(`personal-custom-columns-${currentUser.id}`);
+      const userId = getUserIdFromToken();
+      if (userId) {
+        const stored = localStorage.getItem(`personal-custom-columns-${userId}`);
         if (stored) {
           try {
             const parsed = JSON.parse(stored);
@@ -538,7 +542,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [currentUser]);
+  }, []); // No dependencies - function is stable
 
   const saveCustomColumns = React.useCallback(async (columns: CustomColumn[]) => {
     try {
@@ -550,15 +554,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       
       // Also save to localStorage as backup
-      if (currentUser) {
-        localStorage.setItem(`personal-custom-columns-${currentUser.id}`, JSON.stringify(columns));
+      const userId = getUserIdFromToken();
+      if (userId) {
+        localStorage.setItem(`personal-custom-columns-${userId}`, JSON.stringify(columns));
         console.log('✅ Кастомные столбцы также сохранены в localStorage (backup)');
       }
     } catch (error: any) {
       console.error('❌ Ошибка сохранения кастомных столбцов в API:', error);
       // Save to localStorage as fallback
-      if (currentUser) {
-        localStorage.setItem(`personal-custom-columns-${currentUser.id}`, JSON.stringify(columns));
+      const userId = getUserIdFromToken();
+      if (userId) {
+        localStorage.setItem(`personal-custom-columns-${userId}`, JSON.stringify(columns));
         setCustomColumns(columns);
         console.log('✅ Кастомные столбцы сохранены в localStorage (fallback):', {
           count: columns.length,
@@ -566,7 +572,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       }
     }
-  }, [currentUser]);
+  }, []); // No dependencies - function is stable
 
   const fetchCategories = React.useCallback(async () => {
     try {
@@ -600,15 +606,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const newCategory = {
         ...categoryData,
         id: categoryData.id || `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        userId: currentUser?.id || userId,
+        userId: userId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       
-      const updatedCategories = [...categories, newCategory];
-      await categoriesAPI.saveCategories(updatedCategories);
+      setCategories((prevCategories) => {
+        const updatedCategories = [...prevCategories, newCategory];
+        categoriesAPI.saveCategories(updatedCategories).catch((error) => {
+          console.error('❌ Ошибка сохранения категории в API:', error);
+        });
+        return updatedCategories;
+      });
 
-      setCategories(updatedCategories);
       console.log('✅ Категория создана:', newCategory);
       toast.success('Категория создана');
       return newCategory as Category;
@@ -617,7 +627,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast.error(error.message || 'Ошибка создания категории');
       throw error;
     }
-  }, [categories, currentUser]);
+  }, []); // No dependencies - uses functional state updates
 
   const updateCategory = React.useCallback(async (categoryId: string, updates: Partial<Category>): Promise<Category> => {
     try {
@@ -626,25 +636,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Необходима авторизация');
       }
       
-      const updatedCategories = categories.map(c => 
-        c.id === categoryId 
-          ? { ...c, ...updates, updatedAt: new Date().toISOString() }
-          : c
-      );
+      let updatedCategory: Category | undefined;
       
-      await categoriesAPI.saveCategories(updatedCategories);
+      setCategories((prevCategories) => {
+        const updatedCategories = prevCategories.map(c => 
+          c.id === categoryId 
+            ? { ...c, ...updates, updatedAt: new Date().toISOString() }
+            : c
+        );
+        
+        updatedCategory = updatedCategories.find(c => c.id === categoryId);
+        
+        categoriesAPI.saveCategories(updatedCategories).catch((error) => {
+          console.error('❌ Ошибка сохранения категории в API:', error);
+        });
+        
+        return updatedCategories;
+      });
 
-      const updatedCategory = updatedCategories.find(c => c.id === categoryId)!;
-      setCategories(updatedCategories);
       console.log('✅ Категория обновлена:', updatedCategory);
       toast.success('Категория обновлена');
-      return updatedCategory;
+      return updatedCategory!;
     } catch (error: any) {
       console.error('❌ Ошибка обновления категории:', error);
       toast.error(error.message || 'Ошибка обновления категории');
       throw error;
     }
-  }, [categories]);
+  }, []); // No dependencies - uses functional state updates
 
   const deleteCategory = React.useCallback(async (categoryId: string): Promise<void> => {
     try {
@@ -653,10 +671,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Необходима авторизация');
       }
       
-      const updatedCategories = categories.filter(c => c.id !== categoryId);
-      await categoriesAPI.saveCategories(updatedCategories);
+      setCategories((prevCategories) => {
+        const updatedCategories = prevCategories.filter(c => c.id !== categoryId);
+        
+        categoriesAPI.saveCategories(updatedCategories).catch((error) => {
+          console.error('❌ Ошибка удаления категории в API:', error);
+        });
+        
+        return updatedCategories;
+      });
 
-      setCategories(updatedCategories);
       console.log('✅ Категория удалена:', categoryId);
       toast.success('Категория удалена');
     } catch (error: any) {
@@ -664,7 +688,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast.error(error.message || 'Ошибка удаления категории');
       throw error;
     }
-  }, [categories]);
+  }, []); // No dependencies - uses functional state updates
 
   const updateCurrentUser = React.useCallback(async (updates: Partial<User>) => {
     try {
@@ -766,17 +790,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, []); // Empty deps - run only once on mount
 
-  // Load custom columns and categories when user is loaded
-  React.useEffect(() => {
-    if (currentUser) {
-      console.log('👤 User loaded, fetching custom columns and categories...');
-      fetchCustomColumns();
-      fetchCategories();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id]); // Only re-run when user ID changes
-
   // RefreshData function for manual refresh - defined early for use in effects
+  // Uses stable fetch functions with no dependencies
   const refreshData = React.useCallback(async () => {
     console.log('🔄 Refreshing all data...');
     setIsLoading(true);
@@ -794,6 +809,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     }
   }, [fetchTasks, fetchProjects, fetchCurrentUser, fetchTeamMembers, fetchCustomColumns, fetchCategories]);
+
+  // Load custom columns and categories when user is loaded
+  React.useEffect(() => {
+    if (currentUser) {
+      console.log('👤 User loaded, fetching custom columns and categories...');
+      fetchCustomColumns();
+      fetchCategories();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]); // Only re-run when user ID changes
 
   // Listen for WebSocket connection status changes from WebSocketProvider
   React.useEffect(() => {
@@ -817,7 +842,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    let intervalId: NodeJS.Timeout;
+    let intervalId: NodeJS.Timeout | undefined;
 
     const startPolling = () => {
       console.log('⚠️ WebSocket отключен. Запуск резервного поллинга...');
@@ -825,12 +850,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         try {
           // Не обновляем, если пользователь прямо сейчас тащит карточку
           if (!isDraggingRef.current) {
-            await Promise.all([
-              fetchTasks(),
-              fetchProjects(),
-              fetchCustomColumns(),
-              fetchCategories(),
-            ]);
+            await refreshData();
           } else {
             console.log('[Smart Polling] Skipping update during drag operation');
           }
@@ -854,11 +874,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         console.log('🔴 Smart Polling остановлен');
       }
     };
-  }, [currentUser, isRealtimeConnected, fetchTasks, fetchProjects, fetchCustomColumns, fetchCategories]);
+  }, [currentUser, isRealtimeConnected, refreshData]); // Only stable dependencies
 
-  // Синхронизация при восстановлении WebSocket
+  // Синхронизация при восстановлении WebSocket - only on transition from false to true
   React.useEffect(() => {
-    if (isRealtimeConnected && currentUser) {
+    // Detect transition from disconnected to connected
+    const wasDisconnected = !prevIsRealtimeConnectedRef.current;
+    const isNowConnected = isRealtimeConnected;
+    
+    // Update ref for next render
+    prevIsRealtimeConnectedRef.current = isRealtimeConnected;
+    
+    // Only refresh on reconnect (false -> true transition) when user is logged in
+    if (wasDisconnected && isNowConnected && currentUser) {
       console.log('🔄 WebSocket восстановлен. Синхронизация данных...');
       refreshData();
     }

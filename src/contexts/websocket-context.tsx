@@ -105,7 +105,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       websocket.off('task:deleted', handleTaskDeleted);
       websocket.off('task:moved', handleTaskMoved);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, fetchTasks, setTasks]);
+  }, [websocket.isConnected, websocket.on, websocket.off, setTasks]);
 
   // Handle invitation events
   useEffect(() => {
@@ -141,7 +141,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       websocket.off('invite:received', handleInviteReceived);
       websocket.off('invite:accepted', handleInviteAccepted);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, currentUser, fetchProjects, fetchTeamMembers]);
+  }, [websocket.isConnected, websocket.on, websocket.off, currentUser?.id, fetchProjects, fetchTeamMembers]);
 
   // Handle project events
   useEffect(() => {
@@ -262,7 +262,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     return () => {
       websocket.off('comment:added', handleCommentAdded);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, currentUser, setTasks]);
+  }, [websocket.isConnected, websocket.on, websocket.off, currentUser?.id, setTasks]);
 
   // Handle user settings events (custom columns, categories)
   useEffect(() => {
@@ -294,7 +294,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     return () => {
       websocket.off('user:settings_updated', handleUserSettingsUpdated);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, currentUser, fetchCustomColumns, fetchCategories]);
+  }, [websocket.isConnected, websocket.on, websocket.off, currentUser?.id, fetchCustomColumns, fetchCategories]);
 
   // Auto-join project rooms when WebSocket connects
   // This ensures users receive real-time updates for tasks in their projects
