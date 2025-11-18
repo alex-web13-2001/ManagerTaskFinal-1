@@ -214,6 +214,12 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     const handleCommentAdded = (data: { taskId: string; comment: any; timestamp?: string }) => {
       console.log('📥 WebSocket: comment:added', data);
       
+      // Ignore events for comments authored by current user (already added locally)
+      if (currentUser && data.comment?.createdBy === currentUser.id) {
+        console.log('📥 WebSocket: Skipping comment:added for current user (already added locally)');
+        return;
+      }
+      
       // Update the task in state to include the new comment
       setTasks((prevTasks) => {
         return prevTasks.map((task) => {
@@ -242,7 +248,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     return () => {
       websocket.off('comment:added', handleCommentAdded);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, setTasks]);
+  }, [websocket.isConnected, websocket.on, websocket.off, currentUser, setTasks]);
 
   // Auto-join project rooms when WebSocket connects
   // This ensures users receive real-time updates for tasks in their projects

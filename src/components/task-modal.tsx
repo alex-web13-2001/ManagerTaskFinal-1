@@ -601,6 +601,16 @@ export function TaskModal({
     }
   };
 
+  const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Submit on Ctrl+Enter (Windows/Linux) or Cmd+Enter (macOS)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (commentText.trim() && !isSubmittingComment) {
+        handleSubmitComment();
+      }
+    }
+  };
+
   const renderDescription = (text: string) => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const parts = text.split(urlRegex);
@@ -1210,6 +1220,7 @@ export function TaskModal({
                       placeholder="Напишите комментарий..."
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
+                      onKeyDown={handleCommentKeyDown}
                       className="min-h-[80px]"
                       disabled={isSubmittingComment}
                     />
