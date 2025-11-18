@@ -57,6 +57,7 @@ type PersonalTaskTableProps = {
   filters: {
     priorities: string[];
     deadline: string;
+    onlyNew?: boolean;
   };
   onTaskClick: (taskId: string) => void;
 };
@@ -147,6 +148,11 @@ export function PersonalTaskTable({ filters, onTaskClick }: PersonalTaskTablePro
         }
       }
 
+      // Only New filter
+      if (filters.onlyNew === true) {
+        if (!isTaskNew(task)) return false;
+      }
+
       return true;
     };
 
@@ -180,7 +186,7 @@ export function PersonalTaskTable({ filters, onTaskClick }: PersonalTaskTablePro
     }
 
     return result;
-  }, [personalTasks, filters, sortColumn, sortDirection]);
+  }, [personalTasks, filters, sortColumn, sortDirection, isTaskNew]);
 
 
 

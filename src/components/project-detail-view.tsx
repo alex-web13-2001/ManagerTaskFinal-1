@@ -190,6 +190,7 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView, onTaskCli
     assignees: [],
     tags: [],
     deadline: 'all',
+    onlyNew: false,
   });
 
   // Статичные списки
@@ -274,6 +275,7 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView, onTaskCli
       assignees: [],
       tags: [],
       deadline: 'all',
+      onlyNew: false,
     });
     setSearchQuery('');
   };

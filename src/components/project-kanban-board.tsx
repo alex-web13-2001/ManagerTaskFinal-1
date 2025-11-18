@@ -194,7 +194,7 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
           <div className="flex items-center gap-2 flex-wrap">
             {isNewTask && (
               <Badge className="bg-green-500 text-white text-xs font-bold">
-                NEW
+                Новая
               </Badge>
             )}
             {category && (
@@ -440,6 +440,47 @@ export function ProjectKanbanBoard({
     return new Date(deadline) < today;
   };
 
+  // Helper function to check if task is new (same logic as useTaskNewBadge)
+  const isTaskNew = React.useCallback((task: TaskType): boolean => {
+    // Condition 1: Current user must be logged in
+    if (!currentUser?.id) return false;
+
+    // Condition 2: Task must NOT be created by current user
+    if (task.userId === currentUser.id) return false;
+
+    // Condition 3: Task must be less than 7 days old
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const taskCreatedTime = new Date(task.createdAt).getTime();
+    const now = Date.now();
+    const taskAge = now - taskCreatedTime;
+    if (taskAge > SEVEN_DAYS_MS) return false;
+
+    // Condition 4: Check read status and timer
+    const STORAGE_KEY = 'task_views_timestamp';
+    const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
+    
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      const views = stored ? JSON.parse(stored) : {};
+      const viewTimestamp = views[task.id];
+
+      // If task has been read (value is 0), don't show badge
+      if (viewTimestamp === 0) return false;
+
+      // If this is the first time seeing this task, it's new
+      if (viewTimestamp === undefined) return true;
+
+      // If task has been in view for more than 3 hours, don't show badge
+      const timeSinceFirstView = now - viewTimestamp;
+      if (timeSinceFirstView > THREE_HOURS_MS) return false;
+
+      return true;
+    } catch (error) {
+      console.error('Failed to check task view status:', error);
+      return false;
+    }
+  }, [currentUser?.id]);
+
   // Filter tasks for this project
   const projectTasks = React.useMemo(() => {
     console.log('🔍 ProjectKanbanBoard filtering:', {
@@ -530,9 +571,14 @@ export function ProjectKanbanBoard({
         if (new Date(task.deadline) > to) return false;
       }
 
+      // Only New filter
+      if (filters.onlyNew === true) {
+        if (!isTaskNew(task)) return false;
+      }
+
       return true;
     });
-  }, [tasks, projectId, searchQuery, filters, canViewAllProjectTasks, currentUser]);
+  }, [tasks, projectId, searchQuery, filters, canViewAllProjectTasks, currentUser, isTaskNew]);
 
   // Use custom hook for DnD logic
   const { taskOrder, handleMoveCard, handleStatusChange } = useKanbanDnD({

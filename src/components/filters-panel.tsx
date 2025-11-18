@@ -27,6 +27,7 @@ export type Filters = {
   deadline: 'all' | 'overdue' | 'today' | '3days' | 'week';
   deadlineFrom?: string;
   deadlineTo?: string;
+  onlyNew?: boolean;
 };
 
 type FiltersPanelProps = {
@@ -79,7 +80,8 @@ export function FiltersPanel({ filters, onFiltersChange, onClearFilters }: Filte
     filters.priorities.length > 0 ||
     filters.assignees.length > 0 ||
     filters.tags.length > 0 ||
-    filters.deadline !== 'all';
+    filters.deadline !== 'all' ||
+    filters.onlyNew === true;
 
   const getColorClass = (color?: string) => {
     const colorMap: Record<string, string> = {
@@ -380,6 +382,27 @@ export function FiltersPanel({ filters, onFiltersChange, onClearFilters }: Filte
                 ))}
               </div>
             )}
+          </div>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <Label>Новые задачи</Label>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="filter-only-new"
+                checked={filters.onlyNew || false}
+                onCheckedChange={(checked) => 
+                  onFiltersChange({ ...filters, onlyNew: checked === true })
+                }
+              />
+              <label
+                htmlFor="filter-only-new"
+                className="text-sm cursor-pointer flex-1"
+              >
+                Показывать только новые задачи
+              </label>
+            </div>
           </div>
 
           <Separator />
