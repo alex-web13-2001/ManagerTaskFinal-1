@@ -127,9 +127,9 @@ async function handleReplyCallback(query: TelegramBot.CallbackQuery, chatId: num
   if (!bot || !query.data) return;
   
   try {
-    // Parse callback data: reply:{taskId}:{commentId}
+    // Parse callback data: reply:{taskId}
     const parts = query.data.split(':');
-    if (parts.length !== 3) {
+    if (parts.length !== 2) {
       await bot.answerCallbackQuery(query.id, {
         text: '❌ Неверный формат данных',
         show_alert: true,
@@ -138,7 +138,7 @@ async function handleReplyCallback(query: TelegramBot.CallbackQuery, chatId: num
     }
     
     const taskId = parts[1];
-    const parentCommentId = parts[2];
+    const parentCommentId = ''; // Empty string placeholder
     
     // Find user by telegram chat ID
     const user = await prisma.user.findUnique({
@@ -799,7 +799,7 @@ export async function sendTaskCommentNotification(
     await bot.sendMessage(recipient.telegramChatId, message, {
       reply_markup: {
         inline_keyboard: [[
-          { text: 'Ответить', callback_data: `reply:${task.id}:${comment.id}` },
+          { text: 'Ответить', callback_data: `reply:${task.id}` },
           { text: 'Открыть задачу', url: taskUrl },
         ]],
       },
@@ -887,42 +887,52 @@ export async function sendDailyTasksDigest() {
         if (overdueTasks.length > 0) {
           const limit = 10;
           const tasksToShow = overdueTasks.slice(0, limit);
-          tasksToShow.forEach((task, index) => {
+          message += `\n`; // Add blank line after section header
+          
+          tasksToShow.forEach((task) => {
             const priorityTag = getPriorityTag(task.priority);
             const deadline = formatDeadline(task.dueDate!, moscowNow);
-            message += `${index + 1}) [${priorityTag}] ${task.title} (дедлайн: ${deadline})\n`;
-            if (task.project?.name) {
-              message += `   📁 Проект: ${task.project.name}\n`;
-            }
             const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173';
-            message += `   🔗 Открыть: ${frontendBase}/tasks/${task.id}\n`;
+            
+            // Format: emoji + priority text + " — " + task title + deadline
+            message += `${priorityTag} — ${task.title} (дедлайн: ${deadline})\n`;
+            if (task.project?.name) {
+              message += `📁 Проект: ${task.project.name}\n`;
+            }
+            message += `🔗 Открыть: ${frontendBase}/tasks/${task.id}\n`;
+            message += `\n`; // Blank line between tasks
           });
+          
           if (overdueTasks.length > limit) {
-            message += `… и ещё ${overdueTasks.length - limit} задач\n`;
+            message += `… и ещё ${overdueTasks.length - limit} задач\n\n`;
           }
         } else {
           message += `Нет задач\n`;
         }
-        
-        message += `\n`;
         
         // Upcoming tasks section
         message += `📆 Дедлайн в ближайшие 3 дня:\n`;
         if (upcomingTasks.length > 0) {
           const limit = 10;
           const tasksToShow = upcomingTasks.slice(0, limit);
-          tasksToShow.forEach((task, index) => {
+          message += `\n`; // Add blank line after section header
+          
+          tasksToShow.forEach((task) => {
             const priorityTag = getPriorityTag(task.priority);
             const deadline = formatDeadline(task.dueDate!, moscowNow);
-            message += `${index + 1}) [${priorityTag}] ${task.title} (дедлайн: ${deadline})\n`;
-            if (task.project?.name) {
-              message += `   📁 Проект: ${task.project.name}\n`;
-            }
             const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173';
-            message += `   🔗 Открыть: ${frontendBase}/tasks/${task.id}\n`;
+            
+            // Format: emoji + priority text + " — " + task title + deadline
+            message += `${priorityTag} — ${task.title} (дедлайн: ${deadline})\n`;
+            if (task.project?.name) {
+              message += `📁 Проект: ${task.project.name}\n`;
+            }
+            message += `🔗 Открыть: ${frontendBase}/tasks/${task.id}\n`;
+            message += `\n`; // Blank line between tasks
           });
+          
           if (upcomingTasks.length > limit) {
-            message += `… и ещё ${upcomingTasks.length - limit} задач\n`;
+            message += `… и ещё ${upcomingTasks.length - limit} задач\n\n`;
           }
         } else {
           message += `Нет задач\n`;
