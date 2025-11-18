@@ -389,7 +389,7 @@ export function PersonalKanbanBoard({
   filters,
   onTaskClick,
 }: {
-  filters: { priorities: string[]; deadline: string };
+  filters: { priorities: string[]; deadline: string; onlyNew?: boolean };
   onTaskClick: (taskId: string) => void;
 }) {
   const { tasks, updateTask, currentUser, customColumns: contextCustomColumns, saveCustomColumns, isInitialLoad } = useApp();
@@ -445,6 +445,47 @@ export function PersonalKanbanBoard({
     return deadlineDate < today;
   };
 
+  // Helper function to check if task is new (same logic as useTaskNewBadge)
+  const isTaskNew = React.useCallback((task: TaskType): boolean => {
+    // Condition 1: Current user must be logged in
+    if (!currentUser?.id) return false;
+
+    // Condition 2: Task must NOT be created by current user
+    if (task.userId === currentUser.id) return false;
+
+    // Condition 3: Task must be less than 7 days old
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const taskCreatedTime = new Date(task.createdAt).getTime();
+    const now = Date.now();
+    const taskAge = now - taskCreatedTime;
+    if (taskAge > SEVEN_DAYS_MS) return false;
+
+    // Condition 4: Check read status and timer
+    const STORAGE_KEY = 'task_views_timestamp';
+    const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
+    
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      const views = stored ? JSON.parse(stored) : {};
+      const viewTimestamp = views[task.id];
+
+      // If task has been read (value is 0), don't show badge
+      if (viewTimestamp === 0) return false;
+
+      // If this is the first time seeing this task, it's new
+      if (viewTimestamp === undefined) return true;
+
+      // If task has been in view for more than 3 hours, don't show badge
+      const timeSinceFirstView = now - viewTimestamp;
+      if (timeSinceFirstView > THREE_HOURS_MS) return false;
+
+      return true;
+    } catch (error) {
+      console.error('Failed to check task view status:', error);
+      return false;
+    }
+  }, [currentUser?.id]);
+
   // Filter personal tasks (tasks without a project)
   const personalTasks = React.useMemo(() => {
     return tasks.filter((task) => {
@@ -488,9 +529,14 @@ export function PersonalKanbanBoard({
         }
       }
 
+      // Only New filter
+      if (filters.onlyNew === true) {
+        if (!isTaskNew(task)) return false;
+      }
+
       return true;
     });
-  }, [tasks, filters]);
+  }, [tasks, filters, isTaskNew]);
 
   // Use custom hook for DnD logic
   const { taskOrder, handleMoveCard, handleStatusChange } = useKanbanDnD({

@@ -17,13 +17,15 @@ interface TasksViewProps {
 export function TasksView({ onTaskClick }: TasksViewProps) {
   const [viewMode, setViewMode] = React.useState<'kanban' | 'table'>('kanban');
   
-  // Фильтры: приоритет и дедлайн (без статуса)
+  // Фильтры: приоритет, дедлайн, и новые задачи (без статуса)
   const [filters, setFilters] = React.useState<{
     priorities: string[];
     deadline: string;
+    onlyNew?: boolean;
   }>({
     priorities: [],
     deadline: 'all',
+    onlyNew: false,
   });
 
   const handleTaskClick = (taskId: string) => {
@@ -43,6 +45,7 @@ export function TasksView({ onTaskClick }: TasksViewProps) {
     setFilters({
       priorities: [],
       deadline: 'all',
+      onlyNew: false,
     });
   };
 
@@ -52,7 +55,7 @@ export function TasksView({ onTaskClick }: TasksViewProps) {
     { id: 'low', name: 'Низкий' },
   ];
 
-  const hasActiveFilters = filters.priorities.length > 0 || filters.deadline !== 'all';
+  const hasActiveFilters = filters.priorities.length > 0 || filters.deadline !== 'all' || filters.onlyNew === true;
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -205,6 +208,23 @@ export function TasksView({ onTaskClick }: TasksViewProps) {
               </div>
             </PopoverContent>
           </Popover>
+
+          {/* Новые задачи */}
+          <div className="flex items-center space-x-2 border rounded-lg px-3 py-1.5">
+            <Checkbox
+              id="filter-only-new-personal"
+              checked={filters.onlyNew || false}
+              onCheckedChange={(checked) =>
+                setFilters({ ...filters, onlyNew: checked === true })
+              }
+            />
+            <label
+              htmlFor="filter-only-new-personal"
+              className="text-sm cursor-pointer"
+            >
+              Новые задачи
+            </label>
+          </div>
 
           {hasActiveFilters && (
             <Button
