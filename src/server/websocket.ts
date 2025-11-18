@@ -36,6 +36,9 @@ export interface WebSocketEvents {
   'project:updated': (data: { project: any; projectId: string }) => void;
   'project:member_added': (data: { projectId: string; member: any }) => void;
   'project:member_removed': (data: { projectId: string; memberId: string }) => void;
+  
+  // User settings events
+  'user:settings_updated': (data: { userId: string; settings: any }) => void;
 }
 
 let io: SocketIOServer | null = null;
@@ -341,6 +344,21 @@ export function emitCommentAdded(taskId: string, comment: any, projectId?: strin
   }
 }
 
+/**
+ * Emit user settings updated event
+ * This is used for custom columns, categories, and other user preferences
+ */
+export function emitUserSettingsUpdated(userId: string, settings: any) {
+  if (!io) return;
+  
+  const room = `user:${userId}`;
+  const event = 'user:settings_updated';
+  const data = { userId, settings };
+  
+  io.to(room).emit(event, data);
+  console.log(`📤 Emitted ${event} to room ${room}`);
+}
+
 export default {
   initializeWebSocket,
   getIO,
@@ -356,4 +374,5 @@ export default {
   emitProjectMemberAdded,
   emitProjectMemberRemoved,
   emitCommentAdded,
+  emitUserSettingsUpdated,
 };

@@ -33,7 +33,8 @@ import {
   emitProjectUpdated,
   emitProjectMemberAdded,
   emitProjectMemberRemoved,
-  emitCommentAdded
+  emitCommentAdded,
+  emitUserSettingsUpdated
 } from './websocket.js';
 import { startRecurringTaskProcessor } from './recurringTaskProcessor.js';
 import { 
@@ -1631,6 +1632,32 @@ apiRouter.post('/upload-attachment', uploadRateLimiter, upload.array('files', 10
       })
     );
 
+    // Fetch the updated task with attachments to emit via WebSocket
+    const updatedTask = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        attachments: true,
+        comments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Emit WebSocket event so other clients see the new attachments immediately
+    if (updatedTask) {
+      emitTaskUpdated(updatedTask, updatedTask.projectId || undefined);
+      console.log(`📤 WebSocket: Emitted task:updated after attachment upload for task ${taskId}`);
+    }
+
     res.json({
       attachments,
       message: `${attachments.length} file(s) uploaded successfully`,
@@ -1930,6 +1957,17 @@ apiRouter.post('/users/:userId/custom_columns', async (req: AuthRequest, res: Re
       orderBy: { order: 'asc' },
     });
     
+    // Emit WebSocket event so other tabs/clients see the updated custom columns immediately
+    emitUserSettingsUpdated(userId, { 
+      customColumns: updatedColumns.map(col => ({
+        id: col.id,
+        title: col.name,
+        color: col.color,
+        order: col.order,
+      }))
+    });
+    console.log(`📤 WebSocket: Emitted user:settings_updated for custom columns for user ${userId}`);
+    
     res.json(updatedColumns);
   } catch (error: any) {
     console.error('Save custom columns error:', error);
@@ -2003,6 +2041,12 @@ apiRouter.post('/users/:userId/categories', async (req: AuthRequest, res: Respon
       where: { userId },
       orderBy: { name: 'asc' },
     });
+    
+    // Emit WebSocket event so other tabs/clients see the updated categories immediately
+    emitUserSettingsUpdated(userId, { 
+      categories: updatedCategories 
+    });
+    console.log(`📤 WebSocket: Emitted user:settings_updated for categories for user ${userId}`);
     
     res.json(updatedCategories);
   } catch (error: any) {
@@ -2634,6 +2678,32 @@ apiRouter.delete('/tasks/:taskId/attachments/:attachmentId', uploadRateLimiter, 
     await prisma.attachment.delete({
       where: { id: attachmentId },
     });
+
+    // Fetch the updated task to emit via WebSocket
+    const updatedTask = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: {
+        attachments: true,
+        comments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Emit WebSocket event so other clients see the attachment removal immediately
+    if (updatedTask) {
+      emitTaskUpdated(updatedTask, updatedTask.projectId || undefined);
+      console.log(`📤 WebSocket: Emitted task:updated after attachment deletion for task ${taskId}`);
+    }
 
     res.json({ message: 'Attachment deleted successfully' });
   } catch (error: any) {
