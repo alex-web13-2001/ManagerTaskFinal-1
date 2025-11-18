@@ -1,0 +1,477 @@
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { projectsAPI, teamAPI, getAuthToken } from '../utils/api-client';
+import { Project, TeamMember, UserRole } from '../types';
+import { toast } from 'sonner';
+import { useAuth } from './auth-context';
+import { useWebSocket } from './websocket-context';
+import { hasRolePermission, type Permission, type UserRole as RBACUserRole } from '../lib/rbac';
+
+/**
+ * Deep comparison helper to check if arrays have different content
+ * Returns true if arrays are different (need update), false if same
+ */
+const areArraysDifferent = <T extends { id: string; updatedAt?: string }>(
+  current: T[],
+  incoming: T[]
+): boolean => {
+  // Quick length check
+  if (current.length !== incoming.length) return true;
+  
+  // Create maps for efficient comparison
+  const currentMap = new Map(current.map(item => [item.id, item]));
+  const incomingMap = new Map(incoming.map(item => [item.id, item]));
+  
+  // Check if any IDs are different
+  if (current.some(item => !incomingMap.has(item.id))) return true;
+  if (incoming.some(item => !currentMap.has(item.id))) return true;
+  
+  // Compare updatedAt timestamps for changed items
+  for (const incomingItem of incoming) {
+    const currentItem = currentMap.get(incomingItem.id);
+    if (currentItem && incomingItem.updatedAt && currentItem.updatedAt !== incomingItem.updatedAt) {
+      return true;
+    }
+  }
+  
+  return false;
+};
+
+interface ProjectsContextType {
+  projects: Project[];
+  archivedProjects: Project[];
+  teamMembers: TeamMember[];
+  fetchProjects: () => Promise<void>;
+  fetchArchivedProjects: () => Promise<void>;
+  fetchTeamMembers: () => Promise<void>;
+  createProject: (projectData: Partial<Project>) => Promise<Project>;
+  updateProject: (projectId: string, updates: Partial<Project>) => Promise<Project>;
+  archiveProject: (projectId: string) => Promise<void>;
+  restoreProject: (projectId: string) => Promise<void>;
+  deleteProject: (projectId: string) => Promise<void>;
+  leaveProject: (projectId: string) => Promise<void>;
+  transferProjectOwnership: (projectId: string, newOwnerId: string) => Promise<void>;
+  uploadProjectAttachment: (projectId: string, file: File) => Promise<any>;
+  deleteProjectAttachment: (projectId: string, attachmentId: string) => Promise<void>;
+  getUserRoleInProject: (projectId: string) => UserRole;
+  canEditProject: (projectId: string) => boolean;
+  canDeleteProject: (projectId: string) => boolean;
+  hasPermission: (permission: Permission, projectId?: string) => boolean;
+}
+
+const ProjectsContext = createContext<ProjectsContextType | undefined>(undefined);
+
+export function ProjectsProvider({ children }: { children: React.ReactNode }) {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [archivedProjects, setArchivedProjects] = useState<Project[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  
+  const { currentUser, isAuthenticated } = useAuth();
+  const { isConnected: isWebSocketConnected, subscribe, joinProject, leaveProject } = useWebSocket();
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        return;
+      }
+      
+      const fetchedProjects = await projectsAPI.getAll();
+      
+      // Filter out archived projects (they should be loaded separately)
+      const activeProjects = fetchedProjects.filter((p: Project) => !p.archived);
+      
+      // Limit projects to prevent memory issues
+      const limitedProjects = activeProjects.slice(0, 500);
+      if (activeProjects.length > 500) {
+        console.warn(`⚠️ Показано ${limitedProjects.length} из ${activeProjects.length} проектов для оптимизации производительности`);
+      }
+      
+      // Extract team members from all projects
+      const membersMap = new Map<string, TeamMember>();
+      limitedProjects.forEach((project: Project) => {
+        if (project.members && Array.isArray(project.members)) {
+          project.members.forEach((member: any) => {
+            // Handle both flat and nested user structures
+            const memberId = member.userId || member.id;
+            const memberName = member.user?.name || member.name || '';
+            const memberEmail = member.user?.email || member.email || '';
+            const memberAvatar = member.user?.avatarUrl || member.avatarUrl;
+            
+            // Only add members that have at least a name or email
+            if (memberId && (memberName || memberEmail) && !membersMap.has(memberId)) {
+              membersMap.set(memberId, {
+                id: memberId,
+                name: memberName,
+                email: memberEmail,
+                avatarUrl: memberAvatar,
+              });
+            }
+          });
+        }
+      });
+      
+      // Update team members if changed
+      const extractedMembers = Array.from(membersMap.values());
+      setTeamMembers(prevMembers => {
+        const prevIds = new Set(prevMembers.map(m => m.id));
+        const newIds = new Set(extractedMembers.map(m => m.id));
+        
+        // Check if members have changed
+        if (prevMembers.length !== extractedMembers.length ||
+            !Array.from(newIds).every(id => prevIds.has(id))) {
+          console.log('✅ Участники команды обновлены:', { было: prevMembers.length, стало: extractedMembers.length });
+          return extractedMembers;
+        }
+        return prevMembers;
+      });
+      
+      // Only update state if data actually changed - prevents unnecessary re-renders
+      setProjects(prevProjects => {
+        if (!areArraysDifferent(prevProjects, limitedProjects)) {
+          return prevProjects;
+        }
+        console.log('✅ Проекты обновлены:', { было: prevProjects.length, стало: limitedProjects.length });
+        return limitedProjects;
+      });
+    } catch (error: any) {
+      if (!error.message?.includes('авторизован') && !error.message?.includes('Not authenticated')) {
+        console.error('❌ Ошибка загрузки проектов:', error);
+        toast.error('Ошибка загрузки проектов');
+      }
+    }
+  }, []);
+
+  const fetchArchivedProjects = useCallback(async () => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        return;
+      }
+      
+      const archived = await projectsAPI.getArchived();
+      console.log('✅ Архивные проекты загружены:', archived.length);
+      setArchivedProjects(archived);
+    } catch (error: any) {
+      if (!error.message?.includes('авторизован') && !error.message?.includes('Not authenticated')) {
+        console.error('❌ Ошибка загрузки архивных проектов:', error);
+      }
+    }
+  }, []);
+
+  const fetchTeamMembers = useCallback(async () => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        return;
+      }
+      
+      // Team members are extracted from projects when projects are loaded
+      console.log('✅ Участники команды будут загружены из проектов');
+    } catch (error: any) {
+      console.error('❌ Ошибка загрузки участников команды:', error);
+    }
+  }, []);
+
+  const createProject = useCallback(async (projectData: Partial<Project>): Promise<Project> => {
+    try {
+      const newProject = await projectsAPI.create(projectData);
+      await fetchProjects();
+      toast.success('Проект создан');
+      return newProject;
+    } catch (error: any) {
+      console.error('Create project error:', error);
+      toast.error(error.message || 'Ошибка создания проекта');
+      throw error;
+    }
+  }, [fetchProjects]);
+
+  const updateProject = useCallback(async (projectId: string, updates: Partial<Project>): Promise<Project> => {
+    let originalProject: Project | undefined;
+    
+    setProjects((prev) => {
+      const project = prev.find(p => p.id === projectId);
+      if (!project) return prev;
+      
+      originalProject = project;
+      const updatedProjectOptimistic = { ...project, ...updates };
+      return prev.map((p) => (p.id === projectId ? updatedProjectOptimistic : p));
+    });
+    
+    try {
+      const updatedProject = await projectsAPI.update(projectId, updates);
+      setProjects((prev) => prev.map((p) => (p.id === projectId ? updatedProject : p)));
+      toast.success('Проект обновлен');
+      return updatedProject;
+    } catch (error: any) {
+      console.error('Update project error:', error);
+      
+      if (originalProject) {
+        setProjects((prev) => prev.map((p) => (p.id === projectId ? originalProject : p)));
+      }
+      
+      toast.error(error.message || 'Ошибка обновления проекта');
+      throw error;
+    }
+  }, []);
+
+  const archiveProject = useCallback(async (projectId: string): Promise<void> => {
+    let originalProject: Project | undefined;
+    
+    setProjects((prev) => {
+      originalProject = prev.find(p => p.id === projectId);
+      return prev.filter((p) => p.id !== projectId);
+    });
+    
+    try {
+      const archivedProject = await projectsAPI.archive(projectId);
+      setArchivedProjects((prev) => [...prev, archivedProject]);
+      toast.success('Проект отправлен в архив');
+    } catch (error: any) {
+      console.error('Archive project error:', error);
+      
+      if (originalProject) {
+        setProjects((prev) => [...prev, originalProject]);
+      }
+      
+      toast.error(error.message || 'Ошибка архивирования проекта');
+      throw error;
+    }
+  }, []);
+
+  const restoreProject = useCallback(async (projectId: string): Promise<void> => {
+    let originalArchivedProject: Project | undefined;
+    
+    setArchivedProjects((prev) => {
+      originalArchivedProject = prev.find(p => p.id === projectId);
+      return prev.filter((p) => p.id !== projectId);
+    });
+    
+    try {
+      const restoredProject = await projectsAPI.restore(projectId);
+      setProjects((prev) => [...prev, restoredProject]);
+      toast.success('Проект восстановлен из архива');
+    } catch (error: any) {
+      console.error('Restore project error:', error);
+      
+      if (originalArchivedProject) {
+        setArchivedProjects((prev) => [...prev, originalArchivedProject]);
+      }
+      
+      toast.error(error.message || 'Ошибка восстановления проекта');
+      throw error;
+    }
+  }, []);
+
+  const deleteProject = useCallback(async (projectId: string): Promise<void> => {
+    try {
+      await projectsAPI.delete(projectId);
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      setArchivedProjects((prev) => prev.filter((p) => p.id !== projectId));
+      toast.success('Проект удалён');
+    } catch (error: any) {
+      console.error('Delete project error:', error);
+      toast.error(error.message || 'Ошибка удаления проекта');
+      throw error;
+    }
+  }, []);
+
+  const leaveProject = useCallback(async (projectId: string): Promise<void> => {
+    try {
+      await projectsAPI.leave(projectId);
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      toast.success('Вы покинули проект');
+    } catch (error: any) {
+      console.error('Leave project error:', error);
+      toast.error(error.message || 'Ошибка выхода из проекта');
+      throw error;
+    }
+  }, []);
+
+  const transferProjectOwnership = useCallback(async (projectId: string, newOwnerId: string): Promise<void> => {
+    try {
+      await projectsAPI.transferOwnership(projectId, newOwnerId);
+      
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === projectId
+            ? { ...p, userId: newOwnerId }
+            : p
+        )
+      );
+      
+      toast.success('Владелец проекта изменён');
+    } catch (error: any) {
+      console.error('Transfer ownership error:', error);
+      toast.error(error.message || 'Ошибка передачи владения');
+      throw error;
+    }
+  }, []);
+
+  const uploadProjectAttachment = useCallback(async (projectId: string, file: File): Promise<any> => {
+    try {
+      console.log(`📎 uploadProjectAttachment: Uploading file ${file.name} for project ${projectId}`);
+      const attachment = await projectsAPI.uploadAttachment(projectId, file);
+      console.log(`✅ uploadProjectAttachment: Upload successful, attachment:`, attachment);
+      return attachment;
+    } catch (error: any) {
+      console.error(`❌ uploadProjectAttachment: Error uploading file ${file.name}:`, error);
+      toast.error(error.message || 'Ошибка загрузки файла');
+      throw error;
+    }
+  }, []);
+
+  const deleteProjectAttachment = useCallback(async (projectId: string, attachmentId: string): Promise<void> => {
+    try {
+      console.log(`🗑️ deleteProjectAttachment: Deleting attachment ${attachmentId} from project ${projectId}`);
+      await projectsAPI.deleteAttachment(projectId, attachmentId);
+      console.log(`✅ deleteProjectAttachment: Attachment deleted successfully`);
+      toast.success('Файл удалён');
+    } catch (error: any) {
+      console.error(`❌ deleteProjectAttachment: Error deleting attachment:`, error);
+      toast.error(error.message || 'Ошибка удаления файла');
+      throw error;
+    }
+  }, []);
+
+  // Permission helpers
+  const getUserRoleInProject = useCallback((projectId: string): UserRole => {
+    if (!currentUser) return null;
+    
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return null;
+    
+    const isOwner = project.userId === currentUser.id && !(project as any).isShared;
+    if (isOwner) {
+      return 'owner';
+    }
+    
+    if (project.members && Array.isArray(project.members)) {
+      const member = project.members.find((m: any) => 
+        m.userId === currentUser.id || m.email === currentUser.email
+      );
+      
+      if (member) {
+        return member.role || 'member';
+      }
+    }
+    
+    return null;
+  }, [currentUser, projects]);
+
+  const canEditProject = useCallback((projectId: string): boolean => {
+    const role = getUserRoleInProject(projectId);
+    return role === 'owner' || role === 'collaborator';
+  }, [getUserRoleInProject]);
+
+  const canDeleteProject = useCallback((projectId: string): boolean => {
+    const role = getUserRoleInProject(projectId);
+    return role === 'owner';
+  }, [getUserRoleInProject]);
+
+  const hasPermission = useCallback((permission: Permission, projectId?: string): boolean => {
+    if (!currentUser) return false;
+    
+    if (!projectId) {
+      return false;
+    }
+    
+    const role = getUserRoleInProject(projectId);
+    if (!role) return false;
+    
+    return hasRolePermission(role as RBACUserRole, permission);
+  }, [currentUser, getUserRoleInProject]);
+
+  // Subscribe to WebSocket project events
+  useEffect(() => {
+    if (!isWebSocketConnected) return;
+
+    const handleProjectUpdated = (data: { project: Project; projectId: string }) => {
+      console.log('📥 ProjectsContext: project:updated', data);
+      fetchProjects();
+    };
+
+    const handleProjectDeleted = (data: { projectId: string }) => {
+      console.log('📥 ProjectsContext: project:deleted', data);
+      setProjects(prev => prev.filter(p => p.id !== data.projectId));
+      setArchivedProjects(prev => prev.filter(p => p.id !== data.projectId));
+    };
+
+    const handleProjectMemberAdded = (data: { projectId: string; member: any }) => {
+      console.log('📥 ProjectsContext: project:member_added', data);
+      fetchProjects();
+      fetchTeamMembers();
+      toast.info(`New member joined: ${data.member.user?.name || data.member.email}`);
+    };
+
+    const handleProjectMemberRemoved = (data: { projectId: string; memberId: string }) => {
+      console.log('📥 ProjectsContext: project:member_removed', data);
+      fetchProjects();
+    };
+
+    const handleInviteAccepted = (data: { invitationId: string; projectId: string; userId: string }) => {
+      console.log('📥 ProjectsContext: invite:accepted', data);
+      fetchProjects();
+      fetchTeamMembers();
+    };
+
+    const unsubscribers = [
+      subscribe('project:updated', handleProjectUpdated),
+      subscribe('project:deleted', handleProjectDeleted),
+      subscribe('project:member_added', handleProjectMemberAdded),
+      subscribe('project:member_removed', handleProjectMemberRemoved),
+      subscribe('invite:accepted', handleInviteAccepted),
+    ];
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [isWebSocketConnected, subscribe, fetchProjects, fetchTeamMembers]);
+
+  // Auto-join project rooms when authenticated and connected
+  useEffect(() => {
+    if (!isAuthenticated || !isWebSocketConnected || projects.length === 0) return;
+    
+    projects.forEach((project) => {
+      joinProject(project.id);
+      console.log(`📥 Auto-joined project room: project:${project.id}`);
+    });
+
+    return () => {
+      projects.forEach((project) => {
+        leaveProject(project.id);
+      });
+    };
+  }, [isAuthenticated, isWebSocketConnected, projects, joinProject, leaveProject]);
+
+  const value: ProjectsContextType = {
+    projects,
+    archivedProjects,
+    teamMembers,
+    fetchProjects,
+    fetchArchivedProjects,
+    fetchTeamMembers,
+    createProject,
+    updateProject,
+    archiveProject,
+    restoreProject,
+    deleteProject,
+    leaveProject,
+    transferProjectOwnership,
+    uploadProjectAttachment,
+    deleteProjectAttachment,
+    getUserRoleInProject,
+    canEditProject,
+    canDeleteProject,
+    hasPermission,
+  };
+
+  return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
+}
+
+export function useProjects() {
+  const context = useContext(ProjectsContext);
+  if (context === undefined) {
+    throw new Error('useProjects must be used within a ProjectsProvider');
+  }
+  return context;
+}
