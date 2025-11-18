@@ -140,6 +140,7 @@ export function TaskModal({
     teamMembers,
     currentUser,
     categories,
+    loadTask,
     createTask, 
     updateTask, 
     deleteTask,
@@ -219,6 +220,15 @@ export function TaskModal({
   React.useEffect(() => {
     setMode(initialMode);
   }, [initialMode, open]);
+  
+  // Load task details when modal opens for view/edit mode
+  // This ensures comments and other data are fresh from the server
+  React.useEffect(() => {
+    if (open && taskId && !isCreateMode) {
+      console.log(`🔄 Loading task ${taskId} with comments`);
+      loadTask(taskId);
+    }
+  }, [open, taskId, isCreateMode, loadTask]);
   
   // ISSUE #5 FIX: Track when projects or teamMembers update for real-time member list updates
   React.useEffect(() => {

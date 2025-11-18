@@ -264,10 +264,55 @@ See `COMMENT_FEATURES_TEST_GUIDE.md` for comprehensive testing procedures coveri
 5. Comment threading/replies
 6. File attachments in comments
 
+## Additional Bug Fixes (Latest Update)
+
+### Bug Fix: Comments Disappear After Page Reload
+
+**Problem:** Comments added to tasks would disappear from the UI after a full page reload (F5), even though they were stored in the database.
+
+**Root Cause:** The `GET /api/tasks` endpoint (used to populate the global tasks state on page load) did not include comments in its Prisma query. The TaskModal component retrieved tasks from this global state, which had no comments after reload.
+
+**Solution Implemented:**
+1. Added `tasksAPI.getTask(taskId)` method to fetch individual tasks from `GET /api/tasks/:taskId` (which includes comments)
+2. Added `loadTask(taskId)` function to app context that fetches and updates the task in global state
+3. Updated TaskModal to call `loadTask(taskId)` when opening an existing task in view/edit mode
+
+**Code Changes:**
+- `src/utils/api-client.tsx`: Added `getTask` method
+- `src/contexts/app-context.tsx`: Added `loadTask` function
+- `src/components/task-modal.tsx`: Added useEffect to call `loadTask` on modal open
+
+**Result:** Comments now persist correctly after page reload. When a task modal opens, it always fetches fresh data including comments from the server.
+
+### Bug Fix: Real-time Comment Updates Not Working
+
+**Problem:** When two users had the same project task open, comments added by one user would not appear in real-time for the other user.
+
+**Root Cause:** The server correctly broadcast `comment:added` events to project rooms (`project:{projectId}`), but clients never joined these rooms. The WebSocket infrastructure had `joinProject`/`leaveProject` methods, but they were never called.
+
+**Solution Implemented:**
+1. Added automatic project room joining when WebSocket connects
+2. All projects the user has access to are joined automatically
+3. Rooms are left on cleanup/disconnect
+
+**Code Changes:**
+- `src/contexts/websocket-context.tsx`: 
+  - Added `projects` to destructured context values
+  - Implemented auto-join useEffect that joins all project rooms on connection
+  - Added cleanup to leave rooms on disconnect
+
+**Result:** Users now receive real-time comment updates for all tasks in their projects. The `comment:added` WebSocket event is properly received and updates the UI immediately.
+
+### Testing
+
+See `COMMENT_BUGS_FIX_TESTING_GUIDE.md` for comprehensive testing procedures for both bug fixes.
+
 ## Support
 
 For issues or questions:
 - See `COMMENT_FEATURES_TEST_GUIDE.md` for testing procedures
+- See `COMMENT_BUGS_FIX_TESTING_GUIDE.md` for bug fix testing
 - Check browser console for WebSocket connection status
 - Verify server logs show `📡 [WebSocket] Broadcasted comment:added`
 - Ensure users are members of the project for real-time updates
+- Verify `loadTask` is called when opening tasks (check console logs)
