@@ -12,8 +12,22 @@ import { ArrowUpDown, ArrowUp, ArrowDown, Flame, Tag, User, Paperclip } from 'lu
 import { useApp } from '../contexts/app-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { useTaskNewBadge } from '../hooks/useTaskNewBadge';
 import type { Filters } from './filters-panel';
 import type { Task as TaskType } from '../contexts/app-context';
+
+// Helper component to show NEW badge in table (uses hook inside)
+function NewTaskBadge({ task, currentUserId }: { task: TaskType; currentUserId: string | null }) {
+  const isNew = useTaskNewBadge(task.id, task.createdAt, task.userId, currentUserId);
+  
+  if (!isNew) return null;
+  
+  return (
+    <Badge className="bg-green-500 text-white text-xs font-bold ml-2">
+      NEW
+    </Badge>
+  );
+}
 
 // Categories are now loaded from the app context via useApp hook
 
@@ -582,6 +596,7 @@ export function TaskTable({ searchQuery, filters, onTaskClick }: TaskTableProps)
                       <p className={`truncate ${task.status === 'done' ? 'line-through text-gray-500' : ''}`}>
                         {task.title}
                       </p>
+                      <NewTaskBadge task={task} currentUserId={currentUser?.id || null} />
                       {task.attachments && task.attachments.length > 0 && (
                         <div className="flex items-center gap-1 text-xs text-gray-500 flex-shrink-0">
                           <Paperclip className="w-3.5 h-3.5" />

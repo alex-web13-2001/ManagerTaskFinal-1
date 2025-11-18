@@ -29,6 +29,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { KanbanBoardSkeleton } from './kanban-skeleton';
 import { compareOrderKeys } from '../utils/orderKey';
 import { useKanbanDnD } from '../hooks/useKanbanDnD';
+import { useTaskNewBadge } from '../hooks/useTaskNewBadge';
 import type { Filters } from './filters-panel';
 import type { Task as TaskType } from '../contexts/app-context';
 
@@ -54,8 +55,16 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   canDrag = true,
   projectCategories = [],
 }, forwardedRef) => {
-  const { teamMembers, categories, setIsDragging } = useApp();
+  const { teamMembers, categories, setIsDragging, currentUser } = useApp();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
+  
+  // Check if task should show NEW badge
+  const isNewTask = useTaskNewBadge(
+    task.id,
+    task.createdAt,
+    task.userId,
+    currentUser?.id || null
+  );
   
   const assignee = teamMembers?.find((m) => m.id === task.assigneeId);
   // Use project categories if available, otherwise fallback to user's categories
@@ -183,6 +192,11 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
         </CardHeader>
         <CardContent className="pb-3 space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
+            {isNewTask && (
+              <Badge className="bg-green-500 text-white text-xs font-bold">
+                NEW
+              </Badge>
+            )}
             {category && (
               <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300">
                 <Tag className="w-3 h-3 mr-1" />
