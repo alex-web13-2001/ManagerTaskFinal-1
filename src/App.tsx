@@ -22,8 +22,12 @@ import { TaskModal } from './components/task-modal';
 import { SidebarProvider, SidebarInset } from './components/ui/sidebar';
 import { Toaster } from './components/ui/sonner';
 import { authAPI } from './utils/api-client';
-import { AppProvider, useApp } from './contexts/app-context';
+import { useApp } from './contexts/app-context';
+import { AuthProvider } from './contexts/auth-context';
+import { UIProvider } from './contexts/ui-context';
 import { WebSocketProvider } from './contexts/websocket-context';
+import { ProjectsProvider } from './contexts/projects-context';
+import { TasksProvider } from './contexts/tasks-context';
 import { ErrorBoundary } from './components/error-boundary';
 import { Loader2 } from 'lucide-react';
 import { DndProviderWrapper } from './components/dnd-provider-wrapper';
@@ -247,7 +251,7 @@ function AppRouter() {
   if (showVerifyEmail) {
     return (
       <ErrorBoundary>
-        <AppProvider>
+        <AuthProvider>
           <VerifyEmailPage 
             onVerified={(hasInvitation) => {
               setShowVerifyEmail(false);
@@ -259,7 +263,7 @@ function AppRouter() {
             }} 
           />
           <Toaster richColors position="top-right" />
-        </AppProvider>
+        </AuthProvider>
       </ErrorBoundary>
     );
   }
@@ -268,13 +272,13 @@ function AppRouter() {
   if (showResetPassword) {
     return (
       <ErrorBoundary>
-        <AppProvider>
+        <AuthProvider>
           <ResetPasswordPage onSuccess={() => {
             setShowResetPassword(false);
             navigate('/');
           }} />
           <Toaster richColors position="top-right" />
-        </AppProvider>
+        </AuthProvider>
       </ErrorBoundary>
     );
   }
@@ -285,10 +289,10 @@ function AppRouter() {
       <Route path="/login" element={!isAuthenticated ? <AuthScreen onLogin={handleLogin} /> : <Navigate to="/" replace />} />
       <Route path="/invite" element={
         <ErrorBoundary>
-          <AppProvider>
+          <AuthProvider>
             <InvitationPage />
             <Toaster richColors position="top-right" />
-          </AppProvider>
+          </AuthProvider>
         </ErrorBoundary>
       } />
       
@@ -311,11 +315,17 @@ function MainApp() {
   return (
     <ErrorBoundary>
       <DndProviderWrapper>
-        <AppProvider>
-          <WebSocketProvider>
-            <MainAppContent />
-          </WebSocketProvider>
-        </AppProvider>
+        <AuthProvider>
+          <UIProvider>
+            <WebSocketProvider>
+              <ProjectsProvider>
+                <TasksProvider>
+                  <MainAppContent />
+                </TasksProvider>
+              </ProjectsProvider>
+            </WebSocketProvider>
+          </UIProvider>
+        </AuthProvider>
       </DndProviderWrapper>
     </ErrorBoundary>
   );

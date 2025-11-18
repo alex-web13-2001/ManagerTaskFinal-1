@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { authAPI, getAuthToken } from '../utils/api-client';
-import { User } from '../types';
+import { authAPI, getAuthToken, userSettingsAPI, categoriesAPI } from '../utils/api-client';
+import { User, CustomColumn, Category } from '../types';
 import { toast } from 'sonner';
 
 /**
@@ -31,6 +31,8 @@ interface AuthContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  customColumns: CustomColumn[];
+  categories: Category[];
   login: (email: string, password: string) => Promise<void | User>;
   logout: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
@@ -38,6 +40,12 @@ interface AuthContextType {
   deleteAvatar: () => Promise<void>;
   checkAuth: () => Promise<void>;
   getUserIdFromToken: () => string | null;
+  fetchCustomColumns: () => Promise<void>;
+  saveCustomColumns: (columns: CustomColumn[]) => Promise<void>;
+  fetchCategories: () => Promise<void>;
+  createCategory: (categoryData: Partial<Category>) => Promise<Category>;
+  updateCategory: (categoryId: string, updates: Partial<Category>) => Promise<Category>;
+  deleteCategory: (categoryId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -45,6 +53,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const isAuthenticated = !!currentUser;
 
   const checkAuth = useCallback(async () => {
@@ -178,10 +188,204 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentUser]);
 
+  const fetchCustomColumns = useCallback(async () => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        return;
+      }
+      
+      const columns = await userSettingsAPI.getCustomColumns();
+      console.log('✅ Кастомные столбцы загружены из API:', {
+        count: columns.length,
+        columns,
+      });
+      setCustomColumns(columns);
+    } catch (error: any) {
+      console.error('❌ Ошибка загрузки кастомных столбцов из API:', error);
+      // Try to load from localStorage as fallback
+      const userId = getUserIdFromToken();
+      if (userId) {
+        const stored = localStorage.getItem(`personal-custom-columns-${userId}`);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            setCustomColumns(parsed);
+            console.log('✅ Кастомные столбцы загружены из localStorage (fallback):', {
+              count: parsed.length,
+              columns: parsed,
+            });
+          } catch (e) {
+            console.error('❌ Ошибка парсинга кастомных столбцов из localStorage:', e);
+          }
+        } else {
+          console.log('ℹ️ Кастомные столбцы не найдены ни в API, ни в localStorage');
+        }
+      }
+    }
+  }, []);
+
+  const saveCustomColumns = useCallback(async (columns: CustomColumn[]) => {
+    try {
+      await userSettingsAPI.saveCustomColumns(columns);
+      setCustomColumns(columns);
+      console.log('✅ Кастомные столбцы сохранены в API:', {
+        count: columns.length,
+        columns,
+      });
+      
+      // Also save to localStorage as backup
+      const userId = getUserIdFromToken();
+      if (userId) {
+        localStorage.setItem(`personal-custom-columns-${userId}`, JSON.stringify(columns));
+        console.log('✅ Кастомные столбцы также сохранены в localStorage (backup)');
+      }
+    } catch (error: any) {
+      console.error('❌ Ошибка сохранения кастомных столбцов в API:', error);
+      // Save to localStorage as fallback
+      const userId = getUserIdFromToken();
+      if (userId) {
+        localStorage.setItem(`personal-custom-columns-${userId}`, JSON.stringify(columns));
+        setCustomColumns(columns);
+        console.log('✅ Кастомные столбцы сохранены в localStorage (fallback):', {
+          count: columns.length,
+          columns,
+        });
+      }
+    }
+  }, []);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        return;
+      }
+      
+      const categoriesData = await categoriesAPI.getCategories();
+      setCategories(categoriesData);
+      console.log('✅ Категории загружены:', categoriesData.length);
+    } catch (error: any) {
+      if (!error.message?.includes('авторизован') && !error.message?.includes('Not authenticated')) {
+        console.error('❌ Ошибка загрузки категорий:', error);
+      }
+    }
+  }, []);
+
+  const createCategory = useCallback(async (categoryData: Partial<Category>): Promise<Category> => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error('Необходима авторизация');
+      }
+      
+      const userId = getUserIdFromToken();
+      if (!userId) {
+        throw new Error('Не удалось получить userId из токена');
+      }
+      
+      const newCategory = {
+        ...categoryData,
+        id: categoryData.id || `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId: userId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      setCategories((prevCategories) => {
+        const updatedCategories = [...prevCategories, newCategory];
+        categoriesAPI.saveCategories(updatedCategories).catch((error) => {
+          console.error('❌ Ошибка сохранения категории в API:', error);
+        });
+        return updatedCategories;
+      });
+
+      console.log('✅ Категория создана:', newCategory);
+      toast.success('Категория создана');
+      return newCategory as Category;
+    } catch (error: any) {
+      console.error('❌ Ошибка создания категории:', error);
+      toast.error(error.message || 'Ошибка создания категории');
+      throw error;
+    }
+  }, []);
+
+  const updateCategory = useCallback(async (categoryId: string, updates: Partial<Category>): Promise<Category> => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error('Необходима авторизация');
+      }
+      
+      let updatedCategory: Category | undefined;
+      
+      setCategories((prevCategories) => {
+        const updatedCategories = prevCategories.map(c => 
+          c.id === categoryId 
+            ? { ...c, ...updates, updatedAt: new Date().toISOString() }
+            : c
+        );
+        
+        updatedCategory = updatedCategories.find(c => c.id === categoryId);
+        
+        categoriesAPI.saveCategories(updatedCategories).catch((error) => {
+          console.error('❌ Ошибка сохранения категории в API:', error);
+        });
+        
+        return updatedCategories;
+      });
+
+      console.log('✅ Категория обновлена:', updatedCategory);
+      toast.success('Категория обновлена');
+      return updatedCategory!;
+    } catch (error: any) {
+      console.error('❌ Ошибка обновления категории:', error);
+      toast.error(error.message || 'Ошибка обновления категории');
+      throw error;
+    }
+  }, []);
+
+  const deleteCategory = useCallback(async (categoryId: string): Promise<void> => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error('Необходима авторизация');
+      }
+      
+      setCategories((prevCategories) => {
+        const updatedCategories = prevCategories.filter(c => c.id !== categoryId);
+        
+        categoriesAPI.saveCategories(updatedCategories).catch((error) => {
+          console.error('❌ Ошибка удаления категории в API:', error);
+        });
+        
+        return updatedCategories;
+      });
+
+      console.log('✅ Категория удалена:', categoryId);
+      toast.success('Категория удалена');
+    } catch (error: any) {
+      console.error('❌ Ошибка удаления категории:', error);
+      toast.error(error.message || 'Ошибка удаления категории');
+      throw error;
+    }
+  }, []);
+
+  // Load custom columns and categories when user is loaded
+  useEffect(() => {
+    if (currentUser) {
+      console.log('👤 User loaded, fetching custom columns and categories...');
+      fetchCustomColumns();
+      fetchCategories();
+    }
+  }, [currentUser?.id, fetchCustomColumns, fetchCategories]);
+
   const value: AuthContextType = {
     currentUser,
     isAuthenticated,
     isLoading,
+    customColumns,
+    categories,
     login,
     logout,
     updateUser,
@@ -189,6 +393,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     deleteAvatar,
     checkAuth,
     getUserIdFromToken,
+    fetchCustomColumns,
+    saveCustomColumns,
+    fetchCategories,
+    createCategory,
+    updateCategory,
+    deleteCategory,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

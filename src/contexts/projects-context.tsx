@@ -66,7 +66,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   
   const { currentUser, isAuthenticated } = useAuth();
-  const { isConnected: isWebSocketConnected, subscribe, joinProject, leaveProject } = useWebSocket();
+  const { isConnected: isWebSocketConnected, subscribe, joinProject: wsJoinProject, leaveProject: wsLeaveProject } = useWebSocket();
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -432,16 +432,16 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated || !isWebSocketConnected || projects.length === 0) return;
     
     projects.forEach((project) => {
-      joinProject(project.id);
+      wsJoinProject(project.id);
       console.log(`📥 Auto-joined project room: project:${project.id}`);
     });
 
     return () => {
       projects.forEach((project) => {
-        leaveProject(project.id);
+        wsLeaveProject(project.id);
       });
     };
-  }, [isAuthenticated, isWebSocketConnected, projects, joinProject, leaveProject]);
+  }, [isAuthenticated, isWebSocketConnected, projects, wsJoinProject, wsLeaveProject]);
 
   const value: ProjectsContextType = {
     projects,

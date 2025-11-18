@@ -10,6 +10,9 @@ interface WebSocketContextType {
   emit: (event: string, data: any) => void;
   joinProject: (projectId: string) => void;
   leaveProject: (projectId: string) => void;
+  // Backward compatibility with socket.io API
+  on: (event: string, handler: (...args: any[]) => void) => void;
+  off: (event: string, handler?: (...args: any[]) => void) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -240,6 +243,9 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     emit: websocket.emit,
     joinProject: websocket.joinProject,
     leaveProject: websocket.leaveProject,
+    // Backward compatibility with socket.io API
+    on: websocket.on,
+    off: websocket.off,
   };
 
   return (
@@ -256,3 +262,6 @@ export function useWebSocket() {
   }
   return context;
 }
+
+// Backward compatibility alias
+export const useWebSocketContext = useWebSocket;
