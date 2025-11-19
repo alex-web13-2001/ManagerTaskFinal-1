@@ -11,8 +11,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { useApp } from '../contexts/app-context';
-import { useWebSocketContext } from '../contexts/websocket-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
+import { useWebSocket } from '../contexts/websocket-context';
 import { invitationsAPI, getAuthToken } from '../utils/api-client';
 import { toast } from 'sonner';
 import { RealtimeIndicator } from './realtime-indicator';
@@ -28,8 +30,10 @@ type HeaderProps = {
 };
 
 export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: HeaderProps) {
-  const { currentUser, refreshData, canCreateTask } = useApp();
-  const { isConnected: isWebSocketConnected, on, off } = useWebSocketContext();
+  const { currentUser } = useAuth();
+  const { canCreateTask, fetchTasks } = useTasks();
+  const { fetchProjects } = useProjects();
+  const { isConnected: isWebSocketConnected, on, off } = useWebSocket();
   const [pendingInvitations, setPendingInvitations] = React.useState<any[]>([]);
   const [isInvitationsModalOpen, setIsInvitationsModalOpen] = React.useState(false);
   const [isTelegramModalOpen, setIsTelegramModalOpen] = React.useState(false);
@@ -102,7 +106,7 @@ export function Header({ onCreateTask, onNavigate, onLogout, currentProject }: H
     await fetchInvitations();
     // FIX Problem #3: Refresh all data including tasks and projects after accepting invitation
     // This ensures invited members can see their assigned tasks immediately
-    await refreshData(); // Refresh projects list and tasks
+    await Promise.all([fetchProjects(), fetchTasks()]); // Refresh projects list and tasks
   };
 
   // Listen for custom event to open Telegram modal
