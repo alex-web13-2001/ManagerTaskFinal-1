@@ -195,37 +195,117 @@ async function canViewTask(userId: string, task: any): Promise<boolean> {
 }
 
 /**
+ * Handle Prisma errors and return appropriate HTTP responses
+ * P2002 - Unique constraint failed
+ * P2025 - Record not found
+ */
+function handlePrismaError(error: any, res: Response, defaultMessage: string) {
+  if (error.code === 'P2002') {
+    // Unique constraint violation
+    const field = error.meta?.target?.[0] || 'field';
+    return res.status(409).json({ 
+      error: `${field} already exists`, 
+      code: 'CONFLICT' 
+    });
+  } else if (error.code === 'P2025') {
+    // Record not found
+    return res.status(404).json({ 
+      error: 'Record not found', 
+      code: 'NOT_FOUND' 
+    });
+  }
+  
+  // Default error
+  return res.status(500).json({ error: defaultMessage });
+}
+
+/**
+ * Transform project from database format to API response format
+ * Maps field names for frontend compatibility (e.g., ownerId -> userId)
+ * Ensures all nested arrays are present even if empty
+ */
+function transformProjectForResponse(project: any): any {
+  return {
+    ...project,
+    // Map ownerId to userId for frontend compatibility
+    userId: project.ownerId,
+    // Format date fields as ISO strings
+    createdAt: project.createdAt instanceof Date ? project.createdAt.toISOString() : project.createdAt,
+    updatedAt: project.updatedAt instanceof Date ? project.updatedAt.toISOString() : project.updatedAt,
+    archivedAt: project.archivedAt ? (project.archivedAt instanceof Date ? project.archivedAt.toISOString() : project.archivedAt) : undefined,
+    // Ensure categoriesDetails is always an array (even if empty)
+    categoriesDetails: project.categoriesDetails || [],
+    // Ensure members is always an array (even if empty)
+    members: project.members || [],
+    // Ensure links is always an array (even if empty)
+    links: Array.isArray(project.links) ? project.links : [],
+    // Ensure attachments is always an array (even if empty)
+    attachments: Array.isArray(project.attachments) ? project.attachments : [],
+  };
+}
+
+/**
  * Transform task from database format to API response format
  * Maps field names for frontend compatibility (e.g., dueDate -> deadline, category -> categoryId)
+ * Ensures all nested arrays are present even if empty
  */
 function transformTaskForResponse(task: any): any {
   return {
     ...task,
+    // Map creatorId to userId for frontend compatibility
+    userId: task.creatorId,
     // Map dueDate to deadline for frontend compatibility
-    deadline: task.dueDate ? task.dueDate.toISOString() : undefined,
+    deadline: task.dueDate ? (task.dueDate instanceof Date ? task.dueDate.toISOString() : task.dueDate) : undefined,
     // Map category to categoryId for frontend compatibility
     categoryId: task.category,
-    // Ensure userId is set for backwards compatibility
-    userId: task.creatorId,
-    // Keep original fields as well for backwards compatibility
-    dueDate: task.dueDate ? task.dueDate.toISOString() : undefined,
-    category: task.category,
-    // Preserve comments array with user info
+    // Format date fields as ISO strings
+    createdAt: task.createdAt instanceof Date ? task.createdAt.toISOString() : task.createdAt,
+    updatedAt: task.updatedAt instanceof Date ? task.updatedAt.toISOString() : task.updatedAt,
+    lastCompleted: task.lastCompleted ? (task.lastCompleted instanceof Date ? task.lastCompleted.toISOString() : task.lastCompleted) : undefined,
+    // Ensure tags is always an array (even if empty)
+    tags: Array.isArray(task.tags) ? task.tags : [],
+    // Ensure attachments is always an array (even if empty)
+    attachments: task.attachments ? task.attachments.map((att: any) => ({
+      id: att.id,
+      name: att.name,
+      url: att.url,
+      size: att.size,
+      mimeType: att.mimeType,
+      createdAt: att.createdAt instanceof Date ? att.createdAt.toISOString() : att.createdAt,
+    })) : [],
+    // Ensure comments is always an array (even if empty)
     comments: task.comments ? task.comments.map((comment: any) => ({
       id: comment.id,
       text: comment.text,
       createdBy: comment.createdBy,
       createdAt: comment.createdAt instanceof Date ? comment.createdAt.toISOString() : comment.createdAt,
-      user: comment.user
-    })) : undefined,
+      user: comment.user,
+    })) : [],
   };
 }
 
 // ========== HEALTH CHECK (PUBLIC) ==========
 
 // Health check endpoint (both /health and /api/health for compatibility)
-const healthHandler = (_req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+const healthHandler = async (_req: Request, res: Response) => {
+  try {
+    // Check database connectivity
+    await prisma.$queryRaw`SELECT 1`;
+    
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      database: 'connected'
+    });
+  } catch (error) {
+    console.error('Health check failed - database connection error:', error);
+    res.status(503).json({ 
+      status: 'error', 
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      error: 'Database connection failed'
+    });
+  }
 };
 
 app.get('/health', healthHandler);
@@ -358,9 +438,9 @@ app.post('/api/auth/signup', authRateLimiter, async (req: Request, res: Response
   } catch (error: any) {
     console.error('Signup error:', error);
     
-    // Handle unique constraint violation (in case of race condition)
+    // Handle Prisma errors
     if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
-      return res.status(400).json({ error: 'Пользователь с таким e-mail уже существует' });
+      return res.status(409).json({ error: 'Пользователь с таким e-mail уже существует' });
     }
     
     res.status(500).json({ error: 'Не удалось создать пользователя' });
@@ -689,7 +769,10 @@ apiRouter.get('/projects', async (req: AuthRequest, res: Response) => {
       })
     );
     
-    res.json(enrichedProjects);
+    // Transform all projects for API response (ownerId -> userId mapping)
+    const transformedProjects = enrichedProjects.map(transformProjectForResponse);
+    
+    res.json(transformedProjects);
   } catch (error: any) {
     console.error('Get projects error:', error);
     res.status(500).json({ error: 'Failed to fetch projects' });
@@ -778,7 +861,10 @@ apiRouter.get('/projects/archived', async (req: AuthRequest, res: Response) => {
       })
     );
     
-    res.json(enrichedProjects);
+    // Transform all projects for API response (ownerId -> userId mapping)
+    const transformedProjects = enrichedProjects.map(transformProjectForResponse);
+    
+    res.json(transformedProjects);
   } catch (error: any) {
     console.error('Get archived projects error:', error);
     res.status(500).json({ error: 'Failed to fetch archived projects' });
@@ -813,7 +899,10 @@ apiRouter.get('/projects/:id', canAccessProject, async (req: AuthRequest, res: R
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    res.json(project);
+    // Transform project for API response (ownerId -> userId mapping)
+    const transformedProject = transformProjectForResponse(project);
+
+    res.json(transformedProject);
   } catch (error: any) {
     console.error('Get project error:', error);
     res.status(500).json({ error: 'Failed to fetch project' });
@@ -869,13 +958,16 @@ apiRouter.patch('/projects/:id', canAccessProject, async (req: AuthRequest, res:
       },
     });
 
-    // Emit WebSocket event for real-time synchronization
-    emitProjectUpdated(updatedProject);
+    // Transform project for API response (ownerId -> userId mapping)
+    const transformedProject = transformProjectForResponse(updatedProject);
 
-    res.json(updatedProject);
+    // Emit WebSocket event for real-time synchronization
+    emitProjectUpdated(transformedProject);
+
+    res.json(transformedProject);
   } catch (error: any) {
     console.error('Update project error:', error);
-    res.status(500).json({ error: 'Failed to update project' });
+    return handlePrismaError(error, res, 'Failed to update project');
   }
 });
 
@@ -958,7 +1050,7 @@ apiRouter.delete('/projects/:id', uploadRateLimiter, canAccessProject, async (re
     res.json({ message: 'Project deleted successfully' });
   } catch (error: any) {
     console.error('Delete project error:', error);
-    res.status(500).json({ error: 'Failed to delete project' });
+    return handlePrismaError(error, res, 'Failed to delete project');
   }
 });
 
@@ -994,11 +1086,14 @@ apiRouter.patch('/projects/:id/archive', canAccessProject, async (req: AuthReque
       },
     });
 
+    // Transform project for API response (ownerId -> userId mapping)
+    const transformedProject = transformProjectForResponse(updatedProject);
+
     // Emit WebSocket event for real-time synchronization
-    emitProjectUpdated(updatedProject);
+    emitProjectUpdated(transformedProject);
 
     console.log(`📦 Project archived: ${projectId}`);
-    res.json(updatedProject);
+    res.json(transformedProject);
   } catch (error: any) {
     console.error('Archive project error:', error);
     res.status(500).json({ error: 'Failed to archive project' });
@@ -1037,11 +1132,14 @@ apiRouter.patch('/projects/:id/unarchive', canAccessProject, async (req: AuthReq
       },
     });
 
+    // Transform project for API response (ownerId -> userId mapping)
+    const transformedProject = transformProjectForResponse(updatedProject);
+
     // Emit WebSocket event for real-time synchronization
-    emitProjectUpdated(updatedProject);
+    emitProjectUpdated(transformedProject);
 
     console.log(`📦 Project unarchived: ${projectId}`);
-    res.json(updatedProject);
+    res.json(transformedProject);
   } catch (error: any) {
     console.error('Unarchive project error:', error);
     res.status(500).json({ error: 'Failed to unarchive project' });
@@ -1400,13 +1498,16 @@ apiRouter.post('/projects/:id/transfer-ownership', canAccessProject, async (req:
       },
     });
 
+    // Transform project for API response (ownerId -> userId mapping)
+    const transformedProject = updatedProject ? transformProjectForResponse(updatedProject) : null;
+
     // Emit WebSocket event for real-time synchronization
-    if (updatedProject) {
-      emitProjectUpdated(updatedProject);
+    if (transformedProject) {
+      emitProjectUpdated(transformedProject);
     }
 
     console.log(`👑 Ownership transferred from ${userId} to ${newOwnerId} for project ${projectId}`);
-    res.json({ success: true, message: 'Ownership transferred successfully', project: updatedProject });
+    res.json({ success: true, message: 'Ownership transferred successfully', project: transformedProject });
   } catch (error: any) {
     console.error('Transfer ownership error:', error);
     res.status(500).json({ error: 'Failed to transfer ownership' });
@@ -2395,7 +2496,7 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
     res.status(201).json(transformedTask);
   } catch (error: any) {
     console.error('Create task error:', error);
-    res.status(500).json({ error: 'Failed to create task' });
+    return handlePrismaError(error, res, 'Failed to create task');
   }
 });
 
@@ -2563,7 +2664,7 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
     res.json(transformedTask);
   } catch (error: any) {
     console.error('Update task error:', error);
-    res.status(500).json({ error: 'Failed to update task' });
+    return handlePrismaError(error, res, 'Failed to update task');
   }
 });
 
@@ -2625,7 +2726,7 @@ apiRouter.delete('/tasks/:id', uploadRateLimiter, async (req: AuthRequest, res: 
     res.json({ message: 'Task deleted successfully' });
   } catch (error: any) {
     console.error('Delete task error:', error);
-    res.status(500).json({ error: 'Failed to delete task' });
+    return handlePrismaError(error, res, 'Failed to delete task');
   }
 });
 
