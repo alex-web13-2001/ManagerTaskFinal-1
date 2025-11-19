@@ -335,27 +335,30 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   // Permission helpers
   const getUserRoleInProject = useCallback((projectId: string): UserRole => {
-    if (!currentUser) return null;
+    if (!currentUser) return 'viewer';
     
     const project = projects.find(p => p.id === projectId);
-    if (!project) return null;
+    if (!project) return 'viewer';
     
-    const isOwner = project.userId === currentUser.id && !(project as any).isShared;
-    if (isOwner) {
+    // 1. Check if user is the project owner by userId (ownerId -> userId from backend)
+    if (project.userId === currentUser.id) {
       return 'owner';
     }
     
+    // 2. Otherwise, search in members by userId/id/email
     if (project.members && Array.isArray(project.members)) {
-      const member = project.members.find((m: any) => 
-        m.userId === currentUser.id || m.email === currentUser.email
+      const member = project.members.find((m: any) =>
+        m.userId === currentUser.id ||
+        m.id === currentUser.id ||
+        m.email === currentUser.email
       );
       
-      if (member) {
-        return member.role || 'member';
+      if (member?.role) {
+        return member.role as UserRole;
       }
     }
     
-    return null;
+    return 'viewer';
   }, [currentUser, projects]);
 
   const canEditProject = useCallback((projectId: string): boolean => {

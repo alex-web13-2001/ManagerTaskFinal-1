@@ -119,7 +119,7 @@ type ProjectsViewProps = {
 export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
   const { currentUser } = useAuth();
   const { tasks } = useTasks();
-  const { projects, isLoading, deleteProject, updateProject, archiveProject, restoreProject, leaveProject } = useProjects();
+  const { projects, isLoading, deleteProject, updateProject, archiveProject, restoreProject, leaveProject, getUserRoleInProject } = useProjects();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [typeFilter, setTypeFilter] = React.useState('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
@@ -147,24 +147,8 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
       };
 
       // Определяем роль текущего пользователя в проекте
-      let userRole: 'owner' | 'collaborator' | 'member' | 'viewer' = 'viewer';
-      
-      // First check if this is an owned project (not a shared one)
-      // Owner check: project.userId should match currentUser.id AND project should not be marked as shared
-      const isOwner = project.userId === currentUser?.id && !(project as any).isShared;
-      
-      if (isOwner) {
-        userRole = 'owner';
-      } else if (project.members && currentUser?.id) {
-        const member = project.members.find((m: any) => 
-          m.userId === currentUser.id || 
-          m.id === currentUser.id || 
-          m.email === currentUser.email
-        );
-        if (member?.role) {
-          userRole = member.role as 'owner' | 'collaborator' | 'member' | 'viewer';
-        }
-      }
+      // Use centralized role determination from ProjectsContext for consistency
+      const userRole = getUserRoleInProject(project.id) || 'viewer';
 
       return {
         ...project,
@@ -553,7 +537,7 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
           open={!!aboutProject}
           onOpenChange={(open) => !open && setAboutProject(null)}
           projectId={aboutProject}
-          currentUserRole="owner"
+          currentUserRole={getUserRoleInProject(aboutProject) || 'viewer'}
           onEdit={() => {
             setEditingProject(aboutProject);
             setAboutProject(null);
@@ -573,7 +557,7 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
           projectId={membersProject}
           projectName={projects.find((p) => p.id === membersProject)?.name || ''}
           projectColor={projects.find((p) => p.id === membersProject)?.color || 'purple'}
-          currentUserRole="owner"
+          currentUserRole={getUserRoleInProject(membersProject) || 'viewer'}
         />
       )}
 

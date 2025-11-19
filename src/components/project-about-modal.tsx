@@ -67,11 +67,11 @@ export function ProjectAboutModal({
   projectId,
   onEdit,
   onManageMembers,
-  currentUserRole = 'owner',
+  currentUserRole = 'viewer',
 }: ProjectAboutModalProps) {
   const { currentUser } = useAuth();
   const { tasks, fetchTasks } = useTasks();
-  const { projects, canEditProject } = useProjects();
+  const { projects, canEditProject, getUserRoleInProject } = useProjects();
   
   const project = React.useMemo(() => 
     projects.find(p => p.id === projectId),
@@ -109,7 +109,9 @@ export function ProjectAboutModal({
     return null;
   }
 
-  const isOwner = currentUserRole === 'owner' || project.userId === currentUser?.id;
+  // Use centralized role determination for consistency
+  const actualUserRole = getUserRoleInProject(projectId) || currentUserRole;
+  const isOwner = actualUserRole === 'owner';
   const canEdit = canEditProject(projectId);
   const categories = project.category ? project.category.split(', ').filter(Boolean) : [];
   const links = project.links || [];
