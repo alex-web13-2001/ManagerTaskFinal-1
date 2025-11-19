@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useProjects } from '../contexts/projects-context';
 
 export type Filters = {
   projects: string[];
@@ -51,7 +52,8 @@ const prioritiesList = [
 ];
 
 export function FiltersPanel({ filters, onFiltersChange, onClearFilters }: FiltersPanelProps) {
-  const { projects, teamMembers, categories } = useApp();
+  const { categories } = useAuth();
+  const { projects, teamMembers } = useProjects();
   const [newTag, setNewTag] = React.useState('');
 
   const toggleArrayFilter = (key: keyof Filters, value: string) => {

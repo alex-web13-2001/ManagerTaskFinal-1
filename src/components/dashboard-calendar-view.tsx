@@ -21,7 +21,10 @@ import {
   Flame,
   ChevronUp,
 } from 'lucide-react';
-import { useApp, type Task } from '../contexts/app-context';
+import { type Task } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
 import { format, addDays, startOfDay, endOfDay, isSameDay, isWithinInterval, differenceInDays, startOfWeek, endOfWeek } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { TaskModal } from './task-modal';
@@ -42,7 +45,9 @@ const STATUS_COLORS = {
 export function DashboardCalendarView({
   onBack,
 }: DashboardCalendarViewProps) {
-  const { tasks, projects, teamMembers, categories } = useApp();
+  const { categories } = useAuth();
+  const { tasks } = useTasks();
+  const { projects, teamMembers } = useProjects();
   const [dateRange, setDateRange] = React.useState<'1week' | '2weeks' | '1month' | '3months'>('2weeks');
   const [statusFilter, setStatusFilter] = React.useState<string>('all');
   const [assigneeFilter, setAssigneeFilter] = React.useState<string>('all');

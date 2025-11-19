@@ -18,7 +18,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
 
 const AVAILABLE_COLORS = [
   'bg-purple-500',
@@ -32,7 +33,8 @@ const AVAILABLE_COLORS = [
 ];
 
 export function CategoriesView() {
-  const { categories, tasks, createCategory, updateCategory, deleteCategory } = useApp();
+  const { categories, createCategory, updateCategory, deleteCategory } = useAuth();
+  const { tasks } = useTasks();
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [isEditOpen, setIsEditOpen] = React.useState(false);
   const [editingCategory, setEditingCategory] = React.useState<any>(null);

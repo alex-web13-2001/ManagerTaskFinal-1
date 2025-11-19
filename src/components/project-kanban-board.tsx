@@ -21,7 +21,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
+import { useUI } from '../contexts/ui-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useDrag, useDrop } from 'react-dnd';
@@ -55,7 +58,9 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   canDrag = true,
   projectCategories = [],
 }, forwardedRef) => {
-  const { teamMembers, categories, setIsDragging, currentUser } = useApp();
+  const { currentUser, categories } = useAuth();
+  const { teamMembers } = useProjects();
+  const { setIsDragging } = useUI();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
   
   // Check if task should show NEW badge
@@ -389,7 +394,9 @@ export function ProjectKanbanBoard({
   filters,
   onTaskClick,
 }: ProjectKanbanBoardProps) {
-  const { tasks, updateTask, getUserRoleInProject, canViewAllProjectTasks, currentUser, isInitialLoad } = useApp();
+  const { currentUser } = useAuth();
+  const { tasks, updateTask, canViewAllProjectTasks, isLoading } = useTasks();
+  const { getUserRoleInProject } = useProjects();
   const [isAddingColumn, setIsAddingColumn] = React.useState(false);
   const [newColumnName, setNewColumnName] = React.useState('');
   const [editingColumnId, setEditingColumnId] = React.useState<string | null>(null);
@@ -649,7 +656,7 @@ export function ProjectKanbanBoard({
   const canDragTasks = userRole !== 'viewer';
 
   // Show skeleton during initial load
-  if (isInitialLoad) {
+  if (isLoading) {
     return <KanbanBoardSkeleton columnCount={4} />;
   }
 

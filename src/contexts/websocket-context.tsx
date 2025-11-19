@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useCallback } from 'react';
-import { useWebSocket, WebSocketHookReturn } from '../hooks/useWebSocket';
+import { useWebSocket as useWebSocketHook, WebSocketHookReturn } from '../hooks/useWebSocket';
 
 type EventCallback = (payload: any) => void;
 
@@ -18,7 +18,7 @@ interface WebSocketContextType {
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
-  const websocket = useWebSocket();
+  const websocket = useWebSocketHook();
   const listenersRef = useRef<Map<string, Set<EventCallback>>>(new Map());
 
   // Subscribe to an event

@@ -1,11 +1,14 @@
 /**
- * AppContext - Backward compatibility facade
+ * AppContext - Type re-exports for backward compatibility
  * 
- * This file re-exports the facade implementation to maintain backward compatibility.
- * All existing code that imports from './app-context' will continue to work.
+ * This file only re-exports types from the types module.
+ * All components should now use domain-specific hooks:
+ * - useAuth() for user, categories, customColumns
+ * - useTasks() for tasks operations
+ * - useProjects() for projects operations
+ * - useUI() for UI state (isDragging, etc.)
+ * - useWebSocket() for WebSocket operations
  */
-
-export { useApp, AppProvider } from './app-context-facade';
 
 // Re-export types for backward compatibility
 export type {

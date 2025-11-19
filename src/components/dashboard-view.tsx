@@ -12,7 +12,9 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Input } from './ui/input';
 import { Switch } from './ui/switch';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
 
 type Filters = {
   projects: string[];
@@ -46,7 +48,11 @@ type DashboardViewProps = {
 };
 
 export function DashboardView({ onCalendarView, onTaskClick }: DashboardViewProps = {}) {
-  const { projects, teamMembers, currentUser, categories, tasks, customColumns, isLoading, isInitialLoad } = useApp();
+  const { currentUser, categories, customColumns } = useAuth();
+  const { tasks, isLoading: tasksLoading } = useTasks();
+  const { projects, teamMembers } = useProjects();
+  // Combine loading states (isInitialLoad not needed for this view)
+  const isLoading = tasksLoading;
   const [viewMode, setViewMode] = React.useState<'kanban' | 'table'>('kanban');
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showMyTasks, setShowMyTasks] = React.useState(false);
@@ -639,7 +645,7 @@ export function DashboardView({ onCalendarView, onTaskClick }: DashboardViewProp
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Show loading skeleton during initial load or when data is being fetched */}
-        {(isInitialLoad || isLoading) && viewMode === 'kanban' ? (
+        {isLoading && viewMode === 'kanban' ? (
           <KanbanBoardSkeleton columnCount={showCustomColumns && customColumns.length > 0 ? 4 + customColumns.length : 4} />
         ) : viewMode === 'kanban' ? (
           <KanbanBoard 

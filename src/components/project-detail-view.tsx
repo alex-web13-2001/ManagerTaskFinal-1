@@ -54,8 +54,10 @@ import { ProjectAboutModal } from './project-about-modal';
 import { ProjectMembersModal } from './project-members-modal';
 import { ProjectModal } from './project-modal';
 import { ShareButton } from './share-button';
-import { useApp } from '../contexts/app-context';
-import { useWebSocketContext } from '../contexts/websocket-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
+import { useWebSocket } from '../contexts/websocket-context';
 import { toast } from 'sonner';
 import type { Filters } from './filters-panel';
 
@@ -67,23 +69,20 @@ type ProjectDetailViewProps = {
 };
 
 export function ProjectDetailView({ projectId, onBack, onCalendarView, onTaskClick }: ProjectDetailViewProps) {
+  const { currentUser, categories, customColumns } = useAuth();
+  const { tasks, isLoading: tasksLoading, canCreateTask } = useTasks();
   const { 
     projects, 
-    tasks, 
-    isLoading,
-    isInitialLoad,
-    currentUser,
     teamMembers,
-    categories,
-    customColumns,
     getUserRoleInProject,
     canEditProject,
     canDeleteProject,
-    canCreateTask,
     leaveProject: leaveProjectContext,
     transferProjectOwnership,
-  } = useApp();
-  const { joinProject, leaveProject: leaveProjectWS, isConnected } = useWebSocketContext();
+  } = useProjects();
+  const { joinProject, leaveProject: leaveProjectWS, isConnected } = useWebSocket();
+  // Use tasks loading state (isInitialLoad not needed)
+  const isLoading = tasksLoading;
   const project = projects.find((p) => p.id === projectId);
   
   // Auto-join project room when viewing the project
@@ -726,7 +725,7 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView, onTaskCli
       {/* Основная область */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Show loading skeleton during initial load or when data is being fetched */}
-        {(isInitialLoad || isLoading) && viewMode === 'kanban' ? (
+        {isLoading && viewMode === 'kanban' ? (
           <KanbanBoardSkeleton columnCount={customColumns.length > 0 ? 4 + customColumns.length : 4} />
         ) : viewMode === 'kanban' ? (
           <ProjectKanbanBoard

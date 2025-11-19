@@ -7,14 +7,18 @@ import { Label } from './ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Switch } from './ui/switch';
 import { Separator } from './ui/separator';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { toast } from 'sonner';
 // Removed: import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 export function ProfileView() {
-  const { currentUser, updateCurrentUser, uploadAvatar, deleteAvatar, refreshData, tasks, deleteTask } = useApp();
+  const { currentUser, updateCurrentUser, uploadAvatar, deleteAvatar } = useAuth();
+  const { tasks, deleteTask, fetchTasks } = useTasks();
+  const { fetchProjects } = useProjects();
   const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [notifications, setNotifications] = React.useState(true);
@@ -145,7 +149,7 @@ export function ProfileView() {
         }
         
         toast.success(`Удалено дубликатов: ${duplicates.length}. Обновляем данные...`);
-        await refreshData();
+        await Promise.all([fetchTasks(), fetchProjects()]);
       } else {
         toast.success('Дубликаты не найдены. Все задачи в порядке!');
       }

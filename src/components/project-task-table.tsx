@@ -25,7 +25,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
 import { format, isToday, isTomorrow, isPast } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import type { Filters } from './filters-panel';
@@ -69,7 +71,9 @@ const statusLabels = {
 // Categories are now loaded from the app context
 
 export function ProjectTaskTable({ projectId, searchQuery, filters, onTaskClick }: ProjectTaskTableProps) {
-  const { tasks, updateTask, deleteTask, teamMembers, currentUser, canEditTask, canDeleteTask, categories, canViewAllProjectTasks } = useApp();
+  const { currentUser, categories } = useAuth();
+  const { tasks, updateTask, deleteTask, canEditTask, canDeleteTask, canViewAllProjectTasks } = useTasks();
+  const { teamMembers } = useProjects();
 
   // Helper function to check if task is new (same logic as useTaskNewBadge)
   const isTaskNew = React.useCallback((task: TaskType): boolean => {
