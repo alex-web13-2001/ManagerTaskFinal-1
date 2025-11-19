@@ -2,6 +2,30 @@ import { Request, Response } from 'express';
 import prisma from '../db';
 
 /**
+ * Transform project from database format to API response format
+ * Maps field names for frontend compatibility (e.g., ownerId -> userId)
+ */
+function transformProjectForResponse(project: any): any {
+  return {
+    ...project,
+    // Map ownerId to userId for frontend compatibility
+    userId: project.ownerId,
+    // Format date fields as ISO strings
+    createdAt: project.createdAt instanceof Date ? project.createdAt.toISOString() : project.createdAt,
+    updatedAt: project.updatedAt instanceof Date ? project.updatedAt.toISOString() : project.updatedAt,
+    archivedAt: project.archivedAt ? (project.archivedAt instanceof Date ? project.archivedAt.toISOString() : project.archivedAt) : undefined,
+    // Ensure categoriesDetails is always an array (even if empty)
+    categoriesDetails: project.categoriesDetails || [],
+    // Ensure members is always an array (even if empty)
+    members: project.members || [],
+    // Ensure links is always an array (even if empty)
+    links: Array.isArray(project.links) ? project.links : [],
+    // Ensure attachments is always an array (even if empty)
+    attachments: Array.isArray(project.attachments) ? project.attachments : [],
+  };
+}
+
+/**
  * POST /api/projects
  * Создать новый проект (любой авторизованный пользователь может создать)
  * 
@@ -63,9 +87,18 @@ export async function createProject(req: Request, res: Response) {
       },
     });
 
-    res.status(201).json(projectWithMembers);
+    // Transform project for API response (ownerId -> userId mapping)
+    const transformedProject = transformProjectForResponse(projectWithMembers);
+
+    res.status(201).json(transformedProject);
   } catch (error: any) {
     console.error('Не удалось создать проект или запись участника проекта:', error);
+    
+    // Handle Prisma error codes
+    if (error.code === 'P2002') {
+      return res.status(409).json({ error: 'Проект с таким именем уже существует' });
+    }
+    
     res.status(500).json({ error: 'Не удалось создать проект' });
   }
 }
