@@ -1,95 +1,92 @@
-import React, { createContext, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket, WebSocketHookReturn } from '../hooks/useWebSocket';
-import { useApp } from './app-context';
-import { Task, Project } from './app-context';
-import { toast } from 'sonner';
 
-interface WebSocketContextType extends WebSocketHookReturn {}
+type EventCallback = (payload: any) => void;
+
+interface WebSocketContextType {
+  isConnected: boolean;
+  subscribe: (event: string, callback: EventCallback) => () => void;
+  unsubscribe: (event: string, callback: EventCallback) => void;
+  emit: (event: string, data: any) => void;
+  joinProject: (projectId: string) => void;
+  leaveProject: (projectId: string) => void;
+  // Backward compatibility with socket.io API
+  on: (event: string, handler: (...args: any[]) => void) => void;
+  off: (event: string, handler?: (...args: any[]) => void) => void;
+}
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
 export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   const websocket = useWebSocket();
-  const { 
-    fetchTasks, 
-    fetchProjects,
-    fetchTeamMembers,
-    fetchCustomColumns,
-    fetchCategories,
-    currentUser,
-    tasks,
-    projects,
-    setTasks
-  } = useApp();
+  const listenersRef = useRef<Map<string, Set<EventCallback>>>(new Map());
 
-  // This is a workaround to sync WebSocket connection status with app context
-  // Since we need to update isRealtimeConnected in AppContext from here
-  const [, setForceUpdate] = React.useState(0);
-  
-  // Sync WebSocket connection status to window object for AppContext to read
-  useEffect(() => {
-    (window as any).__websocketConnected = websocket.isConnected;
-    setForceUpdate(prev => prev + 1);
+  // Subscribe to an event
+  const subscribe = useCallback((event: string, callback: EventCallback): (() => void) => {
+    if (!listenersRef.current.has(event)) {
+      listenersRef.current.set(event, new Set());
+    }
+    listenersRef.current.get(event)!.add(callback);
     
-    // Dispatch custom event to notify AppContext
-    window.dispatchEvent(new CustomEvent('websocket-status-changed', { 
-      detail: { isConnected: websocket.isConnected } 
-    }));
-  }, [websocket.isConnected]);
+    // Return unsubscribe function
+    return () => {
+      const listeners = listenersRef.current.get(event);
+      if (listeners) {
+        listeners.delete(callback);
+        if (listeners.size === 0) {
+          listenersRef.current.delete(event);
+        }
+      }
+    };
+  }, []);
 
-  // Handle task events - refetch tasks to ensure consistency
+  // Unsubscribe from an event
+  const unsubscribe = useCallback((event: string, callback: EventCallback) => {
+    const listeners = listenersRef.current.get(event);
+    if (listeners) {
+      listeners.delete(callback);
+      if (listeners.size === 0) {
+        listenersRef.current.delete(event);
+      }
+    }
+  }, []);
+
+  // Dispatch events to all subscribers
+  const dispatch = useCallback((event: string, payload: any) => {
+    const listeners = listenersRef.current.get(event);
+    if (listeners) {
+      listeners.forEach(callback => {
+        try {
+          callback(payload);
+        } catch (error) {
+          console.error(`Error in WebSocket event handler for ${event}:`, error);
+        }
+      });
+    }
+  }, []);
+
+  // Listen to WebSocket events and dispatch to subscribers
   useEffect(() => {
     if (!websocket.isConnected) return;
 
-    const handleTaskCreated = (data: { task: Task; projectId?: string }) => {
+    const handleTaskCreated = (data: any) => {
       console.log('📥 WebSocket: task:created', data);
-      toast.success(`Новая задача: ${data.task.title}`);
-      
-      // Server sends complete task object - add directly to state
-      // No need for fetchTasks() since we have all the data
-      setTasks((prevTasks) => {
-        // Check if task already exists (from optimistic update in createTask)
-        const exists = prevTasks.some(t => t.id === data.task.id);
-        
-        if (exists) {
-          console.log('📝 WebSocket: Task already in state, skipping duplicate');
-          return prevTasks;
-        }
-        
-        // Add new task from WebSocket
-        console.log('✅ WebSocket: Adding new task to state');
-        return [...prevTasks, data.task];
-      });
+      dispatch('task:created', data);
     };
 
-    const handleTaskUpdated = (data: { task: Task; projectId?: string }) => {
+    const handleTaskUpdated = (data: any) => {
       console.log('📥 WebSocket: task:updated', data);
-      
-      // Обновляем задачу в state напрямую
-      setTasks((prevTasks) => {
-        return prevTasks.map(t => t.id === data.task.id ? data.task : t);
-      });
+      dispatch('task:updated', data);
     };
 
-    const handleTaskDeleted = (data: { taskId: string; projectId?: string }) => {
+    const handleTaskDeleted = (data: any) => {
       console.log('📥 WebSocket: task:deleted', data);
-      toast.info('Задача удалена');
-      
-      // Удаляем задачу из state напрямую
-      setTasks((prevTasks) => prevTasks.filter(t => t.id !== data.taskId));
+      dispatch('task:deleted', data);
     };
 
-    const handleTaskMoved = (data: { taskId: string; fromStatus: string; toStatus: string; projectId?: string }) => {
+    const handleTaskMoved = (data: any) => {
       console.log('📥 WebSocket: task:moved', data);
-      
-      // Обновляем статус задачи
-      setTasks((prevTasks) => {
-        return prevTasks.map(t => 
-          t.id === data.taskId 
-            ? { ...t, status: data.toStatus, updatedAt: new Date().toISOString() }
-            : t
-        );
-      });
+      dispatch('task:moved', data);
     };
 
     // Subscribe to task events
@@ -105,31 +102,20 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       websocket.off('task:deleted', handleTaskDeleted);
       websocket.off('task:moved', handleTaskMoved);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, setTasks]);
+  }, [websocket.isConnected, websocket.on, websocket.off, dispatch]);
 
   // Handle invitation events
   useEffect(() => {
     if (!websocket.isConnected) return;
 
-    const handleInviteReceived = (data: { invitation: any; userId: string }) => {
+    const handleInviteReceived = (data: any) => {
       console.log('📥 WebSocket: invite:received', data);
-      
-      if (data.userId === currentUser?.id) {
-        toast.info(`New invitation: ${data.invitation.projectName}`, {
-          description: `You've been invited as ${data.invitation.role}`,
-        });
-        
-        // Optionally refresh invitations
-        // Could trigger a refetch of pending invitations here
-      }
+      dispatch('invite:received', data);
     };
 
-    const handleInviteAccepted = (data: { invitationId: string; projectId: string; userId: string }) => {
+    const handleInviteAccepted = (data: any) => {
       console.log('📥 WebSocket: invite:accepted', data);
-      
-      // Refresh projects and team members when someone accepts an invitation
-      fetchProjects();
-      fetchTeamMembers();
+      dispatch('invite:accepted', data);
     };
 
     // Subscribe to invitation events
@@ -141,71 +127,64 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       websocket.off('invite:received', handleInviteReceived);
       websocket.off('invite:accepted', handleInviteAccepted);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, currentUser?.id, fetchProjects, fetchTeamMembers]);
+  }, [websocket.isConnected, websocket.on, websocket.off, dispatch]);
 
   // Handle project events
   useEffect(() => {
     if (!websocket.isConnected) return;
 
-    const handleProjectUpdated = (data: { project: Project; projectId: string }) => {
+    const handleProjectUpdated = (data: any) => {
       console.log('📥 WebSocket: project:updated', data);
-      
-      // Server sends complete project object - update directly in state
-      // No need for fetchProjects() since we have all the data
-      // Note: We still need fetchProjects() here because project updates can affect
-      // permissions and member lists which require recalculation on the server
-      fetchProjects();
+      dispatch('project:updated', data);
     };
 
-    const handleProjectMemberAdded = (data: { projectId: string; member: any }) => {
+    const handleProjectDeleted = (data: any) => {
+      console.log('📥 WebSocket: project:deleted', data);
+      dispatch('project:deleted', data);
+    };
+
+    const handleProjectMemberAdded = (data: any) => {
       console.log('📥 WebSocket: project:member_added', data);
-      
-      // Member additions affect project membership and permissions
-      // Need to refetch projects to get correct role/permission data
-      fetchProjects();
-      fetchTeamMembers();
-      
-      toast.info(`New member joined: ${data.member.user?.name || data.member.email}`);
+      dispatch('project:member_added', data);
     };
 
-    const handleProjectMemberRemoved = (data: { projectId: string; memberId: string }) => {
+    const handleProjectMemberRemoved = (data: any) => {
       console.log('📥 WebSocket: project:member_removed', data);
-      
-      // Member removals affect project membership and permissions
-      // Need to refetch projects to get correct role/permission data
-      fetchProjects();
+      dispatch('project:member_removed', data);
     };
 
     // Subscribe to project events
     websocket.on('project:updated', handleProjectUpdated);
+    websocket.on('project:deleted', handleProjectDeleted);
     websocket.on('project:member_added', handleProjectMemberAdded);
     websocket.on('project:member_removed', handleProjectMemberRemoved);
 
     // Cleanup
     return () => {
       websocket.off('project:updated', handleProjectUpdated);
+      websocket.off('project:deleted', handleProjectDeleted);
       websocket.off('project:member_added', handleProjectMemberAdded);
       websocket.off('project:member_removed', handleProjectMemberRemoved);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, fetchProjects, fetchTeamMembers]);
+  }, [websocket.isConnected, websocket.on, websocket.off, dispatch]);
 
   // Handle user status events
   useEffect(() => {
     if (!websocket.isConnected) return;
 
-    const handleUserOnline = (data: { userId: string; userName: string; projectId?: string }) => {
+    const handleUserOnline = (data: any) => {
       console.log('📥 WebSocket: user:online', data);
-      // Could update UI to show online status
+      dispatch('user:online', data);
     };
 
-    const handleUserOffline = (data: { userId: string; projectId?: string }) => {
+    const handleUserOffline = (data: any) => {
       console.log('📥 WebSocket: user:offline', data);
-      // Could update UI to show offline status
+      dispatch('user:offline', data);
     };
 
-    const handleUserDragging = (data: { userId: string; taskId: string; isDragging: boolean; projectId?: string }) => {
+    const handleUserDragging = (data: any) => {
       console.log('📥 WebSocket: user:dragging', data);
-      // Could show visual indicator that another user is dragging a task
+      dispatch('user:dragging', data);
     };
 
     // Subscribe to user status events
@@ -219,40 +198,15 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       websocket.off('user:offline', handleUserOffline);
       websocket.off('user:dragging', handleUserDragging);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off]);
+  }, [websocket.isConnected, websocket.on, websocket.off, dispatch]);
 
   // Handle comment events
   useEffect(() => {
     if (!websocket.isConnected) return;
 
-    const handleCommentAdded = (data: { taskId: string; comment: any; timestamp?: string }) => {
+    const handleCommentAdded = (data: any) => {
       console.log('📥 WebSocket: comment:added', data);
-      
-      // Ignore events for comments authored by current user (already added locally)
-      if (currentUser && data.comment?.createdBy === currentUser.id) {
-        console.log('📥 WebSocket: Skipping comment:added for current user (already added locally)');
-        return;
-      }
-      
-      // Update the task in state to include the new comment
-      setTasks((prevTasks) => {
-        return prevTasks.map((task) => {
-          if (task.id === data.taskId) {
-            // Check if comment already exists (to avoid duplicates)
-            const commentExists = task.comments?.some(c => c.id === data.comment.id);
-            if (commentExists) {
-              return task;
-            }
-            
-            // Add the new comment to the task
-            return {
-              ...task,
-              comments: [...(task.comments || []), data.comment]
-            };
-          }
-          return task;
-        });
-      });
+      dispatch('comment:added', data);
     };
 
     // Subscribe to comment events
@@ -262,29 +216,15 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     return () => {
       websocket.off('comment:added', handleCommentAdded);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, currentUser?.id, setTasks]);
+  }, [websocket.isConnected, websocket.on, websocket.off, dispatch]);
 
   // Handle user settings events (custom columns, categories)
   useEffect(() => {
     if (!websocket.isConnected) return;
 
-    const handleUserSettingsUpdated = (data: { userId: string; settings: any }) => {
+    const handleUserSettingsUpdated = (data: any) => {
       console.log('📥 WebSocket: user:settings_updated', data);
-      
-      // Only update if it's for the current user
-      if (currentUser && data.userId === currentUser.id) {
-        // Refetch custom columns and categories to sync across tabs
-        if (data.settings.customColumns) {
-          console.log('🔄 Updating custom columns from WebSocket');
-          fetchCustomColumns();
-        }
-        if (data.settings.categories) {
-          console.log('🔄 Updating categories from WebSocket');
-          fetchCategories();
-        }
-        
-        toast.info('Настройки обновлены в другой вкладке');
-      }
+      dispatch('user:settings_updated', data);
     };
 
     // Subscribe to user settings events
@@ -294,42 +234,34 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
     return () => {
       websocket.off('user:settings_updated', handleUserSettingsUpdated);
     };
-  }, [websocket.isConnected, websocket.on, websocket.off, currentUser?.id, fetchCustomColumns, fetchCategories]);
+  }, [websocket.isConnected, websocket.on, websocket.off, dispatch]);
 
-  // Auto-join project rooms when WebSocket connects
-  // This ensures users receive real-time updates for tasks in their projects
-  useEffect(() => {
-    if (!websocket.isConnected) return;
-    
-    // Join all project rooms the user has access to
-    if (projects && projects.length > 0) {
-      projects.forEach((project: Project) => {
-        websocket.joinProject(project.id);
-        console.log(`📥 Auto-joined project room: project:${project.id}`);
-      });
-    }
-
-    // Cleanup: leave all project rooms when disconnecting
-    return () => {
-      if (projects && projects.length > 0) {
-        projects.forEach((project: Project) => {
-          websocket.leaveProject(project.id);
-        });
-      }
-    };
-  }, [websocket.isConnected, websocket.joinProject, websocket.leaveProject, projects]);
+  const value: WebSocketContextType = {
+    isConnected: websocket.isConnected,
+    subscribe,
+    unsubscribe,
+    emit: websocket.emit,
+    joinProject: websocket.joinProject,
+    leaveProject: websocket.leaveProject,
+    // Backward compatibility with socket.io API
+    on: websocket.on,
+    off: websocket.off,
+  };
 
   return (
-    <WebSocketContext.Provider value={websocket}>
+    <WebSocketContext.Provider value={value}>
       {children}
     </WebSocketContext.Provider>
   );
 }
 
-export function useWebSocketContext() {
+export function useWebSocket() {
   const context = useContext(WebSocketContext);
   if (context === undefined) {
-    throw new Error('useWebSocketContext must be used within a WebSocketProvider');
+    throw new Error('useWebSocket must be used within a WebSocketProvider');
   }
   return context;
 }
+
+// Backward compatibility alias
+export const useWebSocketContext = useWebSocket;
