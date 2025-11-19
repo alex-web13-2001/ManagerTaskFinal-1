@@ -5,7 +5,7 @@ import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Search } from 'lucide-react';
-import { useApp } from '../contexts/app-context';
+import { useProjects } from '../contexts/projects-context';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -19,7 +19,7 @@ import {
 } from './ui/alert-dialog';
 
 export function ArchiveView() {
-  const { archivedProjects, fetchArchivedProjects, restoreProject, deleteProject } = useApp();
+  const { archivedProjects, fetchArchivedProjects, restoreProject, deleteProject } = useProjects();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [projectToDelete, setProjectToDelete] = React.useState<string | null>(null);
 

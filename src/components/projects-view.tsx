@@ -33,7 +33,9 @@ import {
 import { ProjectModal } from './project-modal';
 import { ProjectAboutModal } from './project-about-modal';
 import { ProjectMembersModal } from './project-members-modal';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
@@ -115,7 +117,9 @@ type ProjectsViewProps = {
 };
 
 export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
-  const { projects, tasks, isLoading, deleteProject, updateProject, archiveProject, restoreProject, leaveProject, currentUser } = useApp();
+  const { currentUser } = useAuth();
+  const { tasks } = useTasks();
+  const { projects, isLoading, deleteProject, updateProject, archiveProject, restoreProject, leaveProject } = useProjects();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [typeFilter, setTypeFilter] = React.useState('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);

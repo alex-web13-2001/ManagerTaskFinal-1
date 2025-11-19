@@ -22,8 +22,8 @@ import { TaskModal } from './components/task-modal';
 import { SidebarProvider, SidebarInset } from './components/ui/sidebar';
 import { Toaster } from './components/ui/sonner';
 import { authAPI } from './utils/api-client';
-import { useApp } from './contexts/app-context';
 import { AuthProvider } from './contexts/auth-context';
+import { useTasks } from './contexts/tasks-context';
 import { UIProvider } from './contexts/ui-context';
 import { WebSocketProvider } from './contexts/websocket-context';
 import { ProjectsProvider } from './contexts/projects-context';
@@ -335,7 +335,7 @@ function MainAppContent() {
   const { taskId, projectId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { tasks } = useApp(); // Get tasks from context
+  const { tasks } = useTasks(); // Get tasks from context
   const [currentView, setCurrentView] = React.useState<View>('dashboard');
   const [isCreateTaskOpen, setIsCreateTaskOpen] = React.useState(false);
   const [currentProject, setCurrentProject] = React.useState<string>('');

@@ -21,7 +21,9 @@ import {
   Calendar,
   User,
 } from 'lucide-react';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -67,13 +69,9 @@ export function ProjectAboutModal({
   onManageMembers,
   currentUserRole = 'owner',
 }: ProjectAboutModalProps) {
-  const { 
-    projects, 
-    tasks, 
-    currentUser, 
-    fetchTasks,
-    canEditProject,
-  } = useApp();
+  const { currentUser } = useAuth();
+  const { tasks, fetchTasks } = useTasks();
+  const { projects, canEditProject } = useProjects();
   
   const project = React.useMemo(() => 
     projects.find(p => p.id === projectId),

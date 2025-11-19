@@ -15,7 +15,9 @@ import { X, Plus, Upload, Paperclip, Link as LinkIcon, Users, UserPlus, Loader2,
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Separator } from './ui/separator';
 import { toast } from 'sonner';
-import { useApp, type ProjectLink, type ProjectAttachment } from '../contexts/app-context';
+import { type ProjectLink, type ProjectAttachment } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useProjects } from '../contexts/projects-context';
 import { truncateUrl } from '../utils/truncate-url';
 
 type ProjectModalMode = 'create' | 'edit';
@@ -55,7 +57,8 @@ export function ProjectModal({
   onSave,
   onManageMembers,
 }: ProjectModalProps) {
-  const { projects, createProject, updateProject, categories, uploadProjectAttachment, deleteProjectAttachment } = useApp();
+  const { categories } = useAuth();
+  const { projects, createProject, updateProject, uploadProjectAttachment, deleteProjectAttachment } = useProjects();
   const [isLoading, setIsLoading] = React.useState(false);
   const [isUploadingFile, setIsUploadingFile] = React.useState(false);
   const prevOpenRef = React.useRef(false);

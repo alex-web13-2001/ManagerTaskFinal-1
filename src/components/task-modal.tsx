@@ -53,7 +53,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
 import { Checkbox } from './ui/checkbox';
 import { ShareButton } from './share-button';
 import { sanitizeHtml } from '../utils/sanitize-html';
@@ -135,12 +137,9 @@ export function TaskModal({
   onSave,
   onDelete,
 }: TaskModalProps) {
+  const { currentUser, categories } = useAuth();
   const { 
     tasks, 
-    projects, 
-    teamMembers,
-    currentUser,
-    categories,
     loadTask,
     createTask, 
     updateTask, 
@@ -151,10 +150,14 @@ export function TaskModal({
     addTaskComment,
     canDeleteTask,
     canCreateTask,
+  } = useTasks();
+  const {
+    projects,
+    teamMembers,
     canEditProject,
     getUserRoleInProject,
     hasPermission,
-  } = useApp();
+  } = useProjects();
   const [mode, setMode] = React.useState<TaskModalMode>(initialMode);
   const [isLoading, setIsLoading] = React.useState(false);
   const [projectCategories, setProjectCategories] = React.useState<any[]>([]);
