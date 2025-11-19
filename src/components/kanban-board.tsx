@@ -8,7 +8,10 @@ import { Label } from './ui/label';
 import { Switch } from './ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { useDrag, useDrop } from 'react-dnd';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
+import { useUI } from '../contexts/ui-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,7 +48,9 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   isInitialMount,
   availableCategories,
 }, forwardedRef) => {
-  const { projects, teamMembers, categories, setIsDragging, currentUser } = useApp();
+  const { currentUser, categories } = useAuth();
+  const { projects, teamMembers } = useProjects();
+  const { setIsDragging } = useUI();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
   const [canDropHere, setCanDropHere] = React.useState(true);
   
@@ -502,7 +507,8 @@ export function KanbanBoard({
   showCustomColumns?: boolean;
   availableCategories?: Array<{ id: string; name: string; color?: string }>;
 }) {
-  const { tasks, updateTask, customColumns, currentUser } = useApp();
+  const { currentUser, customColumns } = useAuth();
+  const { tasks, updateTask } = useTasks();
   const [groupBy, setGroupBy] = React.useState<GroupBy>('none');
   const [isInitialMount, setIsInitialMount] = React.useState(true);
 

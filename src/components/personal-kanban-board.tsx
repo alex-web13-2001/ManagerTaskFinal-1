@@ -22,7 +22,10 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { useDrag, useDrop } from 'react-dnd';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
+import { useUI } from '../contexts/ui-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,7 +56,9 @@ const DraggableTaskCard = React.forwardRef<HTMLDivElement, {
   isInitialRender,
   canDrag = true,
 }, forwardedRef) => {
-  const { teamMembers, currentUser, setIsDragging } = useApp();
+  const { currentUser } = useAuth();
+  const { teamMembers } = useProjects();
+  const { setIsDragging } = useUI();
   const [dropPosition, setDropPosition] = React.useState<'before' | 'after' | null>(null);
   
   // Check if task should show NEW badge
@@ -392,7 +397,8 @@ export function PersonalKanbanBoard({
   filters: { priorities: string[]; deadline: string; onlyNew?: boolean };
   onTaskClick: (taskId: string) => void;
 }) {
-  const { tasks, updateTask, currentUser, customColumns: contextCustomColumns, saveCustomColumns, isInitialLoad } = useApp();
+  const { currentUser, customColumns: contextCustomColumns, saveCustomColumns } = useAuth();
+  const { tasks, updateTask, isLoading } = useTasks();
   const [isAddingColumn, setIsAddingColumn] = React.useState(false);
   const [newColumnTitle, setNewColumnTitle] = React.useState('');
   const [editingColumnId, setEditingColumnId] = React.useState<string | null>(null);
@@ -654,7 +660,7 @@ export function PersonalKanbanBoard({
   };
 
   // Show skeleton during initial load
-  if (isInitialLoad) {
+  if (isLoading) {
     return <KanbanBoardSkeleton columnCount={3} />;
   }
 
