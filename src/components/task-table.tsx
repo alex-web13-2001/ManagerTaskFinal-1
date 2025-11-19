@@ -9,7 +9,9 @@ import {
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { ArrowUpDown, ArrowUp, ArrowDown, Flame, Tag, User, Paperclip } from 'lucide-react';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useTaskNewBadge } from '../hooks/useTaskNewBadge';
@@ -69,7 +71,9 @@ type TaskTableProps = {
 };
 
 export function TaskTable({ searchQuery, filters, onTaskClick }: TaskTableProps) {
-  const { tasks, projects, teamMembers, currentUser, customColumns, updateTask, categories, canViewAllProjectTasks } = useApp();
+  const { currentUser, customColumns, categories } = useAuth();
+  const { tasks, updateTask, canViewAllProjectTasks } = useTasks();
+  const { projects, teamMembers } = useProjects();
   const [sortColumn, setSortColumn] = React.useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = React.useState<SortDirection>(null);
 

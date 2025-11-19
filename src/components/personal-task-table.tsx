@@ -19,7 +19,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useTasks } from '../contexts/tasks-context';
+import { useProjects } from '../contexts/projects-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import type { Task as TaskType } from '../contexts/app-context';
@@ -63,7 +65,9 @@ type PersonalTaskTableProps = {
 };
 
 export function PersonalTaskTable({ filters, onTaskClick }: PersonalTaskTableProps) {
-  const { tasks, currentUser, teamMembers, customColumns, deleteTask, canDeleteTask } = useApp();
+  const { currentUser, customColumns } = useAuth();
+  const { tasks, deleteTask, canDeleteTask } = useTasks();
+  const { teamMembers } = useProjects();
   const [sortColumn, setSortColumn] = React.useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = React.useState<SortDirection>(null);
 
