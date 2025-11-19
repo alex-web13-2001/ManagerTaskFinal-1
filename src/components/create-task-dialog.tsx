@@ -23,7 +23,8 @@ import { CalendarIcon, X, Repeat } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { Badge } from './ui/badge';
-import { useApp } from '../contexts/app-context';
+import { useAuth } from '../contexts/auth-context';
+import { useProjects } from '../contexts/projects-context';
 import { Checkbox } from './ui/checkbox';
 
 export function CreateTaskDialog({
@@ -33,7 +34,8 @@ export function CreateTaskDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { categories, projects } = useApp();
+  const { categories } = useAuth();
+  const { projects } = useProjects();
   
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
