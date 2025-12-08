@@ -122,6 +122,7 @@ export function TagsInput({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[300px] p-0" align="start">
+          {/* shouldFilter={false} because we implement custom filtering logic below */}
           <Command shouldFilter={false}>
             <CommandInput
               placeholder="Поиск тегов..."
@@ -144,7 +145,7 @@ export function TagsInput({
                         className="w-full justify-start"
                         onClick={handleCreateNewTag}
                       >
-                        Создать тег &quot;{searchQuery.trim()}&quot;
+                        Создать тег "{searchQuery.trim()}"
                       </Button>
                     ) : (
                       <p className="text-sm text-muted-foreground">
