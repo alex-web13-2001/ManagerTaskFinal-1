@@ -385,8 +385,9 @@ export function DashboardView({ onCalendarView, onTaskClick }: DashboardViewProp
                             {count}
                           </Badge>
                         </label>
-                    </div>
-                  ))
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </PopoverContent>
@@ -661,8 +662,9 @@ export function DashboardView({ onCalendarView, onTaskClick }: DashboardViewProp
                               {count}
                             </Badge>
                           </label>
-                      </div>
-                    ));
+                        </div>
+                      );
+                    });
                   })()
                 )}
               </div>
