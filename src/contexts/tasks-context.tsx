@@ -65,9 +65,11 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const recentlyCreatedTasksRef = useRef<Set<string>>(new Set());
 
   const fetchTasks = useCallback(async () => {
+    setIsLoading(true);
     try {
       const token = await getAuthToken();
       if (!token) {
+        setIsLoading(false);
         return;
       }
       
@@ -125,8 +127,20 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
         console.error('❌ Ошибка загрузки задач:', error);
         toast.error('Ошибка загрузки задач');
       }
+    } finally {
+      setIsLoading(false);
     }
   }, []);
+
+  // Автозагрузка задач при аутентификации
+  useEffect(() => {
+    if (isAuthenticated && currentUser) {
+      console.log('🔄 TasksContext: Автозагрузка задач при монтировании');
+      fetchTasks();
+    }
+    // fetchTasks is stable because it's wrapped in useCallback with empty deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, currentUser?.id]);
 
   const loadTask = useCallback(async (taskId: string) => {
     try {
