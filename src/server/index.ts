@@ -284,6 +284,73 @@ function transformTaskForResponse(task: any): any {
   };
 }
 
+/**
+ * Auto-add new tags to project or personal tags dictionary
+ * Helper function to avoid code duplication
+ */
+async function autoAddTagsToDictionary(
+  tags: string[],
+  projectId: string | null,
+  userId: string
+): Promise<void> {
+  if (!Array.isArray(tags) || tags.length === 0) {
+    return;
+  }
+
+  try {
+    if (projectId) {
+      // Add tags to project dictionary
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { tags: true },
+      });
+      
+      if (project) {
+        const currentTags = project.tags || [];
+        const newTags = tags.filter(tag => {
+          const tagLower = tag.toLowerCase();
+          return !currentTags.some(t => t.toLowerCase() === tagLower);
+        });
+        
+        if (newTags.length > 0) {
+          await prisma.project.update({
+            where: { id: projectId },
+            data: {
+              tags: [...currentTags, ...newTags],
+            },
+          });
+        }
+      }
+    } else {
+      // Add tags to personal tags dictionary
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { personalTags: true },
+      });
+      
+      if (user) {
+        const currentTags = user.personalTags || [];
+        const newTags = tags.filter(tag => {
+          const tagLower = tag.toLowerCase();
+          return !currentTags.some(t => t.toLowerCase() === tagLower);
+        });
+        
+        if (newTags.length > 0) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: {
+              personalTags: [...currentTags, ...newTags],
+            },
+          });
+        }
+      }
+    }
+  } catch (error) {
+    // Log error but don't fail the operation
+    console.error('Failed to auto-add tags to dictionary:', error);
+  }
+}
+
 // ========== HEALTH CHECK (PUBLIC) ==========
 
 // Health check endpoint (both /health and /api/health for compatibility)
@@ -2194,6 +2261,266 @@ apiRouter.get('/my/pending_invitations', async (req: AuthRequest, res: Response)
   }
 });
 
+// ========== TAGS DICTIONARY ENDPOINTS (PROTECTED) ==========
+
+/**
+ * GET /api/projects/:projectId/tags
+ * Get tags dictionary for a project
+ */
+apiRouter.get('/projects/:projectId/tags', canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { tags: true },
+    });
+    
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    res.json(project.tags || []);
+  } catch (error: any) {
+    console.error('Get project tags error:', error);
+    res.status(500).json({ error: 'Failed to fetch project tags' });
+  }
+});
+
+/**
+ * POST /api/projects/:projectId/tags
+ * Add a tag to project's tags dictionary
+ */
+apiRouter.post('/projects/:projectId/tags', canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const { tag } = req.body;
+    
+    if (!tag || typeof tag !== 'string') {
+      return res.status(400).json({ error: 'Tag is required and must be a string' });
+    }
+    
+    // Validate tag
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      return res.status(400).json({ error: 'Tag cannot be empty' });
+    }
+    
+    if (trimmedTag.length > 30) {
+      return res.status(400).json({ error: 'Tag must be 30 characters or less' });
+    }
+    
+    // Get current project tags
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { tags: true },
+    });
+    
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    const currentTags = project.tags || [];
+    
+    // Check for duplicate (case-insensitive)
+    const tagLower = trimmedTag.toLowerCase();
+    const isDuplicate = currentTags.some(t => t.toLowerCase() === tagLower);
+    
+    if (isDuplicate) {
+      return res.status(409).json({ error: 'Tag already exists in project' });
+    }
+    
+    // Add tag
+    const updatedProject = await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        tags: [...currentTags, trimmedTag],
+      },
+      select: { tags: true },
+    });
+    
+    res.json(updatedProject.tags);
+  } catch (error: any) {
+    console.error('Add project tag error:', error);
+    res.status(500).json({ error: 'Failed to add tag to project' });
+  }
+});
+
+/**
+ * DELETE /api/projects/:projectId/tags
+ * Remove a tag from project's tags dictionary
+ * Note: Does NOT remove the tag from existing tasks
+ */
+apiRouter.delete('/projects/:projectId/tags', canAccessProject, async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const { tag } = req.body;
+    
+    if (!tag || typeof tag !== 'string') {
+      return res.status(400).json({ error: 'Tag is required' });
+    }
+    
+    // Get current project tags
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { tags: true },
+    });
+    
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    const currentTags = project.tags || [];
+    
+    // Remove tag (case-insensitive match for consistency with add logic)
+    const tagLower = tag.toLowerCase();
+    const updatedTags = currentTags.filter(t => t.toLowerCase() !== tagLower);
+    
+    // Update project
+    const updatedProject = await prisma.project.update({
+      where: { id: projectId },
+      data: {
+        tags: updatedTags,
+      },
+      select: { tags: true },
+    });
+    
+    res.json(updatedProject.tags);
+  } catch (error: any) {
+    console.error('Delete project tag error:', error);
+    res.status(500).json({ error: 'Failed to delete tag from project' });
+  }
+});
+
+/**
+ * GET /api/users/me/tags
+ * Get personal tags dictionary for the current user
+ */
+apiRouter.get('/users/me/tags', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { personalTags: true },
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json(user.personalTags || []);
+  } catch (error: any) {
+    console.error('Get personal tags error:', error);
+    res.status(500).json({ error: 'Failed to fetch personal tags' });
+  }
+});
+
+/**
+ * POST /api/users/me/tags
+ * Add a tag to user's personal tags dictionary
+ */
+apiRouter.post('/users/me/tags', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    const { tag } = req.body;
+    
+    if (!tag || typeof tag !== 'string') {
+      return res.status(400).json({ error: 'Tag is required and must be a string' });
+    }
+    
+    // Validate tag
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) {
+      return res.status(400).json({ error: 'Tag cannot be empty' });
+    }
+    
+    if (trimmedTag.length > 30) {
+      return res.status(400).json({ error: 'Tag must be 30 characters or less' });
+    }
+    
+    // Get current personal tags
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { personalTags: true },
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const currentTags = user.personalTags || [];
+    
+    // Check for duplicate (case-insensitive)
+    const tagLower = trimmedTag.toLowerCase();
+    const isDuplicate = currentTags.some(t => t.toLowerCase() === tagLower);
+    
+    if (isDuplicate) {
+      return res.status(409).json({ error: 'Tag already exists in personal tags' });
+    }
+    
+    // Add tag
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        personalTags: [...currentTags, trimmedTag],
+      },
+      select: { personalTags: true },
+    });
+    
+    res.json(updatedUser.personalTags);
+  } catch (error: any) {
+    console.error('Add personal tag error:', error);
+    res.status(500).json({ error: 'Failed to add personal tag' });
+  }
+});
+
+/**
+ * DELETE /api/users/me/tags
+ * Remove a tag from user's personal tags dictionary
+ * Note: Does NOT remove the tag from existing tasks
+ */
+apiRouter.delete('/users/me/tags', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.sub;
+    const { tag } = req.body;
+    
+    if (!tag || typeof tag !== 'string') {
+      return res.status(400).json({ error: 'Tag is required' });
+    }
+    
+    // Get current personal tags
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { personalTags: true },
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const currentTags = user.personalTags || [];
+    
+    // Remove tag (case-insensitive match for consistency with add logic)
+    const tagLower = tag.toLowerCase();
+    const updatedTags = currentTags.filter(t => t.toLowerCase() !== tagLower);
+    
+    // Update user
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        personalTags: updatedTags,
+      },
+      select: { personalTags: true },
+    });
+    
+    res.json(updatedUser.personalTags);
+  } catch (error: any) {
+    console.error('Delete personal tag error:', error);
+    res.status(500).json({ error: 'Failed to delete personal tag' });
+  }
+});
+
 // ========== TASK CRUD ENDPOINTS (PRISMA-BASED) (PROTECTED) ==========
 
 /**
@@ -2476,6 +2803,9 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // Auto-add new tags to project/personal tags dictionary
+    await autoAddTagsToDictionary(tags || [], projectId, userId);
+
     // Emit WebSocket event for real-time synchronization
     const transformedTask = transformTaskForResponse(task);
     emitTaskCreated(transformedTask, task.projectId || undefined);
@@ -2635,6 +2965,11 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
         attachments: true,
       },
     });
+
+    // Auto-add new tags to project/personal tags dictionary
+    if (tags !== undefined && Array.isArray(tags)) {
+      await autoAddTagsToDictionary(tags, updatedTask.projectId, userId);
+    }
 
     // Emit WebSocket event for real-time synchronization
     const transformedTask = transformTaskForResponse(updatedTask);

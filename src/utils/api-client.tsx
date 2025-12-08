@@ -1220,3 +1220,137 @@ export const telegramAPI = {
     return res.json();
   },
 };
+
+// ========== TAGS API ==========
+
+export const tagsAPI = {
+  /**
+   * Get tags dictionary for a project
+   */
+  getProjectTags: async (projectId: string): Promise<string[]> => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/tags`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to fetch project tags');
+    }
+
+    return await response.json();
+  },
+
+  /**
+   * Add a tag to project's tags dictionary
+   */
+  addProjectTag: async (projectId: string, tag: string): Promise<void> => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/tags`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ tag }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to add tag to project');
+    }
+  },
+
+  /**
+   * Remove a tag from project's tags dictionary
+   */
+  deleteProjectTag: async (projectId: string, tag: string): Promise<void> => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/tags`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ tag }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete tag from project');
+    }
+  },
+
+  /**
+   * Get personal tags dictionary for the current user
+   */
+  getPersonalTags: async (): Promise<string[]> => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/users/me/tags`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to fetch personal tags');
+    }
+
+    return await response.json();
+  },
+
+  /**
+   * Add a tag to user's personal tags dictionary
+   */
+  addPersonalTag: async (tag: string): Promise<void> => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/users/me/tags`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ tag }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to add personal tag');
+    }
+  },
+
+  /**
+   * Remove a tag from user's personal tags dictionary
+   */
+  deletePersonalTag: async (tag: string): Promise<void> => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/users/me/tags`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ tag }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete personal tag');
+    }
+  },
+};
