@@ -138,7 +138,9 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       console.log('🔄 TasksContext: Автозагрузка задач при монтировании');
       fetchTasks();
     }
-  }, [isAuthenticated, currentUser?.id, fetchTasks]);
+    // fetchTasks is stable because it's wrapped in useCallback with empty deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, currentUser?.id]);
 
   const loadTask = useCallback(async (taskId: string) => {
     try {

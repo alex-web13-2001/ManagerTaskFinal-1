@@ -153,7 +153,9 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       console.log('🔄 ProjectsContext: Автозагрузка проектов при монтировании');
       fetchProjects();
     }
-  }, [isAuthenticated, currentUser?.id, fetchProjects]);
+    // fetchProjects is stable because it's wrapped in useCallback with empty deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, currentUser?.id]);
 
   const fetchArchivedProjects = useCallback(async () => {
     try {
