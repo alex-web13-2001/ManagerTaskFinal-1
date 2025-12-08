@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { projectsAPI, teamAPI, getAuthToken } from '../utils/api-client';
+import { projectsAPI, teamAPI, tagsAPI, getAuthToken } from '../utils/api-client';
 import { Project, TeamMember, UserRole } from '../types';
 import { toast } from 'sonner';
 import { useAuth } from './auth-context';
@@ -41,9 +41,17 @@ interface ProjectsContextType {
   archivedProjects: Project[];
   teamMembers: TeamMember[];
   isLoading: boolean;
+  projectTags: Record<string, string[]>; // projectId -> tags[]
+  personalTags: string[];
   fetchProjects: () => Promise<void>;
   fetchArchivedProjects: () => Promise<void>;
   fetchTeamMembers: () => Promise<void>;
+  fetchProjectTags: (projectId: string) => Promise<void>;
+  fetchPersonalTags: () => Promise<void>;
+  addProjectTag: (projectId: string, tag: string) => Promise<void>;
+  deleteProjectTag: (projectId: string, tag: string) => Promise<void>;
+  addPersonalTag: (tag: string) => Promise<void>;
+  deletePersonalTag: (tag: string) => Promise<void>;
   createProject: (projectData: Partial<Project>) => Promise<Project>;
   updateProject: (projectId: string, updates: Partial<Project>) => Promise<Project>;
   archiveProject: (projectId: string) => Promise<void>;
@@ -66,6 +74,8 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const [archivedProjects, setArchivedProjects] = useState<Project[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [projectTags, setProjectTags] = useState<Record<string, string[]>>({});
+  const [personalTags, setPersonalTags] = useState<string[]>([]);
   
   const { currentUser, isAuthenticated } = useAuth();
   const { isConnected: isWebSocketConnected, subscribe, joinProject: wsJoinProject, leaveProject: wsLeaveProject } = useWebSocket();
@@ -400,6 +410,96 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     return hasRolePermission(role as RBACUserRole, permission);
   }, [currentUser, getUserRoleInProject]);
 
+  // ========== TAGS MANAGEMENT ==========
+
+  const fetchProjectTags = useCallback(async (projectId: string) => {
+    try {
+      const tags = await tagsAPI.getProjectTags(projectId);
+      setProjectTags(prev => ({ ...prev, [projectId]: tags }));
+    } catch (error) {
+      console.error('Failed to fetch project tags:', error);
+      toast.error('Не удалось загрузить теги проекта');
+    }
+  }, []);
+
+  const fetchPersonalTags = useCallback(async () => {
+    try {
+      const tags = await tagsAPI.getPersonalTags();
+      setPersonalTags(tags);
+    } catch (error) {
+      console.error('Failed to fetch personal tags:', error);
+      toast.error('Не удалось загрузить личные теги');
+    }
+  }, []);
+
+  const addProjectTag = useCallback(async (projectId: string, tag: string) => {
+    try {
+      await tagsAPI.addProjectTag(projectId, tag);
+      // Refresh project tags after adding
+      await fetchProjectTags(projectId);
+      toast.success('Тег добавлен в проект');
+    } catch (error: any) {
+      console.error('Failed to add project tag:', error);
+      toast.error(error.message || 'Не удалось добавить тег');
+      throw error;
+    }
+  }, [fetchProjectTags]);
+
+  const deleteProjectTag = useCallback(async (projectId: string, tag: string) => {
+    try {
+      await tagsAPI.deleteProjectTag(projectId, tag);
+      // Refresh project tags after deleting
+      await fetchProjectTags(projectId);
+      toast.success('Тег удалён из проекта');
+    } catch (error: any) {
+      console.error('Failed to delete project tag:', error);
+      toast.error(error.message || 'Не удалось удалить тег');
+      throw error;
+    }
+  }, [fetchProjectTags]);
+
+  const addPersonalTag = useCallback(async (tag: string) => {
+    try {
+      await tagsAPI.addPersonalTag(tag);
+      // Refresh personal tags after adding
+      await fetchPersonalTags();
+      toast.success('Личный тег добавлен');
+    } catch (error: any) {
+      console.error('Failed to add personal tag:', error);
+      toast.error(error.message || 'Не удалось добавить личный тег');
+      throw error;
+    }
+  }, [fetchPersonalTags]);
+
+  const deletePersonalTag = useCallback(async (tag: string) => {
+    try {
+      await tagsAPI.deletePersonalTag(tag);
+      // Refresh personal tags after deleting
+      await fetchPersonalTags();
+      toast.success('Личный тег удалён');
+    } catch (error: any) {
+      console.error('Failed to delete personal tag:', error);
+      toast.error(error.message || 'Не удалось удалить личный тег');
+      throw error;
+    }
+  }, [fetchPersonalTags]);
+
+  // Load personal tags on mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchPersonalTags();
+    }
+  }, [isAuthenticated, fetchPersonalTags]);
+
+  // Load project tags when projects are loaded
+  useEffect(() => {
+    if (projects.length > 0) {
+      projects.forEach(project => {
+        fetchProjectTags(project.id);
+      });
+    }
+  }, [projects, fetchProjectTags]);
+
   // Subscribe to WebSocket project events
   useEffect(() => {
     if (!isWebSocketConnected) return;
@@ -467,9 +567,17 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     archivedProjects,
     teamMembers,
     isLoading,
+    projectTags,
+    personalTags,
     fetchProjects,
     fetchArchivedProjects,
     fetchTeamMembers,
+    fetchProjectTags,
+    fetchPersonalTags,
+    addProjectTag,
+    deleteProjectTag,
+    addPersonalTag,
+    deletePersonalTag,
     createProject,
     updateProject,
     archiveProject,
