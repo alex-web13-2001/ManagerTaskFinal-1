@@ -60,6 +60,7 @@ import { Checkbox } from './ui/checkbox';
 import { ShareButton } from './share-button';
 import { sanitizeHtml } from '../utils/sanitize-html';
 import { markTaskAsRead } from '../hooks/useTaskNewBadge';
+import { TagsInput } from './tags-input';
 
 type TaskModalMode = 'create' | 'view' | 'edit';
 
@@ -217,6 +218,23 @@ export function TaskModal({
     }
     return projectTags[projectId] || [];
   }, [projectId, projectTags, personalTags]);
+
+  // Sort available tags by usage frequency (most used first)
+  const sortedAvailableTags = React.useMemo(() => {
+    const tagUsage = new Map<string, number>();
+    
+    tasks.forEach((task) => {
+      task.tags?.forEach((tag) => {
+        tagUsage.set(tag, (tagUsage.get(tag) || 0) + 1);
+      });
+    });
+    
+    return [...availableTags].sort((a, b) => {
+      const usageA = tagUsage.get(a) || 0;
+      const usageB = tagUsage.get(b) || 0;
+      return usageB - usageA;
+    });
+  }, [availableTags, tasks]);
 
   // Debug: log every render - NOW projectId and assigneeId are declared
   React.useEffect(() => {
@@ -1614,44 +1632,14 @@ export function TaskModal({
 
               <div className="space-y-2">
                 <Label>Теги</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Добавить тег"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addTag();
-                      }
-                    }}
-                    list="tags-autocomplete"
-                  />
-                  <datalist id="tags-autocomplete">
-                    {availableTags.map((tag) => (
-                      <option key={tag} value={tag} />
-                    ))}
-                  </datalist>
-                  <Button type="button" onClick={() => addTag()} size="sm">
-                    Добавить
-                  </Button>
-                </div>
-                {tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {tags.map((tag) => (
-                      <Badge key={tag} variant="secondary" className="gap-1">
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => removeTag(tag)}
-                          className="ml-1 hover:text-red-600"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
+                <TagsInput
+                  tags={tags}
+                  availableTags={sortedAvailableTags}
+                  onAddTag={addTag}
+                  onRemoveTag={removeTag}
+                  placeholder="Выберите или создайте тег"
+                  maxLength={30}
+                />
               </div>
 
               {/* Секция для повторяющихся задач */}

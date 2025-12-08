@@ -25,7 +25,10 @@ import { ru } from 'date-fns/locale';
 import { Badge } from './ui/badge';
 import { useAuth } from '../contexts/auth-context';
 import { useProjects } from '../contexts/projects-context';
+import { useTasks } from '../contexts/tasks-context';
 import { Checkbox } from './ui/checkbox';
+import { TagsInput } from './tags-input';
+import { toast } from 'sonner';
 
 export function CreateTaskDialog({
   open,
@@ -35,7 +38,8 @@ export function CreateTaskDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { categories } = useAuth();
-  const { projects } = useProjects();
+  const { projects, projectTags, personalTags, addProjectTag, addPersonalTag } = useProjects();
+  const { tasks } = useTasks();
   
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -80,6 +84,31 @@ export function CreateTaskDialog({
     return categories.filter(cat => projectAvailableCategories.includes(cat.id));
   }, [project, selectedProject, categories]);
 
+  // Get available tags based on project context
+  const availableTags = React.useMemo(() => {
+    if (project === 'personal') {
+      return personalTags;
+    }
+    return projectTags[project] || [];
+  }, [project, projectTags, personalTags]);
+
+  // Sort available tags by usage frequency (most used first)
+  const sortedAvailableTags = React.useMemo(() => {
+    const tagUsage = new Map<string, number>();
+    
+    tasks.forEach((task) => {
+      task.tags?.forEach((tag) => {
+        tagUsage.set(tag, (tagUsage.get(tag) || 0) + 1);
+      });
+    });
+    
+    return [...availableTags].sort((a, b) => {
+      const usageA = tagUsage.get(a) || 0;
+      const usageB = tagUsage.get(b) || 0;
+      return usageB - usageA;
+    });
+  }, [availableTags, tasks]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Здесь будет логика создания задачи
@@ -112,10 +141,41 @@ export function CreateTaskDialog({
     setRecurringIntervalDays(1);
   };
 
-  const addTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags([...tags, newTag.trim()]);
-      setNewTag('');
+  const addTag = async (tag?: string) => {
+    const tagToAdd = tag || newTag.trim();
+    
+    // Validation
+    if (!tagToAdd) {
+      return;
+    }
+    
+    if (tagToAdd.length > 30) {
+      toast.error('Тег не может быть длиннее 30 символов');
+      return;
+    }
+    
+    if (tags.includes(tagToAdd)) {
+      toast.error('Этот тег уже добавлен');
+      return;
+    }
+    
+    // Add tag to local state
+    setTags([...tags, tagToAdd]);
+    setNewTag('');
+    
+    // Auto-add new tag to dictionary if it doesn't exist and project is selected
+    if (project && !availableTags.includes(tagToAdd)) {
+      try {
+        if (project === 'personal') {
+          await addPersonalTag(tagToAdd);
+        } else {
+          await addProjectTag(project, tagToAdd);
+        }
+      } catch (error: any) {
+        // Tag still added to task, just not to dictionary
+        console.error('Failed to add tag to dictionary:', error);
+        // Don't show error toast as it's not critical
+      }
     }
   };
 
@@ -262,38 +322,14 @@ export function CreateTaskDialog({
 
           <div className="space-y-2">
             <Label>Теги</Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Добавить тег"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-              />
-              <Button type="button" onClick={addTag} size="sm">
-                Добавить
-              </Button>
-            </div>
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="gap-1">
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      className="ml-1 hover:text-red-600"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            )}
+            <TagsInput
+              tags={tags}
+              availableTags={sortedAvailableTags}
+              onAddTag={addTag}
+              onRemoveTag={removeTag}
+              placeholder="Выберите или создайте тег"
+              maxLength={30}
+            />
           </div>
 
           {/* Повторяющаяся задача */}
