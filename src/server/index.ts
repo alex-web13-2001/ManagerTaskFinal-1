@@ -284,6 +284,73 @@ function transformTaskForResponse(task: any): any {
   };
 }
 
+/**
+ * Auto-add new tags to project or personal tags dictionary
+ * Helper function to avoid code duplication
+ */
+async function autoAddTagsToDictionary(
+  tags: string[],
+  projectId: string | null,
+  userId: string
+): Promise<void> {
+  if (!Array.isArray(tags) || tags.length === 0) {
+    return;
+  }
+
+  try {
+    if (projectId) {
+      // Add tags to project dictionary
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        select: { tags: true },
+      });
+      
+      if (project) {
+        const currentTags = project.tags || [];
+        const newTags = tags.filter(tag => {
+          const tagLower = tag.toLowerCase();
+          return !currentTags.some(t => t.toLowerCase() === tagLower);
+        });
+        
+        if (newTags.length > 0) {
+          await prisma.project.update({
+            where: { id: projectId },
+            data: {
+              tags: [...currentTags, ...newTags],
+            },
+          });
+        }
+      }
+    } else {
+      // Add tags to personal tags dictionary
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { personalTags: true },
+      });
+      
+      if (user) {
+        const currentTags = user.personalTags || [];
+        const newTags = tags.filter(tag => {
+          const tagLower = tag.toLowerCase();
+          return !currentTags.some(t => t.toLowerCase() === tagLower);
+        });
+        
+        if (newTags.length > 0) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: {
+              personalTags: [...currentTags, ...newTags],
+            },
+          });
+        }
+      }
+    }
+  } catch (error) {
+    // Log error but don't fail the operation
+    console.error('Failed to auto-add tags to dictionary:', error);
+  }
+}
+
 // ========== HEALTH CHECK (PUBLIC) ==========
 
 // Health check endpoint (both /health and /api/health for compatibility)
@@ -2305,8 +2372,9 @@ apiRouter.delete('/projects/:projectId/tags', canAccessProject, async (req: Auth
     
     const currentTags = project.tags || [];
     
-    // Remove tag (case-sensitive match)
-    const updatedTags = currentTags.filter(t => t !== tag);
+    // Remove tag (case-insensitive match for consistency with add logic)
+    const tagLower = tag.toLowerCase();
+    const updatedTags = currentTags.filter(t => t.toLowerCase() !== tagLower);
     
     // Update project
     const updatedProject = await prisma.project.update({
@@ -2433,8 +2501,9 @@ apiRouter.delete('/users/me/tags', async (req: AuthRequest, res: Response) => {
     
     const currentTags = user.personalTags || [];
     
-    // Remove tag (case-sensitive match)
-    const updatedTags = currentTags.filter(t => t !== tag);
+    // Remove tag (case-insensitive match for consistency with add logic)
+    const tagLower = tag.toLowerCase();
+    const updatedTags = currentTags.filter(t => t.toLowerCase() !== tagLower);
     
     // Update user
     const updatedUser = await prisma.user.update({
@@ -2735,60 +2804,7 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
     });
 
     // Auto-add new tags to project/personal tags dictionary
-    if (Array.isArray(tags) && tags.length > 0) {
-      try {
-        if (projectId) {
-          // Add tags to project dictionary
-          const project = await prisma.project.findUnique({
-            where: { id: projectId },
-            select: { tags: true },
-          });
-          
-          if (project) {
-            const currentTags = project.tags || [];
-            const newTags = tags.filter(tag => {
-              const tagLower = tag.toLowerCase();
-              return !currentTags.some(t => t.toLowerCase() === tagLower);
-            });
-            
-            if (newTags.length > 0) {
-              await prisma.project.update({
-                where: { id: projectId },
-                data: {
-                  tags: [...currentTags, ...newTags],
-                },
-              });
-            }
-          }
-        } else {
-          // Add tags to personal tags dictionary
-          const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { personalTags: true },
-          });
-          
-          if (user) {
-            const currentTags = user.personalTags || [];
-            const newTags = tags.filter(tag => {
-              const tagLower = tag.toLowerCase();
-              return !currentTags.some(t => t.toLowerCase() === tagLower);
-            });
-            
-            if (newTags.length > 0) {
-              await prisma.user.update({
-                where: { id: userId },
-                data: {
-                  personalTags: [...currentTags, ...newTags],
-                },
-              });
-            }
-          }
-        }
-      } catch (tagError) {
-        // Log error but don't fail task creation
-        console.error('Failed to auto-add tags to dictionary:', tagError);
-      }
-    }
+    await autoAddTagsToDictionary(tags || [], projectId, userId);
 
     // Emit WebSocket event for real-time synchronization
     const transformedTask = transformTaskForResponse(task);
@@ -2951,59 +2967,8 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
     });
 
     // Auto-add new tags to project/personal tags dictionary
-    if (tags !== undefined && Array.isArray(tags) && tags.length > 0) {
-      try {
-        if (updatedTask.projectId) {
-          // Add tags to project dictionary
-          const project = await prisma.project.findUnique({
-            where: { id: updatedTask.projectId },
-            select: { tags: true },
-          });
-          
-          if (project) {
-            const currentTags = project.tags || [];
-            const newTags = tags.filter(tag => {
-              const tagLower = tag.toLowerCase();
-              return !currentTags.some(t => t.toLowerCase() === tagLower);
-            });
-            
-            if (newTags.length > 0) {
-              await prisma.project.update({
-                where: { id: updatedTask.projectId },
-                data: {
-                  tags: [...currentTags, ...newTags],
-                },
-              });
-            }
-          }
-        } else {
-          // Add tags to personal tags dictionary
-          const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { personalTags: true },
-          });
-          
-          if (user) {
-            const currentTags = user.personalTags || [];
-            const newTags = tags.filter(tag => {
-              const tagLower = tag.toLowerCase();
-              return !currentTags.some(t => t.toLowerCase() === tagLower);
-            });
-            
-            if (newTags.length > 0) {
-              await prisma.user.update({
-                where: { id: userId },
-                data: {
-                  personalTags: [...currentTags, ...newTags],
-                },
-              });
-            }
-          }
-        }
-      } catch (tagError) {
-        // Log error but don't fail task update
-        console.error('Failed to auto-add tags to dictionary:', tagError);
-      }
+    if (tags !== undefined && Array.isArray(tags)) {
+      await autoAddTagsToDictionary(tags, updatedTask.projectId, userId);
     }
 
     // Emit WebSocket event for real-time synchronization
