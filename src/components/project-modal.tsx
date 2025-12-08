@@ -58,7 +58,17 @@ export function ProjectModal({
   onManageMembers,
 }: ProjectModalProps) {
   const { categories } = useAuth();
-  const { projects, createProject, updateProject, uploadProjectAttachment, deleteProjectAttachment } = useProjects();
+  const { 
+    projects, 
+    createProject, 
+    updateProject, 
+    uploadProjectAttachment, 
+    deleteProjectAttachment,
+    projectTags,
+    fetchProjectTags,
+    addProjectTag,
+    deleteProjectTag,
+  } = useProjects();
   const [isLoading, setIsLoading] = React.useState(false);
   const [isUploadingFile, setIsUploadingFile] = React.useState(false);
   const prevOpenRef = React.useRef(false);
@@ -79,6 +89,8 @@ export function ProjectModal({
   const [attachments, setAttachments] = React.useState<ProjectAttachment[]>(
     existingProject?.attachments || []
   );
+  const [projectTagsList, setProjectTagsList] = React.useState<string[]>([]);
+  const [newTag, setNewTag] = React.useState('');
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
@@ -97,6 +109,8 @@ export function ProjectModal({
           setSelectedCategories(projectCategories);
           setAttachments(project.attachments || []);
         }
+        // Загружаем теги проекта
+        fetchProjectTags(projectId);
       } else if (!isEditMode) {
         // Очищаем форму для создания нового проекта
         resetForm();
@@ -105,6 +119,13 @@ export function ProjectModal({
     prevOpenRef.current = open;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isEditMode, projectId]);
+
+  // Update local tags list when projectTags change
+  React.useEffect(() => {
+    if (isEditMode && projectId && projectTags[projectId]) {
+      setProjectTagsList(projectTags[projectId]);
+    }
+  }, [isEditMode, projectId, projectTags]);
 
   const resetForm = () => {
     setName('');
@@ -115,6 +136,8 @@ export function ProjectModal({
     setNewLinkUrl('');
     setSelectedCategories([]);
     setAttachments([]);
+    setProjectTagsList([]);
+    setNewTag('');
     setErrors({});
   };
 
@@ -195,6 +218,50 @@ export function ProjectModal({
         ? prev.filter((id) => id !== categoryId)
         : [...prev, categoryId]
     );
+  };
+
+  const handleAddTag = async () => {
+    const tag = newTag.trim();
+    
+    if (!tag) {
+      toast.error('Введите название тега');
+      return;
+    }
+    
+    if (tag.length > 30) {
+      toast.error('Тег не может быть длиннее 30 символов');
+      return;
+    }
+    
+    if (!projectId || !isEditMode) {
+      toast.error('Управление тегами доступно только при редактировании проекта');
+      return;
+    }
+    
+    // Check for duplicate (case-insensitive)
+    if (projectTagsList.some(t => t.toLowerCase() === tag.toLowerCase())) {
+      toast.error('Такой тег уже существует');
+      return;
+    }
+    
+    try {
+      await addProjectTag(projectId, tag);
+      setNewTag('');
+    } catch (error) {
+      // Error already handled by context
+    }
+  };
+
+  const handleDeleteTag = async (tag: string) => {
+    if (!projectId || !isEditMode) {
+      return;
+    }
+    
+    try {
+      await deleteProjectTag(projectId, tag);
+    } catch (error) {
+      // Error already handled by context
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -394,6 +461,62 @@ export function ProjectModal({
                   </Badge>
                 ))}
               </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Теги проекта */}
+          <div className="space-y-2">
+            <Label>Теги проекта</Label>
+            <p className="text-xs text-gray-500">
+              Управление списком тегов, доступных для задач в этом проекте
+            </p>
+            
+            {isEditMode && projectId ? (
+              <>
+                {/* Список текущих тегов */}
+                {projectTagsList.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {projectTagsList.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="gap-1">
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTag(tag)}
+                          className="ml-1 hover:text-red-600 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Поле для добавления нового тега */}
+                <div className="flex gap-2">
+                  <Input 
+                    placeholder="Добавить тег" 
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddTag();
+                      }
+                    }}
+                    maxLength={30}
+                  />
+                  <Button type="button" onClick={handleAddTag} size="sm">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Добавить
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 p-4 bg-gray-50 rounded-lg">
+                Управление тегами доступно после создания проекта
+              </p>
             )}
           </div>
 

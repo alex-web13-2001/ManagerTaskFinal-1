@@ -96,8 +96,6 @@ const getInitials = (name: string | undefined) => {
     .slice(0, 2);
 };
 
-const mockTags = ['UI/UX', 'срочно', 'дизайн', 'frontend', 'backend', 'API', 'тестирование'];
-
 const getTaskData = (id: string) => ({
   id,
   title: 'Разработать дизайн главной страницы',
@@ -157,6 +155,10 @@ export function TaskModal({
     canEditProject,
     getUserRoleInProject,
     hasPermission,
+    projectTags,
+    personalTags,
+    addProjectTag,
+    addPersonalTag,
   } = useProjects();
   const [mode, setMode] = React.useState<TaskModalMode>(initialMode);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -207,6 +209,14 @@ export function TaskModal({
   const [commentText, setCommentText] = React.useState('');
   const [showAllComments, setShowAllComments] = React.useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = React.useState(false);
+
+  // Get available tags based on project context
+  const availableTags = React.useMemo(() => {
+    if (projectId === 'personal') {
+      return personalTags;
+    }
+    return projectTags[projectId] || [];
+  }, [projectId, projectTags, personalTags]);
 
   // Debug: log every render - NOW projectId and assigneeId are declared
   React.useEffect(() => {
@@ -545,11 +555,41 @@ export function TaskModal({
     }
   };
 
-  const addTag = (tag?: string) => {
+  const addTag = async (tag?: string) => {
     const tagToAdd = tag || newTag.trim();
-    if (tagToAdd && !tags.includes(tagToAdd)) {
-      setTags([...tags, tagToAdd]);
-      setNewTag('');
+    
+    // Validation
+    if (!tagToAdd) {
+      return;
+    }
+    
+    if (tagToAdd.length > 30) {
+      toast.error('Тег не может быть длиннее 30 символов');
+      return;
+    }
+    
+    if (tags.includes(tagToAdd)) {
+      toast.error('Этот тег уже добавлен');
+      return;
+    }
+    
+    // Add tag to local state
+    setTags([...tags, tagToAdd]);
+    setNewTag('');
+    
+    // Auto-add new tag to dictionary if it doesn't exist
+    if (!availableTags.includes(tagToAdd)) {
+      try {
+        if (projectId === 'personal') {
+          await addPersonalTag(tagToAdd);
+        } else {
+          await addProjectTag(projectId, tagToAdd);
+        }
+      } catch (error: any) {
+        // Tag still added to task, just not to dictionary
+        console.error('Failed to add tag to dictionary:', error);
+        // Don't show error toast as it's not critical
+      }
     }
   };
 
@@ -1588,7 +1628,7 @@ export function TaskModal({
                     list="tags-autocomplete"
                   />
                   <datalist id="tags-autocomplete">
-                    {mockTags.map((tag) => (
+                    {availableTags.map((tag) => (
                       <option key={tag} value={tag} />
                     ))}
                   </datalist>
