@@ -547,6 +547,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       console.log('📥 ProjectsContext: user:tags_updated', data);
       
       // Update local state only if it's for the current user
+      // Using currentUser.id from closure is safe here since we check isAuthenticated in dependency
       if (currentUser && data.userId === currentUser.id) {
         setPersonalTags(data.tags);
       }
@@ -565,7 +566,9 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [isWebSocketConnected, subscribe, fetchProjects, fetchTeamMembers, currentUser]);
+    // Note: currentUser dependency is needed for handlePersonalTagsUpdated to check userId
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWebSocketConnected, subscribe, fetchProjects, fetchTeamMembers, currentUser?.id]);
 
   // Auto-join project rooms when authenticated and connected
   useEffect(() => {

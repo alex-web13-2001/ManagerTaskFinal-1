@@ -110,11 +110,15 @@ export function TagsInput({
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setOpen(true);
-      setSelectedIndex((prev) => Math.min(prev + 1, filteredTags.length - 1));
+      if (filteredTags.length > 0) {
+        setSelectedIndex((prev) => Math.min(prev + 1, filteredTags.length - 1));
+      }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setOpen(true);
-      setSelectedIndex((prev) => Math.max(prev - 1, -1));
+      if (filteredTags.length > 0) {
+        setSelectedIndex((prev) => Math.max(prev - 1, -1));
+      }
     } else if (e.key === 'Enter') {
       e.preventDefault();
       
@@ -156,6 +160,7 @@ export function TagsInput({
           className="w-full"
           aria-expanded={open}
           aria-autocomplete="list"
+          aria-controls="tags-listbox"
           role="combobox"
         />
         
@@ -163,6 +168,8 @@ export function TagsInput({
         {open && (
           <div 
             ref={dropdownRef}
+            id="tags-listbox"
+            role="listbox"
             className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border rounded-md shadow-lg max-h-60 overflow-auto"
           >
             <Command shouldFilter={false}>
@@ -197,6 +204,7 @@ export function TagsInput({
                         value={tag}
                         onSelect={() => handleSelectTag(tag)}
                         className={selectedIndex === index ? 'bg-accent' : ''}
+                        aria-selected={selectedIndex === index}
                       >
                         {tag}
                       </CommandItem>
