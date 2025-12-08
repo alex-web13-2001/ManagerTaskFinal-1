@@ -723,7 +723,7 @@ export function DashboardView({ onCalendarView, onTaskClick }: DashboardViewProp
                             <Tag className="w-3 h-3" />
                             {tag}
                           </span>
-                          <Badge variant="secondary" className="ml-2 text-xs">
+                          <Badge variant="secondary" className="text-xs">
                             {count}
                           </Badge>
                         </label>
