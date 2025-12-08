@@ -37,6 +37,10 @@ export interface WebSocketEvents {
   'project:member_added': (data: { projectId: string; member: any }) => void;
   'project:member_removed': (data: { projectId: string; memberId: string }) => void;
   
+  // Tags events
+  'project:tags_updated': (data: { projectId: string; tags: string[]; timestamp: string }) => void;
+  'user:tags_updated': (data: { userId: string; tags: string[]; timestamp: string }) => void;
+  
   // User settings events
   'user:settings_updated': (data: { userId: string; settings: any }) => void;
 }
@@ -359,6 +363,36 @@ export function emitUserSettingsUpdated(userId: string, settings: any) {
   console.log(`📤 Emitted ${event} to room ${room}`);
 }
 
+/**
+ * Emit project tags updated event
+ * Broadcast to all members of the project
+ */
+export function emitProjectTagsUpdated(projectId: string, tags: string[]) {
+  if (!io) return;
+  
+  const room = `project:${projectId}`;
+  const event = 'project:tags_updated';
+  const data = { projectId, tags, timestamp: new Date().toISOString() };
+  
+  io.to(room).emit(event, data);
+  console.log(`📤 Emitted ${event} to room ${room}`, { tagsCount: tags.length });
+}
+
+/**
+ * Emit personal tags updated event
+ * Send only to specific user
+ */
+export function emitPersonalTagsUpdated(userId: string, tags: string[]) {
+  if (!io) return;
+  
+  const room = `user:${userId}`;
+  const event = 'user:tags_updated';
+  const data = { userId, tags, timestamp: new Date().toISOString() };
+  
+  io.to(room).emit(event, data);
+  console.log(`📤 Emitted ${event} to room ${room}`, { tagsCount: tags.length });
+}
+
 export default {
   initializeWebSocket,
   getIO,
@@ -375,4 +409,6 @@ export default {
   emitProjectMemberRemoved,
   emitCommentAdded,
   emitUserSettingsUpdated,
+  emitProjectTagsUpdated,
+  emitPersonalTagsUpdated,
 };

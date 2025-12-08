@@ -533,18 +533,39 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       fetchTeamMembers();
     };
 
+    const handleProjectTagsUpdated = (data: { projectId: string; tags: string[]; timestamp: string }) => {
+      console.log('📥 ProjectsContext: project:tags_updated', data);
+      
+      // Update local state
+      setProjectTags(prev => ({
+        ...prev,
+        [data.projectId]: data.tags,
+      }));
+    };
+
+    const handlePersonalTagsUpdated = (data: { userId: string; tags: string[]; timestamp: string }) => {
+      console.log('📥 ProjectsContext: user:tags_updated', data);
+      
+      // Update local state only if it's for the current user
+      if (currentUser && data.userId === currentUser.id) {
+        setPersonalTags(data.tags);
+      }
+    };
+
     const unsubscribers = [
       subscribe('project:updated', handleProjectUpdated),
       subscribe('project:deleted', handleProjectDeleted),
       subscribe('project:member_added', handleProjectMemberAdded),
       subscribe('project:member_removed', handleProjectMemberRemoved),
       subscribe('invite:accepted', handleInviteAccepted),
+      subscribe('project:tags_updated', handleProjectTagsUpdated),
+      subscribe('user:tags_updated', handlePersonalTagsUpdated),
     ];
 
     return () => {
       unsubscribers.forEach(unsub => unsub());
     };
-  }, [isWebSocketConnected, subscribe, fetchProjects, fetchTeamMembers]);
+  }, [isWebSocketConnected, subscribe, fetchProjects, fetchTeamMembers, currentUser]);
 
   // Auto-join project rooms when authenticated and connected
   useEffect(() => {
