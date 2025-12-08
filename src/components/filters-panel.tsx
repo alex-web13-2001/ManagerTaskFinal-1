@@ -1,5 +1,5 @@
 import React from 'react';
-import { Filter, X, User } from 'lucide-react';
+import { Filter, X, User, Tag } from 'lucide-react';
 import { Button } from './ui/button';
 import {
   Sheet,
@@ -17,6 +17,8 @@ import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { useAuth } from '../contexts/auth-context';
 import { useProjects } from '../contexts/projects-context';
+import { useTasks } from '../contexts/tasks-context';
+import { calculateAvailableFilterOptions, getAllUniqueTags } from '../utils/filter-helpers';
 
 export type Filters = {
   projects: string[];
@@ -54,7 +56,16 @@ const prioritiesList = [
 export function FiltersPanel({ filters, onFiltersChange, onClearFilters }: FiltersPanelProps) {
   const { categories } = useAuth();
   const { projects, teamMembers } = useProjects();
+  const { tasks } = useTasks();
   const [newTag, setNewTag] = React.useState('');
+
+  // Calculate available filter options based on current filters (cascading filters)
+  const availableFilterCounts = React.useMemo(() => {
+    return calculateAvailableFilterOptions(tasks, filters);
+  }, [tasks, filters]);
+
+  // Get all unique tags from tasks
+  const allTags = React.useMemo(() => getAllUniqueTags(tasks), [tasks]);
 
   const toggleArrayFilter = (key: keyof Filters, value: string) => {
     const currentValues = filters[key] as string[];
@@ -134,39 +145,68 @@ export function FiltersPanel({ filters, onFiltersChange, onClearFilters }: Filte
             </div>
             <div className="space-y-2">
               {/* Добавляем опцию "Личные задачи" */}
-              <div className="flex items-center space-x-2 pb-2 border-b">
-                <Checkbox
-                  id="filter-project-personal"
-                  checked={filters.projects.includes('personal')}
-                  onCheckedChange={() => toggleArrayFilter('projects', 'personal')}
-                />
-                <label
-                  htmlFor="filter-project-personal"
-                  className="text-sm flex items-center gap-2 cursor-pointer flex-1"
-                >
-                  <User className="w-3 h-3 text-gray-500" />
-                  Личные задачи
-                </label>
-              </div>
+              {(() => {
+                const count = availableFilterCounts.projects.get('personal') || 0;
+                const isDisabled = count === 0;
+                return (
+                  <div className="flex items-center space-x-2 pb-2 border-b">
+                    <Checkbox
+                      id="filter-project-personal"
+                      checked={filters.projects.includes('personal')}
+                      onCheckedChange={() => toggleArrayFilter('projects', 'personal')}
+                      disabled={isDisabled}
+                      aria-disabled={isDisabled}
+                    />
+                    <label
+                      htmlFor="filter-project-personal"
+                      className={`text-sm flex items-center gap-2 cursor-pointer flex-1 justify-between ${
+                        isDisabled ? 'text-gray-400' : ''
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <User className="w-3 h-3 text-gray-500" />
+                        Личные задачи
+                      </span>
+                      <Badge variant="secondary" className="text-xs">
+                        {count}
+                      </Badge>
+                    </label>
+                  </div>
+                );
+              })()}
               {projects.length === 0 ? (
                 <div className="text-sm text-gray-500 py-2">Нет проектов</div>
               ) : (
-                projects.map((project) => (
-                  <div key={project.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`filter-project-${project.id}`}
-                      checked={filters.projects.includes(project.id)}
-                      onCheckedChange={() => toggleArrayFilter('projects', project.id)}
-                    />
-                    <label
-                      htmlFor={`filter-project-${project.id}`}
-                      className="text-sm flex items-center gap-2 cursor-pointer flex-1"
-                    >
-                      <div className={`w-3 h-3 ${getColorClass(project.color)} rounded-sm`} />
-                      {project.name}
-                    </label>
-                  </div>
-                ))
+                projects.map((project) => {
+                  const count = availableFilterCounts.projects.get(project.id) || 0;
+                  const isDisabled = count === 0;
+                  return (
+                    <div key={project.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`filter-project-${project.id}`}
+                        checked={filters.projects.includes(project.id)}
+                        onCheckedChange={() => toggleArrayFilter('projects', project.id)}
+                        disabled={isDisabled}
+                        aria-disabled={isDisabled}
+                      />
+                      <label
+                        htmlFor={`filter-project-${project.id}`}
+                        className={`text-sm flex items-center gap-2 cursor-pointer flex-1 justify-between ${
+                          isDisabled ? 'text-gray-400' : ''
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <div className={`w-3 h-3 ${getColorClass(project.color)} rounded-sm`} />
+                          {project.name}
+                        </span>
+                        <Badge variant="secondary" className="text-xs">
+                          {count}
+                        </Badge>
+                      </label>
+                    </div>
+                  );
+                })
+              )}
               )}
             </div>
           </div>
@@ -188,22 +228,35 @@ export function FiltersPanel({ filters, onFiltersChange, onClearFilters }: Filte
               )}
             </div>
             <div className="space-y-2">
-              {categories.map((category) => (
-                <div key={category.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`filter-category-${category.id}`}
-                    checked={filters.categories.includes(category.id)}
-                    onCheckedChange={() => toggleArrayFilter('categories', category.id)}
-                  />
-                  <label
-                    htmlFor={`filter-category-${category.id}`}
-                    className="text-sm flex items-center gap-2 cursor-pointer flex-1"
-                  >
-                    <div className={`w-3 h-3 ${category.color} rounded-sm`} />
-                    {category.name}
-                  </label>
-                </div>
-              ))}
+              {categories.map((category) => {
+                const count = availableFilterCounts.categories.get(category.id) || 0;
+                const isDisabled = count === 0;
+                return (
+                  <div key={category.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`filter-category-${category.id}`}
+                      checked={filters.categories.includes(category.id)}
+                      onCheckedChange={() => toggleArrayFilter('categories', category.id)}
+                      disabled={isDisabled}
+                      aria-disabled={isDisabled}
+                    />
+                    <label
+                      htmlFor={`filter-category-${category.id}`}
+                      className={`text-sm flex items-center gap-2 cursor-pointer flex-1 justify-between ${
+                        isDisabled ? 'text-gray-400' : ''
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <div className={`w-3 h-3 ${category.color} rounded-sm`} />
+                        {category.name}
+                      </span>
+                      <Badge variant="secondary" className="text-xs">
+                        {count}
+                      </Badge>
+                    </label>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -224,21 +277,32 @@ export function FiltersPanel({ filters, onFiltersChange, onClearFilters }: Filte
               )}
             </div>
             <div className="space-y-2">
-              {statusesList.map((status) => (
-                <div key={status.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`filter-status-${status.id}`}
-                    checked={filters.statuses.includes(status.id)}
-                    onCheckedChange={() => toggleArrayFilter('statuses', status.id)}
-                  />
-                  <label
-                    htmlFor={`filter-status-${status.id}`}
-                    className="text-sm cursor-pointer flex-1"
-                  >
-                    {status.name}
-                  </label>
-                </div>
-              ))}
+              {statusesList.map((status) => {
+                const count = availableFilterCounts.statuses.get(status.id) || 0;
+                const isDisabled = count === 0;
+                return (
+                  <div key={status.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`filter-status-${status.id}`}
+                      checked={filters.statuses.includes(status.id)}
+                      disabled={isDisabled}
+                      aria-disabled={isDisabled}
+                      onCheckedChange={() => toggleArrayFilter('statuses', status.id)}
+                    />
+                    <label
+                      htmlFor={`filter-status-${status.id}`}
+                      className={`text-sm cursor-pointer flex-1 flex items-center justify-between ${
+                        isDisabled ? 'text-gray-400' : ''
+                      }`}
+                    >
+                      <span>{status.name}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {count}
+                      </Badge>
+                    </label>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -259,21 +323,32 @@ export function FiltersPanel({ filters, onFiltersChange, onClearFilters }: Filte
               )}
             </div>
             <div className="space-y-2">
-              {prioritiesList.map((priority) => (
-                <div key={priority.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`filter-priority-${priority.id}`}
-                    checked={filters.priorities.includes(priority.id)}
-                    onCheckedChange={() => toggleArrayFilter('priorities', priority.id)}
-                  />
-                  <label
-                    htmlFor={`filter-priority-${priority.id}`}
-                    className="text-sm cursor-pointer flex-1"
-                  >
-                    {priority.name}
-                  </label>
-                </div>
-              ))}
+              {prioritiesList.map((priority) => {
+                const count = availableFilterCounts.priorities.get(priority.id) || 0;
+                const isDisabled = count === 0;
+                return (
+                  <div key={priority.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`filter-priority-${priority.id}`}
+                      checked={filters.priorities.includes(priority.id)}
+                      onCheckedChange={() => toggleArrayFilter('priorities', priority.id)}
+                      disabled={isDisabled}
+                      aria-disabled={isDisabled}
+                    />
+                    <label
+                      htmlFor={`filter-priority-${priority.id}`}
+                      className={`text-sm cursor-pointer flex-1 flex items-center justify-between ${
+                        isDisabled ? 'text-gray-400' : ''
+                      }`}
+                    >
+                      <span>{priority.name}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {count}
+                      </Badge>
+                    </label>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -297,21 +372,32 @@ export function FiltersPanel({ filters, onFiltersChange, onClearFilters }: Filte
               {teamMembers.length === 0 ? (
                 <div className="text-sm text-gray-500 py-2">Нет участников</div>
               ) : (
-                teamMembers.map((member) => (
-                  <div key={member.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`filter-assignee-${member.id}`}
-                      checked={filters.assignees.includes(member.id)}
-                      onCheckedChange={() => toggleArrayFilter('assignees', member.id)}
-                    />
-                    <label
-                      htmlFor={`filter-assignee-${member.id}`}
-                      className="text-sm cursor-pointer flex-1"
-                    >
-                      {member.name}
-                    </label>
-                  </div>
-                ))
+                teamMembers.map((member) => {
+                  const count = availableFilterCounts.assignees.get(member.id) || 0;
+                  const isDisabled = count === 0;
+                  return (
+                    <div key={member.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`filter-assignee-${member.id}`}
+                        checked={filters.assignees.includes(member.id)}
+                        onCheckedChange={() => toggleArrayFilter('assignees', member.id)}
+                        disabled={isDisabled}
+                        aria-disabled={isDisabled}
+                      />
+                      <label
+                        htmlFor={`filter-assignee-${member.id}`}
+                        className={`text-sm cursor-pointer flex-1 flex items-center justify-between ${
+                          isDisabled ? 'text-gray-400' : ''
+                        }`}
+                      >
+                        <span>{member.name}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {count}
+                        </Badge>
+                      </label>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
@@ -352,38 +438,54 @@ export function FiltersPanel({ filters, onFiltersChange, onClearFilters }: Filte
           <Separator />
 
           <div className="space-y-3">
-            <Label>Теги</Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Добавить тег"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-              />
-              <Button type="button" onClick={addTag} size="sm">
-                Добавить
-              </Button>
+            <div className="flex items-center justify-between">
+              <Label>Теги</Label>
+              {filters.tags.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onFiltersChange({ ...filters, tags: [] })}
+                  className="h-auto p-0 text-xs text-purple-600"
+                >
+                  Очистить
+                </Button>
+              )}
             </div>
-            {filters.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {filters.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="gap-1">
-                    {tag}
-                    <button
-                      onClick={() => removeTag(tag)}
-                      className="ml-1 hover:text-red-600"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            )}
+            <div className="space-y-2">
+              {allTags.length === 0 ? (
+                <div className="text-sm text-gray-500 py-2">Нет тегов</div>
+              ) : (
+                allTags.map((tag) => {
+                  const count = availableFilterCounts.tags.get(tag) || 0;
+                  const isDisabled = count === 0;
+                  return (
+                    <div key={tag} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`filter-tag-${tag}`}
+                        checked={filters.tags.includes(tag)}
+                        onCheckedChange={() => toggleArrayFilter('tags', tag)}
+                        disabled={isDisabled}
+                        aria-disabled={isDisabled}
+                      />
+                      <label
+                        htmlFor={`filter-tag-${tag}`}
+                        className={`text-sm cursor-pointer flex-1 flex items-center justify-between ${
+                          isDisabled ? 'text-gray-400' : ''
+                        }`}
+                      >
+                        <span className="flex items-center gap-1">
+                          <Tag className="w-3 h-3" />
+                          {tag}
+                        </span>
+                        <Badge variant="secondary" className="text-xs">
+                          {count}
+                        </Badge>
+                      </label>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
 
           <Separator />
