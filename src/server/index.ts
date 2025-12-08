@@ -2339,6 +2339,10 @@ apiRouter.post('/projects/:projectId/tags', canAccessProject, async (req: AuthRe
       select: { tags: true },
     });
     
+    // Emit WebSocket event
+    const { emitProjectTagsUpdated } = await import('./websocket');
+    emitProjectTagsUpdated(projectId, updatedProject.tags);
+    
     res.json(updatedProject.tags);
   } catch (error: any) {
     console.error('Add project tag error:', error);
@@ -2384,6 +2388,10 @@ apiRouter.delete('/projects/:projectId/tags', canAccessProject, async (req: Auth
       },
       select: { tags: true },
     });
+    
+    // Emit WebSocket event
+    const { emitProjectTagsUpdated } = await import('./websocket');
+    emitProjectTagsUpdated(projectId, updatedProject.tags);
     
     res.json(updatedProject.tags);
   } catch (error: any) {
@@ -2468,6 +2476,10 @@ apiRouter.post('/users/me/tags', async (req: AuthRequest, res: Response) => {
       select: { personalTags: true },
     });
     
+    // Emit WebSocket event
+    const { emitPersonalTagsUpdated } = await import('./websocket');
+    emitPersonalTagsUpdated(userId, updatedUser.personalTags);
+    
     res.json(updatedUser.personalTags);
   } catch (error: any) {
     console.error('Add personal tag error:', error);
@@ -2513,6 +2525,10 @@ apiRouter.delete('/users/me/tags', async (req: AuthRequest, res: Response) => {
       },
       select: { personalTags: true },
     });
+    
+    // Emit WebSocket event
+    const { emitPersonalTagsUpdated } = await import('./websocket');
+    emitPersonalTagsUpdated(userId, updatedUser.personalTags);
     
     res.json(updatedUser.personalTags);
   } catch (error: any) {

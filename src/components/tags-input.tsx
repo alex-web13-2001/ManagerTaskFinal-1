@@ -1,16 +1,10 @@
 import * as React from 'react';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Input } from '@/components/ui/input';
 import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
@@ -30,12 +24,15 @@ export function TagsInput({
   availableTags,
   onAddTag,
   onRemoveTag,
-  placeholder = 'Выберите или создайте тег',
+  placeholder = 'Введите тег...',
   maxLength = 30,
 }: TagsInputProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = React.useState<number>(-1);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Filter available tags based on search query and exclude already selected tags
   const filteredTags = React.useMemo(() => {
@@ -53,11 +50,35 @@ export function TagsInput({
     return filteredTags.some((tag) => tag.toLowerCase() === query.toLowerCase());
   }, [filteredTags, searchQuery]);
 
+  // Reset selected index when filtered tags change
+  React.useEffect(() => {
+    setSelectedIndex(-1);
+  }, [filteredTags]);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+        setSelectedIndex(-1);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleSelectTag = (tag: string) => {
     setError(null);
     onAddTag(tag);
     setSearchQuery('');
     setOpen(false);
+    setSelectedIndex(-1);
   };
 
   const handleCreateNewTag = () => {
@@ -82,13 +103,29 @@ export function TagsInput({
     onAddTag(newTag);
     setSearchQuery('');
     setOpen(false);
+    setSelectedIndex(-1);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setOpen(true);
+      if (filteredTags.length > 0) {
+        setSelectedIndex((prev) => Math.min(prev + 1, filteredTags.length - 1));
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setOpen(true);
+      if (filteredTags.length > 0) {
+        setSelectedIndex((prev) => Math.max(prev - 1, -1));
+      }
+    } else if (e.key === 'Enter') {
       e.preventDefault();
       
-      if (hasExactMatch) {
+      if (selectedIndex >= 0 && filteredTags[selectedIndex]) {
+        // Select highlighted tag
+        handleSelectTag(filteredTags[selectedIndex]);
+      } else if (hasExactMatch) {
         // If there's an exact match, select it
         const exactMatch = filteredTags.find(
           (tag) => tag.toLowerCase() === searchQuery.trim().toLowerCase()
@@ -104,75 +141,83 @@ export function TagsInput({
       setOpen(false);
       setSearchQuery('');
       setError(null);
+      setSelectedIndex(-1);
     }
   };
 
   return (
     <div className="space-y-2">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="justify-start text-left font-normal"
+      {/* Direct input with autocomplete */}
+      <div className="relative">
+        <Input
+          ref={inputRef}
+          type="text"
+          placeholder={placeholder}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          className="w-full"
+          aria-expanded={open}
+          aria-autocomplete="list"
+          aria-controls="tags-listbox"
+          role="combobox"
+        />
+        
+        {/* Dropdown with results (shown when open=true) */}
+        {open && (
+          <div 
+            ref={dropdownRef}
+            id="tags-listbox"
+            role="listbox"
+            className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border rounded-md shadow-lg max-h-60 overflow-auto"
           >
-            {placeholder}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[300px] p-0" align="start">
-          {/* shouldFilter={false} because we implement custom filtering logic below */}
-          <Command shouldFilter={false}>
-            <CommandInput
-              placeholder="Поиск тегов..."
-              value={searchQuery}
-              onValueChange={setSearchQuery}
-              onKeyDown={handleKeyDown}
-            />
-            <CommandList>
-              <CommandEmpty>
-                {error ? (
-                  <div className="text-sm text-red-600 px-2 py-3">
-                    {error}
-                  </div>
-                ) : (
-                  <div className="px-2 py-3">
-                    {searchQuery.trim() ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="w-full justify-start"
-                        onClick={handleCreateNewTag}
+            <Command shouldFilter={false}>
+              <CommandList>
+                <CommandEmpty>
+                  {error ? (
+                    <div className="text-sm text-red-600 px-2 py-3">
+                      {error}
+                    </div>
+                  ) : (
+                    <div className="px-2 py-3">
+                      {searchQuery.trim() ? (
+                        <div
+                          className="text-sm cursor-pointer hover:bg-accent px-2 py-1.5 rounded-sm"
+                          onClick={handleCreateNewTag}
+                        >
+                          Создать тег "{searchQuery.trim()}"
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Начните вводить для поиска или создания тега
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CommandEmpty>
+                {filteredTags.length > 0 && (
+                  <CommandGroup>
+                    {filteredTags.map((tag, index) => (
+                      <CommandItem
+                        key={tag}
+                        value={tag}
+                        onSelect={() => handleSelectTag(tag)}
+                        className={selectedIndex === index ? 'bg-accent' : ''}
+                        aria-selected={selectedIndex === index}
                       >
-                        Создать тег "{searchQuery.trim()}"
-                      </Button>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Начните вводить для поиска или создания тега
-                      </p>
-                    )}
-                  </div>
+                        {tag}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
                 )}
-              </CommandEmpty>
-              {filteredTags.length > 0 && (
-                <CommandGroup>
-                  {filteredTags.map((tag) => (
-                    <CommandItem
-                      key={tag}
-                      value={tag}
-                      onSelect={() => handleSelectTag(tag)}
-                    >
-                      {tag}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-
+              </CommandList>
+            </Command>
+          </div>
+        )}
+      </div>
+      
+      {/* Selected tags */}
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {tags.map((tag) => (
@@ -182,6 +227,7 @@ export function TagsInput({
                 type="button"
                 onClick={() => onRemoveTag(tag)}
                 className="ml-1 hover:text-red-600"
+                aria-label={`Удалить тег ${tag}`}
               >
                 <X className="w-3 h-3" />
               </button>
