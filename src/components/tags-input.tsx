@@ -15,7 +15,6 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { X } from 'lucide-react';
-import { cn } from './ui/utils';
 
 export interface TagsInputProps {
   tags: string[];
