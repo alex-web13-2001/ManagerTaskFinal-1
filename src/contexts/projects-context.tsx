@@ -40,6 +40,7 @@ interface ProjectsContextType {
   projects: Project[];
   archivedProjects: Project[];
   teamMembers: TeamMember[];
+  isLoading: boolean;
   fetchProjects: () => Promise<void>;
   fetchArchivedProjects: () => Promise<void>;
   fetchTeamMembers: () => Promise<void>;
@@ -64,14 +65,17 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [archivedProjects, setArchivedProjects] = useState<Project[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   
   const { currentUser, isAuthenticated } = useAuth();
   const { isConnected: isWebSocketConnected, subscribe, joinProject: wsJoinProject, leaveProject: wsLeaveProject } = useWebSocket();
 
   const fetchProjects = useCallback(async () => {
+    setIsLoading(true);
     try {
       const token = await getAuthToken();
       if (!token) {
+        setIsLoading(false);
         return;
       }
       
@@ -138,8 +142,18 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
         console.error('❌ Ошибка загрузки проектов:', error);
         toast.error('Ошибка загрузки проектов');
       }
+    } finally {
+      setIsLoading(false);
     }
   }, []);
+
+  // Автозагрузка проектов при аутентификации
+  useEffect(() => {
+    if (isAuthenticated && currentUser) {
+      console.log('🔄 ProjectsContext: Автозагрузка проектов при монтировании');
+      fetchProjects();
+    }
+  }, [isAuthenticated, currentUser?.id, fetchProjects]);
 
   const fetchArchivedProjects = useCallback(async () => {
     try {
@@ -450,6 +464,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     projects,
     archivedProjects,
     teamMembers,
+    isLoading,
     fetchProjects,
     fetchArchivedProjects,
     fetchTeamMembers,

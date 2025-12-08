@@ -50,9 +50,9 @@ type DashboardViewProps = {
 export function DashboardView({ onCalendarView, onTaskClick }: DashboardViewProps = {}) {
   const { currentUser, categories, customColumns } = useAuth();
   const { tasks, isLoading: tasksLoading } = useTasks();
-  const { projects, teamMembers } = useProjects();
+  const { projects, teamMembers, isLoading: projectsLoading } = useProjects();
   // Combine loading states (isInitialLoad not needed for this view)
-  const isLoading = tasksLoading;
+  const isLoading = tasksLoading || projectsLoading;
   const [viewMode, setViewMode] = React.useState<'kanban' | 'table'>('kanban');
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showMyTasks, setShowMyTasks] = React.useState(false);
@@ -160,6 +160,17 @@ export function DashboardView({ onCalendarView, onTaskClick }: DashboardViewProp
     };
     return colorMap[color || ''] || 'bg-gray-500';
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Загрузка данных...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
