@@ -190,7 +190,6 @@ export function TaskModal({
     existingTask?.deadline ? new Date(existingTask.deadline) : undefined
   );
   const [tags, setTags] = React.useState<string[]>(existingTask?.tags || []);
-  const [newTag, setNewTag] = React.useState('');
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
   const [isUploadingFiles, setIsUploadingFiles] = React.useState(false);
   // Поля для повторяющихся задач
@@ -573,8 +572,8 @@ export function TaskModal({
     }
   };
 
-  const addTag = async (tag?: string) => {
-    const tagToAdd = tag || newTag.trim();
+  const addTag = async (tag: string) => {
+    const tagToAdd = tag.trim();
     
     // Validation
     if (!tagToAdd) {
@@ -593,7 +592,6 @@ export function TaskModal({
     
     // Add tag to local state
     setTags([...tags, tagToAdd]);
-    setNewTag('');
     
     // Auto-add new tag to dictionary if it doesn't exist
     if (!availableTags.includes(tagToAdd)) {

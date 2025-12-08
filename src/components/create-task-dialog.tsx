@@ -49,7 +49,6 @@ export function CreateTaskDialog({
   const [assignee, setAssignee] = React.useState('');
   const [date, setDate] = React.useState<Date>();
   const [tags, setTags] = React.useState<string[]>([]);
-  const [newTag, setNewTag] = React.useState('');
   // Поля для повторяющихся задач
   const [isRecurring, setIsRecurring] = React.useState(false);
   const [recurringStartDate, setRecurringStartDate] = React.useState<Date>();
@@ -135,14 +134,13 @@ export function CreateTaskDialog({
     setAssignee('');
     setDate(undefined);
     setTags([]);
-    setNewTag('');
     setIsRecurring(false);
     setRecurringStartDate(undefined);
     setRecurringIntervalDays(1);
   };
 
-  const addTag = async (tag?: string) => {
-    const tagToAdd = tag || newTag.trim();
+  const addTag = async (tag: string) => {
+    const tagToAdd = tag.trim();
     
     // Validation
     if (!tagToAdd) {
@@ -161,7 +159,6 @@ export function CreateTaskDialog({
     
     // Add tag to local state
     setTags([...tags, tagToAdd]);
-    setNewTag('');
     
     // Auto-add new tag to dictionary if it doesn't exist and project is selected
     if (project && !availableTags.includes(tagToAdd)) {
