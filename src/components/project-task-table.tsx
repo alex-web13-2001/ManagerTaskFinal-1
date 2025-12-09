@@ -156,6 +156,13 @@ export function ProjectTaskTable({ projectId, searchQuery, filters, onTaskClick 
         return false;
       }
 
+      // Tags filter
+      if (filters.tags.length > 0) {
+        if (!task.tags || !filters.tags.some((filterTag) => task.tags!.includes(filterTag))) {
+          return false;
+        }
+      }
+
       // Deadline filter
       if (filters.deadline && filters.deadline !== 'all' && task.deadline) {
         const deadline = new Date(task.deadline);
