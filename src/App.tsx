@@ -506,6 +506,10 @@ function MainAppContent() {
             navigate('/');
           }
         }}
+        onProjectClick={(projectId) => {
+          setSelectedProjectId(projectId);
+          setCurrentView('projects');
+        }}
         onLogout={handleLogout}
       />
       <SidebarInset className="pt-16 h-screen overflow-hidden">

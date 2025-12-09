@@ -510,6 +510,8 @@ export function TaskModal({
           });
         }
         onSave?.(taskData);
+        resetForm();
+        onOpenChange(false);
       } else if (existingTask) {
         savedTask = await updateTask(existingTask.id, taskData);
         console.log('✅ Task updated:', savedTask);
@@ -544,10 +546,10 @@ export function TaskModal({
         console.log(`📎 Upload complete`);
       }
       
-      if (isCreateMode) {
-        resetForm();
+      // For edit mode, close the modal after all operations
+      if (!isCreateMode) {
+        onOpenChange(false);
       }
-      onOpenChange(false);
     } catch (error: any) {
       console.error('Task save error:', error);
       // Показываем сообщение об ошибке пользователю

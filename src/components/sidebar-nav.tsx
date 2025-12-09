@@ -1,15 +1,21 @@
 import React from 'react';
-import { Home, CheckSquare, FolderKanban, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, CheckSquare, FolderKanban, Tag, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   useSidebar,
 } from './ui/sidebar';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { useProjects } from '../contexts/projects-context';
+import { useTasks } from '../contexts/tasks-context';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 
 type NavigationItem = {
   title: string;
@@ -24,44 +30,189 @@ const navigationItems: NavigationItem[] = [
   { title: 'Категории', icon: Tag, view: 'categories' },
 ];
 
+// Helper function to get project color class
+function getColorForProject(color?: string): string {
+  const colorMap: Record<string, string> = {
+    purple: 'bg-purple-500',
+    blue: 'bg-blue-500',
+    green: 'bg-green-500',
+    yellow: 'bg-yellow-500',
+    red: 'bg-red-500',
+    pink: 'bg-pink-500',
+    indigo: 'bg-indigo-500',
+    orange: 'bg-orange-500',
+    teal: 'bg-teal-500',
+    cyan: 'bg-cyan-500',
+    gray: 'bg-gray-500',
+  };
+  return colorMap[color || ''] || 'bg-gray-500';
+}
+
 export function SidebarNav({
   currentView,
   onViewChange,
   onLogout,
+  onProjectClick,
 }: {
   currentView: string;
   onViewChange: (view: string) => void;
   onLogout: () => void;
+  onProjectClick?: (projectId: string) => void;
 }) {
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === 'collapsed';
+  const { projects } = useProjects();
+  const { tasks } = useTasks();
+  const [showAllProjects, setShowAllProjects] = React.useState(false);
+  const [projectsExpanded, setProjectsExpanded] = React.useState(false);
+
+  // Get last 5 projects sorted by recent activity (task updates)
+  const recentProjects = React.useMemo(() => {
+    // Create a map of project ID to last task update time
+    const projectLastUpdate = new Map<string, Date>();
+    
+    projects.forEach(project => {
+      // Find tasks for this project
+      const projectTasks = tasks.filter(task => task.projectId === project.id);
+      
+      if (projectTasks.length > 0) {
+        // Get the most recent task update
+        const lastTaskUpdate = projectTasks.reduce((latest, task) => {
+          const taskDate = new Date(task.updatedAt);
+          return taskDate > latest ? taskDate : latest;
+        }, new Date(0));
+        
+        projectLastUpdate.set(project.id, lastTaskUpdate);
+      } else {
+        // No tasks, use project's updatedAt or createdAt
+        const projectDate = new Date(project.updatedAt || project.createdAt);
+        projectLastUpdate.set(project.id, projectDate);
+      }
+    });
+    
+    // Sort projects by last update (newest first)
+    const sorted = [...projects].sort((a, b) => {
+      const dateA = projectLastUpdate.get(a.id) || new Date(0);
+      const dateB = projectLastUpdate.get(b.id) || new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    return sorted;
+  }, [projects, tasks]);
+
+  const displayedProjects = showAllProjects ? recentProjects : recentProjects.slice(0, 5);
 
   return (
     <Sidebar collapsible="icon" className="pt-16">
       <SidebarContent>
         <div className="flex flex-col h-full">
           <SidebarMenu className="px-2 py-2 flex-1">
-            {navigationItems.map((item) => (
-              <SidebarMenuItem key={item.view}>
-                <TooltipProvider delayDuration={0}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <SidebarMenuButton
-                        isActive={currentView === item.view}
-                        onClick={() => onViewChange(item.view)}
-                        className="w-full"
-                      >
-                        <item.icon className="w-4 h-4" />
-                        <span>{item.title}</span>
-                      </SidebarMenuButton>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="group-data-[state=expanded]:hidden">
-                      <p>{item.title}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </SidebarMenuItem>
-            ))}
+            {navigationItems.map((item) => {
+              // Special handling for Projects menu item with submenu
+              if (item.view === 'projects') {
+                return (
+                  <Collapsible
+                    key={item.view}
+                    open={projectsExpanded}
+                    onOpenChange={setProjectsExpanded}
+                  >
+                    <SidebarMenuItem>
+                      <TooltipProvider delayDuration={0}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <CollapsibleTrigger asChild>
+                              <SidebarMenuButton
+                                isActive={currentView === item.view}
+                                onClick={() => {
+                                  onViewChange(item.view);
+                                  setProjectsExpanded(!projectsExpanded);
+                                }}
+                                className="w-full"
+                              >
+                                <item.icon className="w-4 h-4" />
+                                <span>{item.title}</span>
+                                <ChevronDown
+                                  className={`ml-auto h-4 w-4 transition-transform ${
+                                    projectsExpanded ? 'rotate-180' : ''
+                                  }`}
+                                />
+                              </SidebarMenuButton>
+                            </CollapsibleTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="group-data-[state=expanded]:hidden">
+                            <p>{item.title}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {displayedProjects.map((project) => (
+                            <SidebarMenuSubItem key={project.id}>
+                              <TooltipProvider delayDuration={0}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <SidebarMenuSubButton
+                                      onClick={() => {
+                                        onProjectClick?.(project.id);
+                                      }}
+                                    >
+                                      <div
+                                        className={`w-3 h-3 rounded-full ${getColorForProject(
+                                          project.color
+                                        )}`}
+                                      />
+                                      <span className="truncate">{project.name}</span>
+                                    </SidebarMenuSubButton>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="group-data-[state=expanded]:hidden">
+                                    <p>{project.name}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </SidebarMenuSubItem>
+                          ))}
+                          {recentProjects.length > 5 && (
+                            <SidebarMenuSubItem>
+                              <SidebarMenuSubButton
+                                onClick={() => setShowAllProjects(!showAllProjects)}
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <span className="text-xs">
+                                  {showAllProjects ? 'Скрыть' : 'Показать все'}
+                                </span>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          )}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+                );
+              }
+
+              // Regular menu items
+              return (
+                <SidebarMenuItem key={item.view}>
+                  <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <SidebarMenuButton
+                          isActive={currentView === item.view}
+                          onClick={() => onViewChange(item.view)}
+                          className="w-full"
+                        >
+                          <item.icon className="w-4 h-4" />
+                          <span>{item.title}</span>
+                        </SidebarMenuButton>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="group-data-[state=expanded]:hidden">
+                        <p>{item.title}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </SidebarMenuItem>
+              );
+            })}
           </SidebarMenu>
           
           {/* Toggle Button */}
