@@ -473,7 +473,7 @@ export function TaskModal({
       const taskData = {
         title,
         description,
-        projectId: projectId === 'personal' ? undefined : projectId,
+        projectId: projectId === 'personal' ? null : projectId,
         categoryId: categoryId === 'none' ? undefined : categoryId,
         priority,
         status,
@@ -548,8 +548,11 @@ export function TaskModal({
         resetForm();
       }
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Task save error:', error);
+      // Показываем сообщение об ошибке пользователю
+      toast.error(error?.message || 'Ошибка при сохранении задачи');
+      // НЕ закрываем модалку при ошибке, чтобы пользователь мог исправить данные
     } finally {
       setIsLoading(false);
       setIsUploadingFiles(false);
