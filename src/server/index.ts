@@ -2909,6 +2909,7 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
       tags, 
       dueDate, 
       deadline, // Support both dueDate and deadline (frontend compatibility)
+      projectId,  // Support moving tasks between projects
       // assigneeId, // Already extracted above for permission check
       orderKey, 
       version,
@@ -2924,6 +2925,11 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
     
     // Optional string fields - support explicit null to clear
     if (description !== undefined) updateData.description = description || null;
+    
+    // Project assignment - support moving between personal and project tasks
+    if (projectId !== undefined) {
+      updateData.projectId = projectId || null;
+    }
     
     // Status and priority - use defaults if empty string provided
     if (status !== undefined) updateData.status = status || 'todo';
