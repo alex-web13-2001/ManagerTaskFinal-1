@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { useProjects } from '../contexts/projects-context';
 import { useTasks } from '../contexts/tasks-context';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
+import { getColorForProject } from '../utils/colors';
 
 type NavigationItem = {
   title: string;
@@ -29,24 +30,6 @@ const navigationItems: NavigationItem[] = [
   { title: 'Проекты', icon: FolderKanban, view: 'projects' },
   { title: 'Категории', icon: Tag, view: 'categories' },
 ];
-
-// Helper function to get project color class
-function getColorForProject(color?: string): string {
-  const colorMap: Record<string, string> = {
-    purple: 'bg-purple-500',
-    blue: 'bg-blue-500',
-    green: 'bg-green-500',
-    yellow: 'bg-yellow-500',
-    red: 'bg-red-500',
-    pink: 'bg-pink-500',
-    indigo: 'bg-indigo-500',
-    orange: 'bg-orange-500',
-    teal: 'bg-teal-500',
-    cyan: 'bg-cyan-500',
-    gray: 'bg-gray-500',
-  };
-  return colorMap[color || ''] || 'bg-gray-500';
-}
 
 export function SidebarNav({
   currentView,
@@ -123,9 +106,9 @@ export function SidebarNav({
                             <CollapsibleTrigger asChild>
                               <SidebarMenuButton
                                 isActive={currentView === item.view}
-                                onClick={() => {
+                                onClick={(e) => {
+                                  // Only change view, CollapsibleTrigger handles the toggle
                                   onViewChange(item.view);
-                                  setProjectsExpanded(!projectsExpanded);
                                 }}
                                 className="w-full"
                               >
