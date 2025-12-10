@@ -442,7 +442,7 @@ export const tasksAPI = {
     return true;
   },
 
-  addComment: async (taskId: string, text: string) => {
+  addComment: async (taskId: string, text: string, mentionedUsers?: string[]) => {
     const token = getAuthToken();
     if (!token) throw new Error('Not authenticated');
 
@@ -452,7 +452,7 @@ export const tasksAPI = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, mentionedUsers }),
     });
 
     if (!response.ok) {
