@@ -100,33 +100,45 @@ export function SidebarNav({
                     onOpenChange={setProjectsExpanded}
                   >
                     <SidebarMenuItem>
-                      <TooltipProvider delayDuration={0}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <CollapsibleTrigger asChild>
+                      <div className="flex items-center w-full gap-1">
+                        {/* Main button - only navigates to projects page */}
+                        <TooltipProvider delayDuration={0}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
                               <SidebarMenuButton
                                 isActive={currentView === item.view}
-                                onClick={(e) => {
-                                  // Only change view, CollapsibleTrigger handles the toggle
-                                  onViewChange(item.view);
-                                }}
-                                className="w-full"
+                                onClick={() => onViewChange(item.view)}
+                                className="flex-1"
                               >
                                 <item.icon className="w-4 h-4" />
                                 <span>{item.title}</span>
-                                <ChevronDown
-                                  className={`ml-auto h-4 w-4 transition-transform ${
-                                    projectsExpanded ? 'rotate-180' : ''
-                                  }`}
-                                />
                               </SidebarMenuButton>
-                            </CollapsibleTrigger>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="group-data-[state=expanded]:hidden">
-                            <p>{item.title}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="group-data-[state=expanded]:hidden">
+                              <p>{item.title}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        
+                        {/* Arrow - only expands/collapses the list */}
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-accent"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            <ChevronDown
+                              className={`h-4 w-4 transition-transform ${
+                                projectsExpanded ? 'rotate-180' : ''
+                              }`}
+                            />
+                          </Button>
+                        </CollapsibleTrigger>
+                      </div>
+                      
                       <CollapsibleContent>
                         <SidebarMenuSub>
                           {displayedProjects.map((project) => (
