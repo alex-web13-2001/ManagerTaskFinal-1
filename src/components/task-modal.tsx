@@ -708,21 +708,35 @@ export function TaskModal({
     }
   };
 
+  // Create a stable username from user's name and email
+  const getUsernameForMention = (user: any): string => {
+    // Use first part of email (before @) as it's usually unique
+    const emailPrefix = user.email.split('@')[0];
+    // Sanitize to only allow word characters, dots, and hyphens
+    return emailPrefix.replace(/[^\w.-]/g, '');
+  };
+
   // Extract mentioned usernames from comment text
   const extractMentionedUsers = (text: string): string[] => {
     const mentionRegex = /@([\w.-]+)/g;
     const mentions: string[] = [];
+    const mentionedUsernames = new Set<string>();
     let match;
     
     while ((match = mentionRegex.exec(text)) !== null) {
       const username = match[1];
-      // Find the user ID by username (email prefix)
+      // Skip if we already processed this username
+      if (mentionedUsernames.has(username)) continue;
+      
+      // Find user by matching username with email prefix
       const user = mentionableUsers.find(u => {
-        const emailPrefix = u.email.split('@')[0];
-        return emailPrefix === username || u.name.toLowerCase().includes(username.toLowerCase());
+        const emailPrefix = u.email.split('@')[0].replace(/[^\w.-]/g, '');
+        return emailPrefix === username;
       });
+      
       if (user && !mentions.includes(user.id)) {
         mentions.push(user.id);
+        mentionedUsernames.add(username);
       }
     }
     
@@ -770,8 +784,8 @@ export function TaskModal({
     const textBeforeMention = commentText.slice(0, mentionStartIndex);
     const textAfterCursor = commentText.slice(cursorPos);
     
-    // Get username from email (part before @)
-    const username = user.email.split('@')[0];
+    // Get username using the helper function
+    const username = getUsernameForMention(user);
     const newText = `${textBeforeMention}@${username} ${textAfterCursor}`;
     
     setCommentText(newText);

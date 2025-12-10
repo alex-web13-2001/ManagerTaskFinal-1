@@ -12,9 +12,11 @@ interface MentionAutocompleteProps {
 
 // Helper to get initials from name
 const getInitials = (name: string | undefined) => {
-  if (!name) return '?';
-  return name
+  if (!name || !name.trim()) return '?';
+  const trimmedName = name.trim();
+  return trimmedName
     .split(' ')
+    .filter(part => part.length > 0)
     .map(part => part[0])
     .join('')
     .toUpperCase()
