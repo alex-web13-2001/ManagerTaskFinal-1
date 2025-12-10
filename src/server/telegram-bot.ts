@@ -9,6 +9,7 @@ import {
 } from './telegram-utils.js';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const MAX_COMMENT_PREVIEW_LENGTH = 150;
 let bot: TelegramBot | null = null;
 
 /**
@@ -1007,8 +1008,8 @@ export async function sendMentionNotification(
     const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173';
     const taskUrl = `${frontendBase}/tasks/${task.id}`;
     
-    const shortText = comment.text.length > 150 
-      ? comment.text.substring(0, 150) + '…'
+    const shortText = comment.text.length > MAX_COMMENT_PREVIEW_LENGTH 
+      ? comment.text.substring(0, MAX_COMMENT_PREVIEW_LENGTH) + '…'
       : comment.text;
     
     let message = `💬 Вас упомянули в комментарии к задаче!\n\n`;
@@ -1082,8 +1083,8 @@ export async function sendSubscriberNotification(
     const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173';
     const taskUrl = `${frontendBase}/tasks/${task.id}`;
     
-    const shortText = comment.text.length > 150 
-      ? comment.text.substring(0, 150) + '…'
+    const shortText = comment.text.length > MAX_COMMENT_PREVIEW_LENGTH 
+      ? comment.text.substring(0, MAX_COMMENT_PREVIEW_LENGTH) + '…'
       : comment.text;
     
     let message = `💬 Новый комментарий к задаче, на которую вы подписаны!\n\n`;

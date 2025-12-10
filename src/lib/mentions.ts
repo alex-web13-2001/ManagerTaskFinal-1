@@ -18,7 +18,7 @@ export function getUsersByMentions(
     const mentionLower = mention.toLowerCase();
     
     const found = projectMembers.find(member => 
-      member.name.toLowerCase().includes(mentionLower) ||
+      (member.name && member.name.toLowerCase().includes(mentionLower)) ||
       member.email.toLowerCase().startsWith(mentionLower)
     );
     
