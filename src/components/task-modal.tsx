@@ -61,6 +61,7 @@ import { ShareButton } from './share-button';
 import { sanitizeHtml } from '../utils/sanitize-html';
 import { markTaskAsRead } from '../hooks/useTaskNewBadge';
 import { TagsInput } from './tags-input';
+import { getColorForProject } from '../utils/colors';
 
 type TaskModalMode = 'create' | 'view' | 'edit';
 
@@ -72,18 +73,6 @@ type TaskModalProps = {
   initialProject?: string;
   onSave?: (task: any) => void;
   onDelete?: (taskId: string) => void;
-};
-
-// Mock data - categories can stay as mock for now
-const getColorForProject = (color?: string) => {
-  const colorMap: Record<string, string> = {
-    purple: 'bg-purple-500',
-    green: 'bg-green-500',
-    pink: 'bg-pink-500',
-    orange: 'bg-orange-500',
-    blue: 'bg-blue-500',
-  };
-  return colorMap[color || ''] || 'bg-gray-500';
 };
 
 // Helper to get initials from name
@@ -510,6 +499,8 @@ export function TaskModal({
           });
         }
         onSave?.(taskData);
+        resetForm();
+        onOpenChange(false);
       } else if (existingTask) {
         savedTask = await updateTask(existingTask.id, taskData);
         console.log('✅ Task updated:', savedTask);
@@ -544,10 +535,10 @@ export function TaskModal({
         console.log(`📎 Upload complete`);
       }
       
-      if (isCreateMode) {
-        resetForm();
+      // For edit mode, close the modal after all operations
+      if (!isCreateMode) {
+        onOpenChange(false);
       }
-      onOpenChange(false);
     } catch (error: any) {
       console.error('Task save error:', error);
       // Показываем сообщение об ошибке пользователю
