@@ -62,6 +62,8 @@ import { sanitizeHtml } from '../utils/sanitize-html';
 import { markTaskAsRead } from '../hooks/useTaskNewBadge';
 import { TagsInput } from './tags-input';
 import { getColorForProject } from '../utils/colors';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { TaskHistoryTimeline } from './task-history-timeline';
 
 type TaskModalMode = 'create' | 'view' | 'edit';
 
@@ -199,6 +201,10 @@ export function TaskModal({
   const [showAllComments, setShowAllComments] = React.useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = React.useState(false);
 
+  // History-related state
+  const [taskHistory, setTaskHistory] = React.useState<Array<import('./task-history-timeline').TaskHistoryEntry>>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = React.useState(false);
+
   // Get available tags based on project context
   const availableTags = React.useMemo(() => {
     if (projectId === 'personal') {
@@ -247,6 +253,8 @@ export function TaskModal({
     if (open && taskId && !isCreateMode) {
       console.log(`🔄 Loading task ${taskId} with comments`);
       loadTask(taskId);
+      // Also load task history
+      loadTaskHistory(taskId);
     }
   }, [open, taskId, isCreateMode, loadTask]);
   
@@ -652,6 +660,8 @@ export function TaskModal({
       await addTaskComment(existingTask.id, commentText.trim());
       setCommentText('');
       toast.success('Комментарий добавлен');
+      // Reload history to show the comment event
+      loadTaskHistory(existingTask.id);
     } catch (error) {
       console.error('❌ Add comment error:', error);
       toast.error('Ошибка при добавлении комментария');
@@ -667,6 +677,30 @@ export function TaskModal({
       if (commentText.trim() && !isSubmittingComment) {
         handleSubmitComment();
       }
+    }
+  };
+
+  const loadTaskHistory = async (taskId: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/tasks/${taskId}/history`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load task history');
+      }
+
+      const data = await response.json();
+      setTaskHistory(data.history || []);
+    } catch (error) {
+      console.error('Error loading task history:', error);
+      setTaskHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
 
@@ -1263,118 +1297,139 @@ export function TaskModal({
                 </div>
               )}
 
-              {/* Комментарии */}
+              {/* Комментарии и История */}
               {existingTask && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="w-5 h-5 text-purple-600" />
-                    <h3 className="font-semibold text-lg">
+                <Tabs defaultValue="comments" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="comments" className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" />
                       Комментарии ({existingTask.comments?.length || 0})
-                    </h3>
-                  </div>
+                    </TabsTrigger>
+                    <TabsTrigger value="history" className="flex items-center gap-2">
+                      <History className="w-4 h-4" />
+                      История
+                    </TabsTrigger>
+                  </TabsList>
 
-                  {/* Форма добавления комментария */}
-                  <div className="space-y-2">
-                    <Textarea
-                      placeholder="Напишите комментарий..."
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      onKeyDown={handleCommentKeyDown}
-                      className="min-h-[80px]"
-                      disabled={isSubmittingComment}
-                    />
-                    <div className="flex justify-end">
-                      <Button
-                        onClick={handleSubmitComment}
-                        disabled={!commentText.trim() || isSubmittingComment}
-                        className="bg-purple-600 hover:bg-purple-700"
-                      >
-                        {isSubmittingComment ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Отправка...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="w-4 h-4 mr-2" />
-                            Отправить
-                          </>
-                        )}
-                      </Button>
+                  <TabsContent value="comments" className="space-y-4 mt-4">
+                    {/* Форма добавления комментария */}
+                    <div className="space-y-2">
+                      <Textarea
+                        placeholder="Напишите комментарий..."
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onKeyDown={handleCommentKeyDown}
+                        className="min-h-[80px]"
+                        disabled={isSubmittingComment}
+                      />
+                      <div className="flex justify-end">
+                        <Button
+                          onClick={handleSubmitComment}
+                          disabled={!commentText.trim() || isSubmittingComment}
+                          className="bg-purple-600 hover:bg-purple-700"
+                        >
+                          {isSubmittingComment ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Отправка...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-4 h-4 mr-2" />
+                              Отправить
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Список комментариев */}
-                  {existingTask.comments && existingTask.comments.length > 0 && (
-                    <div className="space-y-3">
-                      {(() => {
-                        const comments = existingTask.comments;
-                        const sortedComments = [...comments].sort(
-                          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                        );
-                        const displayComments = showAllComments ? sortedComments : [sortedComments[0]];
+                    {/* Список комментариев */}
+                    {existingTask.comments && existingTask.comments.length > 0 && (
+                      <div className="space-y-3">
+                        {(() => {
+                          const comments = existingTask.comments;
+                          const sortedComments = [...comments].sort(
+                            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                          );
+                          const displayComments = showAllComments ? sortedComments : [sortedComments[0]];
 
-                        return (
-                          <>
-                            {displayComments.map((comment) => {
-                              // Prefer comment.user if available, fall back to teamMembers or currentUser
-                              const author = comment.user || 
-                                teamMembers.find((m) => m.id === comment.createdBy) || 
-                                (currentUser?.id === comment.createdBy ? currentUser : null);
-                              
-                              return (
-                                <div key={comment.id} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
-                                  <Avatar className="w-8 h-8">
-                                    {author?.avatarUrl && (
-                                      <AvatarImage src={author.avatarUrl} alt={author.name} />
-                                    )}
-                                    <AvatarFallback className="text-xs bg-purple-100 text-purple-700">
-                                      {getInitials(author?.name)}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-medium text-sm">
-                                        {author?.id === currentUser?.id ? 'Вы' : (author?.name || 'Unknown')}
-                                      </span>
-                                      <span className="text-xs text-gray-500">
-                                        {formatDistanceToNow(new Date(comment.createdAt), {
-                                          addSuffix: true,
-                                          locale: ru,
-                                        })}
-                                      </span>
+                          return (
+                            <>
+                              {displayComments.map((comment) => {
+                                // Prefer comment.user if available, fall back to teamMembers or currentUser
+                                const author = comment.user || 
+                                  teamMembers.find((m) => m.id === comment.createdBy) || 
+                                  (currentUser?.id === comment.createdBy ? currentUser : null);
+                                
+                                return (
+                                  <div key={comment.id} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
+                                    <Avatar className="w-8 h-8">
+                                      {author?.avatarUrl && (
+                                        <AvatarImage src={author.avatarUrl} alt={author.name} />
+                                      )}
+                                      <AvatarFallback className="text-xs bg-purple-100 text-purple-700">
+                                        {getInitials(author?.name)}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-medium text-sm">
+                                          {author?.id === currentUser?.id ? 'Вы' : (author?.name || 'Unknown')}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                          {formatDistanceToNow(new Date(comment.createdAt), {
+                                            addSuffix: true,
+                                            locale: ru,
+                                          })}
+                                        </span>
+                                      </div>
+                                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.text}</p>
                                     </div>
-                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.text}</p>
                                   </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
 
-                            {comments.length > 1 && !showAllComments && (
-                              <Button
-                                variant="outline"
-                                onClick={() => setShowAllComments(true)}
-                                className="w-full"
-                              >
-                                Показать все комментарии ({comments.length})
-                              </Button>
-                            )}
+                              {comments.length > 1 && !showAllComments && (
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setShowAllComments(true)}
+                                  className="w-full"
+                                >
+                                  Показать все комментарии ({comments.length})
+                                </Button>
+                              )}
 
-                            {comments.length > 1 && showAllComments && (
-                              <Button
-                                variant="outline"
-                                onClick={() => setShowAllComments(false)}
-                                className="w-full"
-                              >
-                                Скрыть комментарии
-                              </Button>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </div>
+                              {comments.length > 1 && showAllComments && (
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setShowAllComments(false)}
+                                  className="w-full"
+                                >
+                                  Скрыть комментарии
+                                </Button>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="history" className="mt-4">
+                    {isLoadingHistory ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                      </div>
+                    ) : (
+                      <TaskHistoryTimeline 
+                        history={taskHistory} 
+                        projects={projects}
+                        categories={categories}
+                        users={teamMembers}
+                      />
+                    )}
+                  </TabsContent>
+                </Tabs>
               )}
 
               <Separator />

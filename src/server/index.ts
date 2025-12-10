@@ -43,6 +43,12 @@ import {
   sendTaskCommentNotification,
   sendDailyTasksDigest
 } from './telegram-bot.js';
+import { 
+  recordTaskCreated, 
+  recordTaskUpdates, 
+  recordCommentAdded, 
+  getTaskHistory 
+} from './services/taskHistoryService.js';
 import cron from 'node-cron';
 
 const app = express();
@@ -2822,6 +2828,9 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
     // Auto-add new tags to project/personal tags dictionary
     await autoAddTagsToDictionary(tags || [], projectId, userId);
 
+    // Record task creation in history
+    await recordTaskCreated(task.id, userId, task);
+
     // Emit WebSocket event for real-time synchronization
     const transformedTask = transformTaskForResponse(task);
     emitTaskCreated(transformedTask, task.projectId || undefined);
@@ -2992,6 +3001,9 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
     if (tags !== undefined && Array.isArray(tags)) {
       await autoAddTagsToDictionary(tags, updatedTask.projectId, userId);
     }
+
+    // Record task updates in history
+    await recordTaskUpdates(taskId, userId, existingTask, updateData);
 
     // Emit WebSocket event for real-time synchronization
     const transformedTask = transformTaskForResponse(updatedTask);
@@ -3232,6 +3244,9 @@ apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) =>
       }
     });
 
+    // Record comment in task history
+    await recordCommentAdded(id, userId, comment.id, comment.text);
+
     // Emit WebSocket event for real-time updates (only for project tasks)
     if (task.projectId) {
       const commentData = {
@@ -3269,6 +3284,31 @@ apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) =>
   } catch (error: any) {
     console.error('Error adding comment:', error);
     res.status(500).json({ error: 'Ошибка при добавлении комментария' });
+  }
+});
+
+/**
+ * GET /api/tasks/:id/history
+ * Get task change history
+ */
+apiRouter.get('/tasks/:id/history', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user!.sub;
+
+    // Check if task exists and user has access
+    const canView = await canViewTaskFromDB(userId, id);
+    if (!canView) {
+      return res.status(403).json({ error: 'Нет доступа к этой задаче' });
+    }
+
+    // Get task history
+    const history = await getTaskHistory(id);
+
+    res.json({ history });
+  } catch (error: any) {
+    console.error('Error getting task history:', error);
+    res.status(500).json({ error: 'Ошибка при получении истории задачи' });
   }
 });
 
