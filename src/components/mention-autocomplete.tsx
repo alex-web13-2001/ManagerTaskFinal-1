@@ -68,7 +68,7 @@ export function MentionAutocomplete({
       }
     };
 
-    // Use setTimeout to allow onClick to fire first
+    // Note: Item selection uses onMouseDown to fire before this mousedown handler
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
