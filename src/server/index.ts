@@ -41,7 +41,9 @@ import {
   initializeTelegramBot, 
   sendTaskAssignedNotification,
   sendTaskCommentNotification,
-  sendDailyTasksDigest
+  sendDailyTasksDigest,
+  sendMentionNotification,
+  sendSubscriberNotification
 } from './telegram-bot.js';
 import { 
   recordTaskCreated, 
@@ -49,6 +51,7 @@ import {
   recordCommentAdded, 
   getTaskHistory 
 } from './services/taskHistoryService.js';
+import { extractMentions, getUsersByMentions } from '../lib/mentions.js';
 import cron from 'node-cron';
 
 const app = express();
@@ -3184,7 +3187,7 @@ apiRouter.delete('/tasks/:taskId/attachments/:attachmentId', uploadRateLimiter, 
 
 /**
  * POST /api/tasks/:id/comments
- * Add comment to task with WebSocket real-time updates
+ * Add comment to task with mentions, subscriptions, and WebSocket real-time updates
  */
 apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) => {
   try {
@@ -3204,7 +3207,15 @@ apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) =>
         project: {
           include: {
             members: {
-              where: { userId }
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true
+                  }
+                }
+              }
             }
           }
         }
@@ -3218,19 +3229,55 @@ apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) =>
     // Check access: task creator, assignee, or project member
     const isCreator = task.creatorId === userId;
     const isAssignee = task.assigneeId === userId;
-    const isProjectMember = task.project?.members.length > 0;
+    const userMember = task.project?.members.find(m => m.userId === userId);
+    const isProjectMember = !!userMember;
     const isProjectOwner = task.project?.ownerId === userId;
 
     if (!isCreator && !isAssignee && !isProjectMember && !isProjectOwner) {
       return res.status(403).json({ error: 'Нет доступа к этой задаче' });
     }
 
-    // Create comment
+    // Extract mentions from comment text
+    const mentions = extractMentions(text);
+    
+    // Get all project members for mention matching
+    const projectMembers = task.project?.members.map(m => ({
+      id: m.user.id,
+      name: m.user.name,
+      email: m.user.email
+    })) || [];
+    
+    // Also include task creator and assignee if they're not project members
+    const allAccessibleUsers = [...projectMembers];
+    if (task.creatorId) {
+      const creator = await prisma.user.findUnique({
+        where: { id: task.creatorId },
+        select: { id: true, name: true, email: true }
+      });
+      if (creator && !allAccessibleUsers.find(u => u.id === creator.id)) {
+        allAccessibleUsers.push(creator);
+      }
+    }
+    if (task.assigneeId) {
+      const assignee = await prisma.user.findUnique({
+        where: { id: task.assigneeId },
+        select: { id: true, name: true, email: true }
+      });
+      if (assignee && !allAccessibleUsers.find(u => u.id === assignee.id)) {
+        allAccessibleUsers.push(assignee);
+      }
+    }
+    
+    // Find mentioned user IDs
+    const mentionedUserIds = getUsersByMentions(mentions, allAccessibleUsers);
+
+    // Create comment with mentioned users
     const comment = await prisma.comment.create({
       data: {
         text: text.trim(),
         taskId: id,
-        createdBy: userId
+        createdBy: userId,
+        mentionedUsers: mentionedUserIds
       },
       include: {
         user: {
@@ -3244,6 +3291,27 @@ apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) =>
       }
     });
 
+    // Add comment author to task subscribers (if not already subscribed)
+    await prisma.taskSubscriber.upsert({
+      where: {
+        taskId_userId: {
+          taskId: id,
+          userId: userId
+        }
+      },
+      create: {
+        taskId: id,
+        userId: userId
+      },
+      update: {} // Do nothing if already exists
+    });
+
+    // Get all task subscribers
+    const subscribers = await prisma.taskSubscriber.findMany({
+      where: { taskId: id },
+      select: { userId: true }
+    });
+
     // Record comment in task history
     await recordCommentAdded(id, userId, comment.id, comment.text);
 
@@ -3254,22 +3322,48 @@ apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) =>
         text: comment.text,
         createdBy: comment.createdBy,
         createdAt: comment.createdAt.toISOString(),
-        user: comment.user
+        user: comment.user,
+        mentionedUsers: comment.mentionedUsers
       };
       emitCommentAdded(id, commentData, task.projectId);
     }
 
-    // Send Telegram notification
-    await sendTaskCommentNotification(
-      {
-        id: task.id,
-        title: task.title,
-        creatorId: task.creatorId,
-        assigneeId: task.assigneeId,
-        project: task.project ? { name: task.project.name } : null,
-      },
-      comment
-    );
+    // Send mention notifications
+    for (const mentionedUserId of mentionedUserIds) {
+      if (mentionedUserId !== userId) { // Don't notify the author
+        await sendMentionNotification(
+          {
+            id: task.id,
+            title: task.title,
+            creatorId: task.creatorId,
+            assigneeId: task.assigneeId,
+            project: task.project ? { name: task.project.name } : null,
+          },
+          comment,
+          mentionedUserId
+        );
+      }
+    }
+
+    // Send subscriber notifications (excluding mentioned users and author)
+    const mentionedSet = new Set(mentionedUserIds);
+    for (const subscriber of subscribers) {
+      // Skip if user was mentioned (they already got a mention notification)
+      // Skip if user is the author (don't notify about own comment)
+      if (!mentionedSet.has(subscriber.userId) && subscriber.userId !== userId) {
+        await sendSubscriberNotification(
+          {
+            id: task.id,
+            title: task.title,
+            creatorId: task.creatorId,
+            assigneeId: task.assigneeId,
+            project: task.project ? { name: task.project.name } : null,
+          },
+          comment,
+          subscriber.userId
+        );
+      }
+    }
 
     console.log(`💬 Comment added to task ${id} by user ${userId}`);
     res.json({
@@ -3278,7 +3372,8 @@ apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) =>
         text: comment.text,
         createdBy: comment.createdBy,
         createdAt: comment.createdAt.toISOString(),
-        user: comment.user
+        user: comment.user,
+        mentionedUsers: comment.mentionedUsers
       }
     });
   } catch (error: any) {

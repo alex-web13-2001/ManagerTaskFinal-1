@@ -960,6 +960,156 @@ export async function sendDailyTasksDigest() {
   }
 }
 
+export async function sendMentionNotification(
+  task: {
+    id: string;
+    title: string;
+    creatorId: string | null;
+    assigneeId: string | null;
+    project?: { name?: string | null } | null;
+  },
+  comment: {
+    id: string;
+    text: string;
+    createdBy: string;
+    createdAt: Date;
+    user: {
+      id: string;
+      name: string | null;
+      email: string;
+    } | null;
+  },
+  recipientId: string
+) {
+  if (!bot) {
+    console.log('⚠️  Telegram bot not initialized, skipping mention notification');
+    return;
+  }
+  
+  try {
+    const recipient = await prisma.user.findUnique({
+      where: { id: recipientId },
+      select: { telegramChatId: true, name: true },
+    });
+    
+    if (!recipient?.telegramChatId) {
+      console.log(`ℹ️  User ${recipientId} has no Telegram linked, skipping mention notification`);
+      return;
+    }
+    
+    const author = await prisma.user.findUnique({
+      where: { id: comment.createdBy },
+      select: { name: true, email: true },
+    });
+    
+    const authorName = author?.name || author?.email || 'Неизвестный пользователь';
+    const projectName = task.project?.name;
+    const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173';
+    const taskUrl = `${frontendBase}/tasks/${task.id}`;
+    
+    const shortText = comment.text.length > 150 
+      ? comment.text.substring(0, 150) + '…'
+      : comment.text;
+    
+    let message = `💬 Вас упомянули в комментарии к задаче!\n\n`;
+    message += `📋 ${task.title}\n`;
+    if (projectName) {
+      message += `📁 Проект: ${projectName}\n`;
+    }
+    message += `👤 Автор: ${authorName}\n\n`;
+    message += `💭 "${shortText}"\n\n`;
+    message += `🔗 Открыть задачу: ${taskUrl}`;
+    
+    await bot.sendMessage(recipient.telegramChatId, message, {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: 'Ответить', callback_data: `reply:${task.id}` },
+          { text: 'Открыть задачу', url: taskUrl },
+        ]],
+      },
+    });
+    
+    console.log(`📤 Mention notification sent to user ${recipientId} for task ${task.id}`);
+  } catch (error) {
+    console.error('❌ Error sending mention notification:', error);
+  }
+}
+
+export async function sendSubscriberNotification(
+  task: {
+    id: string;
+    title: string;
+    creatorId: string | null;
+    assigneeId: string | null;
+    project?: { name?: string | null } | null;
+  },
+  comment: {
+    id: string;
+    text: string;
+    createdBy: string;
+    createdAt: Date;
+    user: {
+      id: string;
+      name: string | null;
+      email: string;
+    } | null;
+  },
+  recipientId: string
+) {
+  if (!bot) {
+    console.log('⚠️  Telegram bot not initialized, skipping subscriber notification');
+    return;
+  }
+  
+  try {
+    const recipient = await prisma.user.findUnique({
+      where: { id: recipientId },
+      select: { telegramChatId: true, name: true },
+    });
+    
+    if (!recipient?.telegramChatId) {
+      console.log(`ℹ️  User ${recipientId} has no Telegram linked, skipping subscriber notification`);
+      return;
+    }
+    
+    const author = await prisma.user.findUnique({
+      where: { id: comment.createdBy },
+      select: { name: true, email: true },
+    });
+    
+    const authorName = author?.name || author?.email || 'Неизвестный пользователь';
+    const projectName = task.project?.name;
+    const frontendBase = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:5173';
+    const taskUrl = `${frontendBase}/tasks/${task.id}`;
+    
+    const shortText = comment.text.length > 150 
+      ? comment.text.substring(0, 150) + '…'
+      : comment.text;
+    
+    let message = `💬 Новый комментарий к задаче, на которую вы подписаны!\n\n`;
+    message += `📋 ${task.title}\n`;
+    if (projectName) {
+      message += `📁 Проект: ${projectName}\n`;
+    }
+    message += `👤 Автор: ${authorName}\n\n`;
+    message += `💭 "${shortText}"\n\n`;
+    message += `🔗 Открыть задачу: ${taskUrl}`;
+    
+    await bot.sendMessage(recipient.telegramChatId, message, {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: 'Ответить', callback_data: `reply:${task.id}` },
+          { text: 'Открыть задачу', url: taskUrl },
+        ]],
+      },
+    });
+    
+    console.log(`📤 Subscriber notification sent to user ${recipientId} for task ${task.id}`);
+  } catch (error) {
+    console.error('❌ Error sending subscriber notification:', error);
+  }
+}
+
 /**
  * Get Telegram bot instance
  */

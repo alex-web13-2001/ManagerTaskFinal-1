@@ -44,6 +44,7 @@ model User {
   telegramLinkToken     TelegramLinkToken?
   comments              Comment[]
   taskHistory           TaskHistory[]
+  taskSubscriptions     TaskSubscriber[]
 
   @@map("users")
 }
@@ -142,6 +143,7 @@ model Task {
   attachments Attachment[] // Связь с вложениями через отдельную таблицу
   comments    Comment[]
   history     TaskHistory[]
+  subscribers TaskSubscriber[]
 
   @@index([projectId])
   @@index([creatorId])
@@ -228,16 +230,17 @@ model TelegramLinkToken {
 
 // Comment model - stores comments on tasks
 model Comment {
-  id        String   @id @default(uuid())
-  text      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid())
+  text            String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   
-  // Relations
-  taskId    String
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  createdBy String
-  user      User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  taskId          String
+  task            Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdBy       String
+  user            User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  
+  mentionedUsers  String[] @default([])
   
   @@index([taskId])
   @@index([createdBy])
@@ -279,6 +282,20 @@ enum TaskHistoryAction {
   PROJECT_CHANGED      // Moved to another project
   CATEGORY_CHANGED     // Category changed
   COMMENT_ADDED        // Comment added
+}
+
+// TaskSubscriber model - stores task subscriptions for comment notifications
+model TaskSubscriber {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  
+  @@unique([taskId, userId])
+  @@index([taskId])
+  @@map("task_subscribers")
 }
 
 // TelegramPendingReply model - stores pending reply states for Telegram bot
