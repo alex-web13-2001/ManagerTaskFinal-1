@@ -65,6 +65,7 @@ import { getColorForProject } from '../utils/colors';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { TaskHistoryTimeline } from './task-history-timeline';
 import { MentionAutocomplete } from './mention-autocomplete';
+import type { TeamMember } from '../types';
 
 type TaskModalMode = 'create' | 'view' | 'edit';
 
@@ -709,8 +710,12 @@ export function TaskModal({
   };
 
   // Create a stable username from user's name and email
-  const getUsernameForMention = (user: any): string => {
+  const getUsernameForMention = (user: TeamMember): string => {
     // Use first part of email (before @) as it's usually unique
+    if (!user.email || !user.email.includes('@')) {
+      // Fallback to user ID if email is invalid
+      return user.id.replace(/[^\w.-]/g, '');
+    }
     const emailPrefix = user.email.split('@')[0];
     // Sanitize to only allow word characters, dots, and hyphens
     return emailPrefix.replace(/[^\w.-]/g, '');
@@ -730,6 +735,7 @@ export function TaskModal({
       
       // Find user by matching username with email prefix
       const user = mentionableUsers.find(u => {
+        if (!u.email || !u.email.includes('@')) return false;
         const emailPrefix = u.email.split('@')[0].replace(/[^\w.-]/g, '');
         return emailPrefix === username;
       });
@@ -776,7 +782,7 @@ export function TaskModal({
   };
 
   // Handle mention selection
-  const handleMentionSelect = (user: any) => {
+  const handleMentionSelect = (user: TeamMember) => {
     if (!commentTextareaRef.current) return;
     
     const textarea = commentTextareaRef.current;
