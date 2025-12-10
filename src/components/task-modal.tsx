@@ -376,7 +376,6 @@ export function TaskModal({
     setAssigneeId(newProjectId === 'personal' && currentUser ? currentUser.id : '');
     setDueDate(undefined);
     setTags([]);
-    setNewTag('');
     setPendingFiles([]);
     setErrors({});
   };
