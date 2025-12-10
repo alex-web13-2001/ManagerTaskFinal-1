@@ -68,6 +68,7 @@ export function MentionAutocomplete({
       }
     };
 
+    // Note: Item selection uses onMouseDown to fire before this mousedown handler
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
@@ -129,7 +130,10 @@ export function MentionAutocomplete({
               ? 'bg-purple-100 dark:bg-purple-900/30'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700'
           }`}
-          onClick={() => onSelect(user)}
+          onMouseDown={(e) => {
+            e.preventDefault(); // Prevent textarea from losing focus
+            onSelect(user);
+          }}
         >
           <Avatar className="w-8 h-8">
             {user.avatarUrl && (
