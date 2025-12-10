@@ -14,13 +14,16 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
-interface TaskHistoryEntry {
+export interface TaskHistoryEntry {
   id: string;
   action: string;
   field?: string | null;
-  oldValue?: any;
-  newValue?: any;
-  metadata?: any;
+  oldValue?: string | number | boolean | null;
+  newValue?: string | number | boolean | null;
+  metadata?: {
+    commentId?: string;
+    text?: string;
+  } | null;
   createdAt: string;
   user: {
     id: string;

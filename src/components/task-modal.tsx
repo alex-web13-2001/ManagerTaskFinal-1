@@ -202,7 +202,7 @@ export function TaskModal({
   const [isSubmittingComment, setIsSubmittingComment] = React.useState(false);
 
   // History-related state
-  const [taskHistory, setTaskHistory] = React.useState<any[]>([]);
+  const [taskHistory, setTaskHistory] = React.useState<Array<import('./task-history-timeline').TaskHistoryEntry>>([]);
   const [isLoadingHistory, setIsLoadingHistory] = React.useState(false);
 
   // Get available tags based on project context

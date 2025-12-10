@@ -4,12 +4,23 @@
  */
 
 import prisma from '../db';
-import { TaskHistoryAction } from '@prisma/client';
+import { TaskHistoryAction, Prisma } from '@prisma/client';
+
+interface TaskData {
+  title: string;
+  description?: string | null;
+  status: string;
+  priority: string;
+  projectId?: string | null;
+  category?: string | null;
+  assigneeId?: string | null;
+  dueDate?: Date | null;
+}
 
 /**
  * Record task creation event
  */
-export async function recordTaskCreated(taskId: string, userId: string, taskData: any) {
+export async function recordTaskCreated(taskId: string, userId: string, taskData: TaskData) {
   try {
     await prisma.taskHistory.create({
       data: {
@@ -40,8 +51,8 @@ export async function recordTaskCreated(taskId: string, userId: string, taskData
 export async function recordTaskUpdates(
   taskId: string,
   userId: string,
-  oldTask: any,
-  newTask: any
+  oldTask: TaskData,
+  newTask: Partial<TaskData>
 ) {
   const updates: Array<{
     action: TaskHistoryAction;
@@ -182,8 +193,8 @@ export async function recordTaskUpdates(
           userId,
           action: update.action,
           field: update.field,
-          oldValue: update.oldValue,
-          newValue: update.newValue,
+          oldValue: update.oldValue as Prisma.InputJsonValue,
+          newValue: update.newValue as Prisma.InputJsonValue,
         },
       });
     }
