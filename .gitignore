@@ -36,7 +36,8 @@ lerna-debug.log*
 *.sw?
 
 # Prisma
-prisma/migrations
+# Note: migrations are tracked in git for deployment
+# prisma/migrations
 
 # Uploads
 uploads/*
