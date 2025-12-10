@@ -267,24 +267,25 @@ export function TaskModal({
 
     const selectedProject = projects.find(p => p.id === projectId);
     if (!selectedProject) {
-      return [];
+      // ✅ FIXED: Return teamMembers instead of empty array when project not found
+      return teamMembers;
     }
 
-    // Create a Set of user IDs that are project members (excluding viewers)
-    const projectMemberIds = new Set<string>();
+    // ✅ FIXED: Create a Set of viewer IDs (not non-viewer IDs)
+    const viewerIds = new Set<string>();
     if (selectedProject.members && Array.isArray(selectedProject.members)) {
       selectedProject.members.forEach((member: any) => {
-        if (member.role !== 'viewer') {
+        if (member.role === 'viewer') { // ✅ FIXED: Collect viewers, not non-viewers
           const memberId = member.userId || member.id;
           if (memberId) {
-            projectMemberIds.add(memberId);
+            viewerIds.add(memberId);
           }
         }
       });
     }
 
-    // Return only team members who are in this project
-    return teamMembers.filter(member => projectMemberIds.has(member.id));
+    // ✅ FIXED: Exclude viewers from ALL teamMembers (not filter to only project members)
+    return teamMembers.filter(member => !viewerIds.has(member.id));
   }, [projectId, projects, teamMembers]);
 
   // Debug: log every render - NOW projectId and assigneeId are declared
