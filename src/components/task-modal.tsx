@@ -830,6 +830,8 @@ export function TaskModal({
   const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Don't interfere with autocomplete navigation
     if (showMentionAutocomplete && ['ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) {
+      e.preventDefault();
+      e.stopPropagation();
       return;
     }
     
