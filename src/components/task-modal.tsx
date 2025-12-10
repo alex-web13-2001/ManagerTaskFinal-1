@@ -88,6 +88,25 @@ const getInitials = (name: string | undefined) => {
     .slice(0, 2);
 };
 
+// Helper to render comment text with highlighted mentions
+function renderCommentWithMentions(text: string): React.ReactNode {
+  const parts = text.split(/(@[\w.-]+)/g);
+  
+  return parts.map((part, index) => {
+    if (part.startsWith('@')) {
+      return (
+        <span 
+          key={index} 
+          className="text-blue-600 dark:text-blue-400 font-semibold bg-blue-50 dark:bg-blue-900/30 px-1 rounded"
+        >
+          {part}
+        </span>
+      );
+    }
+    return <span key={index}>{part}</span>;
+  });
+}
+
 const getTaskData = (id: string) => ({
   id,
   title: 'Разработать дизайн главной страницы',
@@ -1383,7 +1402,9 @@ export function TaskModal({
                                           })}
                                         </span>
                                       </div>
-                                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.text}</p>
+                                      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                        {renderCommentWithMentions(comment.text)}
+                                      </p>
                                     </div>
                                   </div>
                                 );
