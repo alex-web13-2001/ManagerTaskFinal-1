@@ -509,6 +509,7 @@ function MainAppContent() {
         onProjectClick={(projectId) => {
           setSelectedProjectId(projectId);
           setCurrentView('projects');
+          navigate(`/projects/${projectId}`);
         }}
         onLogout={handleLogout}
       />
