@@ -81,31 +81,35 @@ export function MentionAutocomplete({
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
+          e.stopPropagation();
           setSelectedIndex(prev => 
             prev < filteredUsers.length - 1 ? prev + 1 : 0
           );
           break;
         case 'ArrowUp':
           e.preventDefault();
+          e.stopPropagation();
           setSelectedIndex(prev => 
             prev > 0 ? prev - 1 : filteredUsers.length - 1
           );
           break;
         case 'Enter':
           e.preventDefault();
+          e.stopPropagation();
           if (filteredUsers[selectedIndex]) {
             onSelect(filteredUsers[selectedIndex]);
           }
           break;
         case 'Escape':
           e.preventDefault();
+          e.stopPropagation();
           onClose();
           break;
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [filteredUsers, selectedIndex, onSelect, onClose]);
 
   if (filteredUsers.length === 0) {
@@ -132,6 +136,7 @@ export function MentionAutocomplete({
           }`}
           onMouseDown={(e) => {
             e.preventDefault(); // Prevent textarea from losing focus
+            e.stopPropagation();
             onSelect(user);
           }}
         >
