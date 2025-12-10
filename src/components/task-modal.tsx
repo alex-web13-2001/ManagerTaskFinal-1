@@ -64,6 +64,8 @@ import { TagsInput } from './tags-input';
 import { getColorForProject } from '../utils/colors';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { TaskHistoryTimeline } from './task-history-timeline';
+import { MentionAutocomplete } from './mention-autocomplete';
+import type { TeamMember } from '../types';
 
 type TaskModalMode = 'create' | 'view' | 'edit';
 
@@ -219,6 +221,13 @@ export function TaskModal({
   const [commentText, setCommentText] = React.useState('');
   const [showAllComments, setShowAllComments] = React.useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = React.useState(false);
+  
+  // Mention autocomplete state
+  const [showMentionAutocomplete, setShowMentionAutocomplete] = React.useState(false);
+  const [mentionQuery, setMentionQuery] = React.useState('');
+  const [mentionPosition, setMentionPosition] = React.useState({ top: 0, left: 0 });
+  const [mentionStartIndex, setMentionStartIndex] = React.useState(0);
+  const commentTextareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   // History-related state
   const [taskHistory, setTaskHistory] = React.useState<Array<import('./task-history-timeline').TaskHistoryEntry>>([]);
@@ -248,6 +257,35 @@ export function TaskModal({
       return usageB - usageA;
     });
   }, [availableTags, tasks]);
+
+  // Get mentionable users (excluding viewers)
+  const mentionableUsers = React.useMemo(() => {
+    // For personal tasks, no mentions needed
+    if (projectId === 'personal') {
+      return [];
+    }
+
+    const selectedProject = projects.find(p => p.id === projectId);
+    if (!selectedProject) {
+      return teamMembers;
+    }
+
+    // Create a Set of user IDs that are viewers
+    const viewerIds = new Set<string>();
+    if (selectedProject.members && Array.isArray(selectedProject.members)) {
+      selectedProject.members.forEach((member: any) => {
+        if (member.role === 'viewer') {
+          const memberId = member.userId || member.id;
+          if (memberId) {
+            viewerIds.add(memberId);
+          }
+        }
+      });
+    }
+
+    // Filter out viewers from teamMembers
+    return teamMembers.filter(member => !viewerIds.has(member.id));
+  }, [projectId, projects, teamMembers]);
 
   // Debug: log every render - NOW projectId and assigneeId are declared
   React.useEffect(() => {
@@ -671,13 +709,113 @@ export function TaskModal({
     }
   };
 
+  // Create a stable username from user's name and email
+  const getUsernameForMention = (user: TeamMember): string => {
+    // Use first part of email (before @) as it's usually unique
+    if (!user.email || !user.email.includes('@')) {
+      // Fallback to user ID if email is invalid
+      return user.id.replace(/[^\w.-]/g, '');
+    }
+    const emailPrefix = user.email.split('@')[0];
+    // Sanitize to only allow word characters, dots, and hyphens
+    return emailPrefix.replace(/[^\w.-]/g, '');
+  };
+
+  // Extract mentioned usernames from comment text
+  const extractMentionedUsers = (text: string): string[] => {
+    const mentionRegex = /@([\w.-]+)/g;
+    const mentions: string[] = [];
+    const mentionedUsernames = new Set<string>();
+    let match;
+    
+    while ((match = mentionRegex.exec(text)) !== null) {
+      const username = match[1];
+      // Skip if we already processed this username
+      if (mentionedUsernames.has(username)) continue;
+      
+      // Find user by matching username with email prefix
+      const user = mentionableUsers.find(u => {
+        if (!u.email || !u.email.includes('@')) return false;
+        const emailPrefix = u.email.split('@')[0].replace(/[^\w.-]/g, '');
+        return emailPrefix === username;
+      });
+      
+      if (user && !mentions.includes(user.id)) {
+        mentions.push(user.id);
+        mentionedUsernames.add(username);
+      }
+    }
+    
+    return mentions;
+  };
+
+  // Handle textarea change for mention detection
+  const handleCommentTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    
+    setCommentText(value);
+    
+    // Check if there's an @ before the cursor
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const match = textBeforeCursor.match(/@([\w.-]*)$/);
+    
+    if (match) {
+      setShowMentionAutocomplete(true);
+      setMentionQuery(match[1]);
+      setMentionStartIndex(cursorPos - match[0].length);
+      
+      // Calculate position for autocomplete dropdown
+      if (commentTextareaRef.current) {
+        const textarea = commentTextareaRef.current;
+        const rect = textarea.getBoundingClientRect();
+        
+        // Position below the textarea
+        setMentionPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+        });
+      }
+    } else {
+      setShowMentionAutocomplete(false);
+    }
+  };
+
+  // Handle mention selection
+  const handleMentionSelect = (user: TeamMember) => {
+    if (!commentTextareaRef.current) return;
+    
+    const textarea = commentTextareaRef.current;
+    const cursorPos = textarea.selectionStart;
+    const textBeforeMention = commentText.slice(0, mentionStartIndex);
+    const textAfterCursor = commentText.slice(cursorPos);
+    
+    // Get username using the helper function
+    const username = getUsernameForMention(user);
+    const newText = `${textBeforeMention}@${username} ${textAfterCursor}`;
+    
+    setCommentText(newText);
+    setShowMentionAutocomplete(false);
+    
+    // Set cursor position after the mention
+    setTimeout(() => {
+      const newCursorPos = mentionStartIndex + username.length + 2; // +2 for @ and space
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      textarea.focus();
+    }, 0);
+  };
+
   const handleSubmitComment = async () => {
     if (!commentText.trim() || !existingTask) return;
     
     setIsSubmittingComment(true);
     try {
-      await addTaskComment(existingTask.id, commentText.trim());
+      // Extract mentioned users from the comment text
+      const mentionedUsers = extractMentionedUsers(commentText.trim());
+      
+      await addTaskComment(existingTask.id, commentText.trim(), mentionedUsers);
       setCommentText('');
+      setShowMentionAutocomplete(false);
       toast.success('Комментарий добавлен');
       // Reload history to show the comment event
       loadTaskHistory(existingTask.id);
@@ -690,6 +828,11 @@ export function TaskModal({
   };
 
   const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Don't interfere with autocomplete navigation
+    if (showMentionAutocomplete && ['ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) {
+      return;
+    }
+    
     // Submit on Ctrl+Enter (Windows/Linux) or Cmd+Enter (macOS)
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
@@ -1332,15 +1475,28 @@ export function TaskModal({
 
                   <TabsContent value="comments" className="space-y-4 mt-4">
                     {/* Форма добавления комментария */}
-                    <div className="space-y-2">
+                    <div className="space-y-2 relative">
                       <Textarea
-                        placeholder="Напишите комментарий..."
+                        ref={commentTextareaRef}
+                        placeholder="Напишите комментарий... (используйте @ для упоминания участников)"
                         value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
+                        onChange={handleCommentTextChange}
                         onKeyDown={handleCommentKeyDown}
                         className="min-h-[80px]"
                         disabled={isSubmittingComment}
                       />
+                      
+                      {/* Mention Autocomplete */}
+                      {showMentionAutocomplete && (
+                        <MentionAutocomplete
+                          users={mentionableUsers}
+                          onSelect={handleMentionSelect}
+                          searchQuery={mentionQuery}
+                          position={mentionPosition}
+                          onClose={() => setShowMentionAutocomplete(false)}
+                        />
+                      )}
+                      
                       <div className="flex justify-end">
                         <Button
                           onClick={handleSubmitComment}

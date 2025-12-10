@@ -347,9 +347,9 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const addTaskComment = useCallback(async (taskId: string, text: string): Promise<Comment> => {
+  const addTaskComment = useCallback(async (taskId: string, text: string, mentionedUsers?: string[]): Promise<Comment> => {
     try {
-      const { comment } = await tasksAPI.addComment(taskId, text);
+      const { comment } = await tasksAPI.addComment(taskId, text, mentionedUsers);
       
       setTasks((prev) => prev.map((t) => {
         if (t.id === taskId) {
