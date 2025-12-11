@@ -33,6 +33,8 @@ export function MentionAutocomplete({
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  // Flag to prevent race condition between click selection and outside click detection
+  // Set to true when user clicks to select, cleared after selection completes
   const isSelectingRef = useRef(false);
 
   // Filter users based on search query
@@ -141,8 +143,10 @@ export function MentionAutocomplete({
           onMouseDown={(e) => {
             e.preventDefault(); // Prevent textarea from losing focus
             e.stopPropagation();
+            // Set flag to prevent handleClickOutside from closing before onSelect completes
             isSelectingRef.current = true;
             onSelect(user);
+            // Clear flag after event loop completes to allow future outside clicks
             setTimeout(() => { isSelectingRef.current = false; }, 0);
           }}
         >
