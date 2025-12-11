@@ -831,12 +831,14 @@ export function TaskModal({
   };
 
   const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // When autocomplete is open, prevent default for Enter/arrows but don't stop propagation
-    // MentionAutocomplete will handle these via document listener
+    // When autocomplete is open, prevent default for arrows to avoid cursor movement
+    // but NOT for Enter - MentionAutocomplete will handle these via document listener
     if (showMentionAutocomplete) {
-      if (e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        e.preventDefault(); // Only preventDefault, NOT stopPropagation
+      // Для стрелок предотвращаем перемещение курсора в textarea
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
       }
+      // Для Enter - НЕ вызываем preventDefault, чтобы событие дошло до document
       return;
     }
     

@@ -33,6 +33,7 @@ export function MentionAutocomplete({
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const isSelectingRef = useRef(false);
 
   // Filter users based on search query
   const filteredUsers = React.useMemo(() => {
@@ -63,11 +64,11 @@ export function MentionAutocomplete({
   // Handle click outside to close
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      // Пропустить, если идёт выбор элемента
+      if (isSelectingRef.current) return;
+      
       if (listRef.current && !listRef.current.contains(e.target as Node)) {
-        // Allow time for onMouseDown on list item to fire first
-        requestAnimationFrame(() => {
-          onClose();
-        });
+        onClose();
       }
     };
 
@@ -140,7 +141,9 @@ export function MentionAutocomplete({
           onMouseDown={(e) => {
             e.preventDefault(); // Prevent textarea from losing focus
             e.stopPropagation();
+            isSelectingRef.current = true;
             onSelect(user);
+            setTimeout(() => { isSelectingRef.current = false; }, 0);
           }}
         >
           <Avatar className="w-8 h-8">
