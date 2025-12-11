@@ -64,7 +64,7 @@ export function MentionAutocomplete({
   // Handle click outside to close
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      // Пропустить, если идёт выбор элемента
+      // Skip if element selection is in progress
       if (isSelectingRef.current) return;
       
       if (listRef.current && !listRef.current.contains(e.target as Node)) {

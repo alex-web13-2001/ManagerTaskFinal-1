@@ -834,11 +834,11 @@ export function TaskModal({
     // When autocomplete is open, prevent default for arrows to avoid cursor movement
     // but NOT for Enter - MentionAutocomplete will handle these via document listener
     if (showMentionAutocomplete) {
-      // Для стрелок предотвращаем перемещение курсора в textarea
+      // For arrows, prevent cursor movement in textarea
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault();
       }
-      // Для Enter - НЕ вызываем preventDefault, чтобы событие дошло до document
+      // For Enter - do NOT call preventDefault so the event reaches document
       return;
     }
     
