@@ -772,21 +772,23 @@ export function TaskModal({
     const match = textBeforeCursor.match(/@([\w.-]*)$/);
     
     if (match) {
-      setShowMentionAutocomplete(true);
       setMentionQuery(match[1]);
       setMentionStartIndex(cursorPos - match[0].length);
       
-      // Calculate position for autocomplete dropdown
+      // Calculate position for autocomplete dropdown BEFORE showing it
       if (commentTextareaRef.current) {
         const textarea = commentTextareaRef.current;
         const rect = textarea.getBoundingClientRect();
         
-        // Position below the textarea
+        // Position below the textarea (use fixed positioning, no scroll offsets needed)
         setMentionPosition({
-          top: rect.bottom + window.scrollY + 4,
-          left: rect.left + window.scrollX,
+          top: rect.bottom + 4,
+          left: rect.left,
         });
       }
+      
+      // Show autocomplete AFTER position is set
+      setShowMentionAutocomplete(true);
     } else {
       setShowMentionAutocomplete(false);
     }
