@@ -33,6 +33,9 @@ export function MentionAutocomplete({
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  // Flag to prevent race condition between click selection and outside click detection
+  // Set to true when user clicks to select, cleared after selection completes
+  const isSelectingRef = useRef(false);
 
   // Filter users based on search query
   const filteredUsers = React.useMemo(() => {
@@ -63,11 +66,11 @@ export function MentionAutocomplete({
   // Handle click outside to close
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      // Skip if element selection is in progress
+      if (isSelectingRef.current) return;
+      
       if (listRef.current && !listRef.current.contains(e.target as Node)) {
-        // Allow time for onMouseDown on list item to fire first
-        requestAnimationFrame(() => {
-          onClose();
-        });
+        onClose();
       }
     };
 
@@ -140,7 +143,11 @@ export function MentionAutocomplete({
           onMouseDown={(e) => {
             e.preventDefault(); // Prevent textarea from losing focus
             e.stopPropagation();
+            // Set flag to prevent handleClickOutside from closing before onSelect completes
+            isSelectingRef.current = true;
             onSelect(user);
+            // Clear flag after event loop completes to allow future outside clicks
+            setTimeout(() => { isSelectingRef.current = false; }, 0);
           }}
         >
           <Avatar className="w-8 h-8">
