@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import {
   Dialog,
   DialogContent,
@@ -324,6 +325,13 @@ export function TaskModal({
       markTaskAsRead(taskId);
     }
   }, [open, taskId, isCreateMode]);
+  
+  // Close mention autocomplete when Dialog closes
+  React.useEffect(() => {
+    if (!open) {
+      setShowMentionAutocomplete(false);
+    }
+  }, [open]);
   
   // ISSUE #5 FIX: Track when projects or teamMembers update for real-time member list updates
   React.useEffect(() => {
@@ -1495,15 +1503,16 @@ export function TaskModal({
                         disabled={isSubmittingComment}
                       />
                       
-                      {/* Mention Autocomplete */}
-                      {showMentionAutocomplete && (
+                      {/* Mention Autocomplete - render outside Dialog using Portal */}
+                      {showMentionAutocomplete && createPortal(
                         <MentionAutocomplete
                           users={mentionableUsers}
                           onSelect={handleMentionSelect}
                           searchQuery={mentionQuery}
                           position={mentionPosition}
                           onClose={() => setShowMentionAutocomplete(false)}
-                        />
+                        />,
+                        document.body
                       )}
                       
                       <div className="flex justify-end">
