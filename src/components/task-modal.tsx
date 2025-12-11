@@ -266,26 +266,28 @@ export function TaskModal({
     }
 
     const selectedProject = projects.find(p => p.id === projectId);
-    if (!selectedProject) {
-      // ✅ FIXED: Return teamMembers instead of empty array when project not found
-      return teamMembers;
+    if (!selectedProject?.members) {
+      return [];
     }
 
-    // ✅ FIXED: Create a Set of viewer IDs (not non-viewer IDs)
+    // Collect IDs of members in the current project
+    const projectMemberIds = new Set<string>();
     const viewerIds = new Set<string>();
-    if (selectedProject.members && Array.isArray(selectedProject.members)) {
-      selectedProject.members.forEach((member: any) => {
-        if (member.role === 'viewer') { // ✅ FIXED: Collect viewers, not non-viewers
-          const memberId = member.userId || member.id;
-          if (memberId) {
-            viewerIds.add(memberId);
-          }
+    
+    selectedProject.members.forEach((member: any) => {
+      const memberId = member.userId || member.id;
+      if (memberId) {
+        projectMemberIds.add(memberId);
+        if (member.role === 'viewer') {
+          viewerIds.add(memberId);
         }
-      });
-    }
+      }
+    });
 
-    // ✅ FIXED: Exclude viewers from ALL teamMembers (not filter to only project members)
-    return teamMembers.filter(member => !viewerIds.has(member.id));
+    // Filter: only members of current project AND not viewers
+    return teamMembers.filter(member => 
+      projectMemberIds.has(member.id) && !viewerIds.has(member.id)
+    );
   }, [projectId, projects, teamMembers]);
 
   // Debug: log every render - NOW projectId and assigneeId are declared
@@ -829,10 +831,12 @@ export function TaskModal({
   };
 
   const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Don't interfere with autocomplete navigation
-    if (showMentionAutocomplete && ['ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) {
-      e.preventDefault();
-      e.stopPropagation();
+    // When autocomplete is open, prevent default for Enter/arrows but don't stop propagation
+    // MentionAutocomplete will handle these via document listener
+    if (showMentionAutocomplete) {
+      if (e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault(); // Only preventDefault, NOT stopPropagation
+      }
       return;
     }
     

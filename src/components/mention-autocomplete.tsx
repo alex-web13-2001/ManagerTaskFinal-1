@@ -64,7 +64,10 @@ export function MentionAutocomplete({
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (listRef.current && !listRef.current.contains(e.target as Node)) {
-        onClose();
+        // Allow time for onMouseDown on list item to fire first
+        requestAnimationFrame(() => {
+          onClose();
+        });
       }
     };
 
