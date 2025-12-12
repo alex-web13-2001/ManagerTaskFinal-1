@@ -226,7 +226,6 @@ export function TaskModal({
   // Mention autocomplete state
   const [showMentionAutocomplete, setShowMentionAutocomplete] = React.useState(false);
   const [mentionQuery, setMentionQuery] = React.useState('');
-  const [mentionPosition, setMentionPosition] = React.useState({ top: 0, left: 0 });
   const [mentionStartIndex, setMentionStartIndex] = React.useState(0);
   const commentTextareaRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -774,20 +773,6 @@ export function TaskModal({
     if (match) {
       setMentionQuery(match[1]);
       setMentionStartIndex(cursorPos - match[0].length);
-      
-      // Calculate position for autocomplete dropdown BEFORE showing it
-      if (commentTextareaRef.current) {
-        const textarea = commentTextareaRef.current;
-        const rect = textarea.getBoundingClientRect();
-        
-        // Position below the textarea (use fixed positioning, no scroll offsets needed)
-        setMentionPosition({
-          top: rect.bottom + 4,
-          left: rect.left,
-        });
-      }
-      
-      // Show autocomplete AFTER position is set
       setShowMentionAutocomplete(true);
     } else {
       setShowMentionAutocomplete(false);
@@ -1511,7 +1496,7 @@ export function TaskModal({
                           users={mentionableUsers}
                           onSelect={handleMentionSelect}
                           searchQuery={mentionQuery}
-                          position={mentionPosition}
+                          textareaRef={commentTextareaRef}
                           onClose={() => setShowMentionAutocomplete(false)}
                         />,
                         document.body

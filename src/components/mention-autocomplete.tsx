@@ -6,7 +6,7 @@ interface MentionAutocompleteProps {
   users: TeamMember[];
   onSelect: (user: TeamMember) => void;
   searchQuery: string;
-  position: { top: number; left: number };
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   onClose: () => void;
 }
 
@@ -27,10 +27,11 @@ export function MentionAutocomplete({
   users,
   onSelect,
   searchQuery,
-  position,
+  textareaRef,
   onClose,
 }: MentionAutocompleteProps) {
   const [selectedIndex, setSelectedIndex] = React.useState(0);
+  const [position, setPosition] = React.useState({ top: 0, left: 0 });
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   // Flag to prevent race condition between click selection and outside click detection
@@ -47,6 +48,31 @@ export function MentionAutocomplete({
       user.email.toLowerCase().includes(query)
     );
   }, [users, searchQuery]);
+
+  // Calculate position based on textarea ref
+  useEffect(() => {
+    const updatePosition = () => {
+      if (textareaRef.current) {
+        const textarea = textareaRef.current;
+        const rect = textarea.getBoundingClientRect();
+        
+        setPosition({
+          top: rect.bottom + 4,
+          left: rect.left,
+        });
+      }
+    };
+    
+    // Calculate initial position
+    updatePosition();
+    
+    // Update position on scroll (Dialog has internal scroll)
+    const dialogContent = document.querySelector('[data-slot="dialog-content"]');
+    if (dialogContent) {
+      dialogContent.addEventListener('scroll', updatePosition);
+      return () => dialogContent.removeEventListener('scroll', updatePosition);
+    }
+  }, [textareaRef]);
 
   // Reset selected index when filtered users change
   useEffect(() => {
