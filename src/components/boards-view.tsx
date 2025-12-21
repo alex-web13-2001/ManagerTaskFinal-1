@@ -24,9 +24,12 @@ import { BoardModal } from './board-modal';
 import { useBoards } from '../contexts/boards-context';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { toast } from 'sonner';
 
-export function BoardsView() {
+interface BoardsViewProps {
+  onBoardClick?: (boardId: string) => void;
+}
+
+export function BoardsView({ onBoardClick }: BoardsViewProps = {}) {
   const { boards, loading, deleteBoard } = useBoards();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
@@ -58,8 +61,9 @@ export function BoardsView() {
   };
 
   const handleOpenBoard = (boardId: string) => {
-    // TODO: Navigate to board canvas view
-    toast.info('Открытие доски (скоро)');
+    if (onBoardClick) {
+      onBoardClick(boardId);
+    }
   };
 
   if (loading && boards.length === 0) {

@@ -12,6 +12,7 @@ import { ProjectDetailView } from './components/project-detail-view';
 import { ProjectCalendarView } from './components/project-calendar-view';
 import { TasksView } from './components/tasks-view';
 import { BoardsView } from './components/boards-view';
+import { BoardCanvas } from './components/board-canvas';
 import { CategoriesView } from './components/categories-view';
 import { ArchiveView } from './components/archive-view';
 import { ProfileView } from './components/profile-view';
@@ -345,6 +346,7 @@ function MainAppContent() {
   const [currentProject, setCurrentProject] = React.useState<string>('');
   const [selectedProjectId, setSelectedProjectId] = React.useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
+  const [selectedBoardId, setSelectedBoardId] = React.useState<string | null>(null);
 
   // URL → State synchronization (Problem #3 fix: add task existence check)
   React.useEffect(() => {
@@ -427,6 +429,14 @@ function MainAppContent() {
     setCurrentView('dashboard');
   }, []);
 
+  const handleBoardClick = React.useCallback((boardId: string) => {
+    setSelectedBoardId(boardId);
+  }, []);
+
+  const handleBackFromBoard = React.useCallback(() => {
+    setSelectedBoardId(null);
+  }, []);
+
   const handleLogout = React.useCallback(async () => {
     try {
       await authAPI.signOut();
@@ -458,7 +468,10 @@ function MainAppContent() {
         case 'tasks':
           return <TasksView key="tasks" onTaskClick={handleTaskClick} />;
         case 'boards':
-          return <BoardsView key="boards" />;
+          if (selectedBoardId) {
+            return <BoardCanvas key={selectedBoardId} boardId={selectedBoardId} onBack={handleBackFromBoard} />;
+          }
+          return <BoardsView key="boards" onBoardClick={handleBoardClick} />;
         case 'categories':
           return <CategoriesView key="categories" />;
         case 'archive':

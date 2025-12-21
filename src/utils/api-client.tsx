@@ -1078,6 +1078,76 @@ export const boardsAPI = {
       throw new Error('Failed to delete board');
     }
   },
+
+  /**
+   * Create a new element on the board
+   */
+  createElement: async (boardId: string, data: Partial<any>): Promise<any> => {
+    const response = await fetch(`${API_BASE_URL}/api/boards/${boardId}/elements`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to create element');
+    }
+    return response.json();
+  },
+
+  /**
+   * Update a board element
+   */
+  updateElement: async (boardId: string, elementId: string, data: Partial<any>): Promise<any> => {
+    const response = await fetch(`${API_BASE_URL}/api/boards/${boardId}/elements/${elementId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update element');
+    }
+    return response.json();
+  },
+
+  /**
+   * Delete a board element
+   */
+  deleteElement: async (boardId: string, elementId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/api/boards/${boardId}/elements/${elementId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to delete element');
+    }
+  },
+
+  /**
+   * Upload an image for a board element
+   */
+  uploadImage: async (boardId: string, file: File): Promise<{ url: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${API_BASE_URL}/api/boards/${boardId}/upload-image`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: formData,
+    });
+    if (!response.ok) {
+      throw new Error('Failed to upload image');
+    }
+    return response.json();
+  },
 };
 
 // ========== INVITATIONS API ==========
