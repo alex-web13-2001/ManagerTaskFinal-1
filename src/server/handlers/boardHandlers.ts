@@ -1,11 +1,21 @@
 import { Request, Response } from 'express';
 import prisma from '../db';
 import { AuthRequest } from '../middleware/auth';
+import { Board } from '@prisma/client';
+
+/**
+ * Board update data type
+ */
+interface BoardUpdateData {
+  name?: string;
+  description?: string | null;
+  color?: string;
+}
 
 /**
  * Transform board from database format to API response format
  */
-function transformBoardForResponse(board: any): any {
+function transformBoardForResponse(board: Board | (Board & { elements?: any[] })): any {
   return {
     ...board,
     createdAt: board.createdAt instanceof Date ? board.createdAt.toISOString() : board.createdAt,
@@ -127,7 +137,7 @@ export async function updateBoard(req: Request, res: Response) {
     }
 
     // Подготовка данных для обновления
-    const updateData: any = {};
+    const updateData: BoardUpdateData = {};
     if (name !== undefined) {
       if (!name.trim()) {
         return res.status(400).json({ error: 'Название доски не может быть пустым' });

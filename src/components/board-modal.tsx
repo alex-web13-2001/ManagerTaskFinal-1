@@ -12,6 +12,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { useBoards } from '../contexts/boards-context';
+import { Board } from '../types';
 
 type BoardModalMode = 'create' | 'edit';
 
@@ -20,7 +21,7 @@ type BoardModalProps = {
   onOpenChange: (open: boolean) => void;
   mode: BoardModalMode;
   boardId?: string;
-  onSave?: (board: any) => void;
+  onSave?: (board: Board) => void;
 };
 
 const colorOptions = [
