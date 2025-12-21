@@ -26,6 +26,9 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   
   const canvasRef = React.useRef<HTMLDivElement>(null);
 
+  // Constants
+  const CANVAS_PADDING = 100; // Padding for center-on-content feature
+
   // Load board with elements
   React.useEffect(() => {
     loadBoard();
@@ -78,6 +81,12 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   // Handle paste from clipboard
   React.useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
+      // Don't interfere with paste in text inputs
+      const activeElement = document.activeElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        return;
+      }
+
       const items = e.clipboardData?.items;
       if (!items) return;
       
@@ -156,6 +165,9 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   };
 
   // Multi-element drag handler
+  // Note: This makes individual API calls per element, but uses optimistic updates
+  // for immediate UI feedback. A batch API endpoint would be more efficient but
+  // would require backend changes.
   const handleGroupDrag = (deltaX: number, deltaY: number) => {
     selectedElementIds.forEach(elementId => {
       const element = elements.find(el => el.id === elementId);
@@ -247,9 +259,8 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     const canvasHeight = canvasRef.current?.clientHeight || 600;
     
     // Calculate scale to fit content with padding
-    const padding = 100;
-    const scaleX = (canvasWidth - padding * 2) / contentWidth;
-    const scaleY = (canvasHeight - padding * 2) / contentHeight;
+    const scaleX = (canvasWidth - CANVAS_PADDING * 2) / contentWidth;
+    const scaleY = (canvasHeight - CANVAS_PADDING * 2) / contentHeight;
     const newScale = Math.min(Math.max(Math.min(scaleX, scaleY), 0.25), 2);
     
     // Center
