@@ -63,16 +63,28 @@ export function MentionAutocomplete({
       }
     };
     
-    // Calculate initial position
+    // Calculate initial position immediately
     updatePosition();
     
-    // Update position on scroll (Dialog has internal scroll)
+    // Update position on various events
     const dialogContent = document.querySelector('[data-slot="dialog-content"]');
+    
+    // Add listeners
+    window.addEventListener('scroll', updatePosition, true); // Use capture for all scrolls
+    window.addEventListener('resize', updatePosition);
     if (dialogContent) {
       dialogContent.addEventListener('scroll', updatePosition);
-      return () => dialogContent.removeEventListener('scroll', updatePosition);
     }
-  }, [textareaRef]);
+    
+    // Cleanup all listeners
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+      if (dialogContent) {
+        dialogContent.removeEventListener('scroll', updatePosition);
+      }
+    };
+  }, [textareaRef, filteredUsers.length]); // Re-calculate when filtered users change (list size affects position)
 
   // Reset selected index when filtered users change
   useEffect(() => {
