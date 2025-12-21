@@ -3440,6 +3440,32 @@ apiRouter.put('/boards/:id', boardHandlers.updateBoard);
  */
 apiRouter.delete('/boards/:id', boardHandlers.deleteBoard);
 
+// ========== BOARD ELEMENTS ENDPOINTS (PROTECTED) ==========
+
+/**
+ * POST /api/boards/:id/elements
+ * Create a new element on the board
+ */
+apiRouter.post('/boards/:id/elements', boardHandlers.createElement);
+
+/**
+ * PUT /api/boards/:id/elements/:elementId
+ * Update a board element
+ */
+apiRouter.put('/boards/:id/elements/:elementId', boardHandlers.updateElement);
+
+/**
+ * DELETE /api/boards/:id/elements/:elementId
+ * Delete a board element
+ */
+apiRouter.delete('/boards/:id/elements/:elementId', boardHandlers.deleteElement);
+
+/**
+ * POST /api/boards/:id/upload-image
+ * Upload an image for a board element
+ */
+apiRouter.post('/boards/:id/upload-image', upload.single('file'), boardHandlers.uploadBoardImage);
+
 // ========== PROJECT INVITATION EMAIL (PROTECTED) ==========
 
 

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../db';
 import { AuthRequest } from '../middleware/auth';
-import { Board } from '@prisma/client';
+import { Board, BoardElement } from '@prisma/client';
 
 /**
  * Board update data type
@@ -20,6 +20,17 @@ function transformBoardForResponse(board: Board | (Board & { elements?: any[] })
     ...board,
     createdAt: board.createdAt instanceof Date ? board.createdAt.toISOString() : board.createdAt,
     updatedAt: board.updatedAt instanceof Date ? board.updatedAt.toISOString() : board.updatedAt,
+  };
+}
+
+/**
+ * Transform board element from database format to API response format
+ */
+function transformElementForResponse(element: BoardElement): any {
+  return {
+    ...element,
+    createdAt: element.createdAt instanceof Date ? element.createdAt.toISOString() : element.createdAt,
+    updatedAt: element.updatedAt instanceof Date ? element.updatedAt.toISOString() : element.updatedAt,
   };
 }
 
@@ -194,5 +205,183 @@ export async function deleteBoard(req: Request, res: Response) {
   } catch (error: any) {
     console.error('Failed to delete board:', error);
     res.status(500).json({ error: 'Не удалось удалить доску' });
+  }
+}
+
+/**
+ * POST /api/boards/:id/elements
+ * Добавить элемент на доску
+ */
+export async function createElement(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { type, positionX, positionY, width, height, content, imageUrl, color, fontSize, zIndex, rotation } = req.body;
+    const userId = (req as AuthRequest).user!.sub;
+
+    // Проверить права доступа к доске
+    const board = await prisma.board.findUnique({
+      where: { id },
+    });
+
+    if (!board) {
+      return res.status(404).json({ error: 'Доска не найдена' });
+    }
+
+    if (board.ownerId !== userId) {
+      return res.status(403).json({ error: 'Недостаточно прав для добавления элементов на эту доску' });
+    }
+
+    // Создать элемент
+    const element = await prisma.boardElement.create({
+      data: {
+        type,
+        positionX: positionX || 0,
+        positionY: positionY || 0,
+        width: width || 200,
+        height: height || 150,
+        zIndex: zIndex || 0,
+        rotation: rotation || 0,
+        content: content || null,
+        imageUrl: imageUrl || null,
+        color: color || null,
+        fontSize: fontSize || null,
+        boardId: id,
+      },
+    });
+
+    res.status(201).json(transformElementForResponse(element));
+  } catch (error: any) {
+    console.error('Failed to create element:', error);
+    res.status(500).json({ error: 'Не удалось создать элемент' });
+  }
+}
+
+/**
+ * PUT /api/boards/:id/elements/:elementId
+ * Обновить элемент
+ */
+export async function updateElement(req: Request, res: Response) {
+  try {
+    const { id, elementId } = req.params;
+    const { positionX, positionY, width, height, zIndex, rotation, content, imageUrl, color, fontSize } = req.body;
+    const userId = (req as AuthRequest).user!.sub;
+
+    // Проверить права доступа
+    const element = await prisma.boardElement.findUnique({
+      where: { id: elementId },
+      include: { board: true },
+    });
+
+    if (!element) {
+      return res.status(404).json({ error: 'Элемент не найден' });
+    }
+
+    if (element.boardId !== id) {
+      return res.status(400).json({ error: 'Элемент не принадлежит этой доске' });
+    }
+
+    if (element.board.ownerId !== userId) {
+      return res.status(403).json({ error: 'Недостаточно прав для редактирования этого элемента' });
+    }
+
+    // Подготовить данные для обновления
+    const updateData: any = {};
+    if (positionX !== undefined) updateData.positionX = positionX;
+    if (positionY !== undefined) updateData.positionY = positionY;
+    if (width !== undefined) updateData.width = width;
+    if (height !== undefined) updateData.height = height;
+    if (zIndex !== undefined) updateData.zIndex = zIndex;
+    if (rotation !== undefined) updateData.rotation = rotation;
+    if (content !== undefined) updateData.content = content;
+    if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
+    if (color !== undefined) updateData.color = color;
+    if (fontSize !== undefined) updateData.fontSize = fontSize;
+
+    // Обновить элемент
+    const updatedElement = await prisma.boardElement.update({
+      where: { id: elementId },
+      data: updateData,
+    });
+
+    res.json(transformElementForResponse(updatedElement));
+  } catch (error: any) {
+    console.error('Failed to update element:', error);
+    res.status(500).json({ error: 'Не удалось обновить элемент' });
+  }
+}
+
+/**
+ * DELETE /api/boards/:id/elements/:elementId
+ * Удалить элемент
+ */
+export async function deleteElement(req: Request, res: Response) {
+  try {
+    const { id, elementId } = req.params;
+    const userId = (req as AuthRequest).user!.sub;
+
+    // Проверить права доступа
+    const element = await prisma.boardElement.findUnique({
+      where: { id: elementId },
+      include: { board: true },
+    });
+
+    if (!element) {
+      return res.status(404).json({ error: 'Элемент не найден' });
+    }
+
+    if (element.boardId !== id) {
+      return res.status(400).json({ error: 'Элемент не принадлежит этой доске' });
+    }
+
+    if (element.board.ownerId !== userId) {
+      return res.status(403).json({ error: 'Недостаточно прав для удаления этого элемента' });
+    }
+
+    // Удалить элемент
+    await prisma.boardElement.delete({
+      where: { id: elementId },
+    });
+
+    res.status(204).send();
+  } catch (error: any) {
+    console.error('Failed to delete element:', error);
+    res.status(500).json({ error: 'Не удалось удалить элемент' });
+  }
+}
+
+/**
+ * POST /api/boards/:id/upload-image
+ * Загрузить изображение для элемента доски
+ */
+export async function uploadBoardImage(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const userId = (req as AuthRequest).user!.sub;
+
+    // Проверить права доступа к доске
+    const board = await prisma.board.findUnique({
+      where: { id },
+    });
+
+    if (!board) {
+      return res.status(404).json({ error: 'Доска не найдена' });
+    }
+
+    if (board.ownerId !== userId) {
+      return res.status(403).json({ error: 'Недостаточно прав для загрузки изображений на эту доску' });
+    }
+
+    // Проверить наличие файла
+    if (!req.file) {
+      return res.status(400).json({ error: 'Файл не загружен' });
+    }
+
+    // Вернуть URL загруженного файла
+    const fileUrl = `/uploads/${req.file.filename}`;
+    
+    res.json({ url: fileUrl });
+  } catch (error: any) {
+    console.error('Failed to upload image:', error);
+    res.status(500).json({ error: 'Не удалось загрузить изображение' });
   }
 }
