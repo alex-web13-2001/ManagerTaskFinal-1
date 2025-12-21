@@ -118,3 +118,32 @@ export interface Category {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface Board {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  thumbnail?: string;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BoardElement {
+  id: string;
+  type: 'note' | 'image' | 'heading' | 'text';
+  positionX: number;
+  positionY: number;
+  width: number;
+  height: number;
+  zIndex: number;
+  rotation: number;
+  content?: string;
+  imageUrl?: string;
+  color?: string;
+  fontSize?: number;
+  boardId: string;
+  createdAt: string;
+  updatedAt: string;
+}

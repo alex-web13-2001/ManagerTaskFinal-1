@@ -20,6 +20,7 @@ import {
 import { authenticate, canAccessProject, AuthRequest, UserRole } from './middleware/auth.js';
 import { webhookHandler } from './handlers/webhookHandler.js';
 import { createProject } from './handlers/projectHandlers.js';
+import * as boardHandlers from './handlers/boardHandlers.js';
 import { authRateLimiter, uploadRateLimiter, passwordResetRateLimiter } from './middleware/rateLimiter.js';
 import { 
   initializeWebSocket, 
@@ -3406,6 +3407,38 @@ apiRouter.get('/tasks/:id/history', async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Ошибка при получении истории задачи' });
   }
 });
+
+// ========== BOARDS CRUD ENDPOINTS (PROTECTED) ==========
+
+/**
+ * GET /api/boards
+ * Get all boards owned by the current user
+ */
+apiRouter.get('/boards', boardHandlers.getBoards);
+
+/**
+ * POST /api/boards
+ * Create a new board
+ */
+apiRouter.post('/boards', boardHandlers.createBoard);
+
+/**
+ * GET /api/boards/:id
+ * Get a board with its elements
+ */
+apiRouter.get('/boards/:id', boardHandlers.getBoard);
+
+/**
+ * PUT /api/boards/:id
+ * Update board (name, description, color)
+ */
+apiRouter.put('/boards/:id', boardHandlers.updateBoard);
+
+/**
+ * DELETE /api/boards/:id
+ * Delete a board
+ */
+apiRouter.delete('/boards/:id', boardHandlers.deleteBoard);
 
 // ========== PROJECT INVITATION EMAIL (PROTECTED) ==========
 

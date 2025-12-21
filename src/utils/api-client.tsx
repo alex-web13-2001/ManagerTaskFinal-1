@@ -994,6 +994,92 @@ export const projectsAPI = {
     return categories;
   },
 };
+
+// ========== BOARDS API ==========
+
+export const boardsAPI = {
+  /**
+   * Get all boards for current user
+   */
+  getAll: async () => {
+    const response = await fetch(`${API_BASE_URL}/api/boards`, {
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch boards');
+    }
+    return response.json();
+  },
+
+  /**
+   * Create a new board
+   */
+  create: async (data: { name: string; description?: string; color?: string }) => {
+    const response = await fetch(`${API_BASE_URL}/api/boards`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to create board');
+    }
+    return response.json();
+  },
+
+  /**
+   * Get board by ID with elements
+   */
+  getById: async (id: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/boards/${id}`, {
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch board');
+    }
+    return response.json();
+  },
+
+  /**
+   * Update board
+   */
+  update: async (id: string, data: { name?: string; description?: string; color?: string }) => {
+    const response = await fetch(`${API_BASE_URL}/api/boards/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update board');
+    }
+    return response.json();
+  },
+
+  /**
+   * Delete board
+   */
+  delete: async (id: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/boards/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to delete board');
+    }
+  },
+};
+
 // ========== INVITATIONS API ==========
 
 export const invitationsAPI = {

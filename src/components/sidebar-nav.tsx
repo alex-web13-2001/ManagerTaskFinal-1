@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, CheckSquare, FolderKanban, Tag, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { Home, CheckSquare, FolderKanban, Tag, ChevronLeft, ChevronRight, ChevronDown, LayoutDashboard } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -28,8 +28,10 @@ const navigationItems: NavigationItem[] = [
   { title: 'Дашборд', icon: Home, view: 'dashboard' },
   { title: 'Личные задачи', icon: CheckSquare, view: 'tasks' },
   { title: 'Проекты', icon: FolderKanban, view: 'projects' },
+  { title: 'Мои доски', icon: LayoutDashboard, view: 'boards' },
   { title: 'Категории', icon: Tag, view: 'categories' },
 ];
+
 
 export function SidebarNav({
   currentView,
