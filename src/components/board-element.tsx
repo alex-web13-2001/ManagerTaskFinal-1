@@ -10,6 +10,7 @@ interface BoardElementComponentProps {
   onSelect: (e: React.MouseEvent) => void;
   onUpdate: (updates: Partial<BoardElement>) => void;
   onDelete: () => void;
+  onDragDelta?: (deltaX: number, deltaY: number) => void;
   scale: number;
   offset: { x: number; y: number };
 }
@@ -20,6 +21,7 @@ export function BoardElementComponent({
   onSelect,
   onUpdate,
   onDelete,
+  onDragDelta,
   scale,
   offset
 }: BoardElementComponentProps) {
@@ -30,6 +32,7 @@ export function BoardElementComponent({
   const [resizeStart, setResizeStart] = React.useState({ width: 0, height: 0, x: 0, y: 0 });
   const elementRef = React.useRef<HTMLDivElement>(null);
   const textRef = React.useRef<HTMLTextAreaElement>(null);
+  const lastPositionRef = React.useRef({ x: element.positionX, y: element.positionY });
 
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent) => {
@@ -37,6 +40,7 @@ export function BoardElementComponent({
     onSelect(e);
     setIsDragging(true);
     // Store the offset from mouse to element's top-left corner in canvas space
+    lastPositionRef.current = { x: element.positionX, y: element.positionY };
     setDragStart({
       x: (e.clientX - offset.x) / scale - element.positionX,
       y: (e.clientY - offset.y) / scale - element.positionY
@@ -48,8 +52,20 @@ export function BoardElementComponent({
     // Calculate new position in canvas space
     const newX = (e.clientX - offset.x) / scale - dragStart.x;
     const newY = (e.clientY - offset.y) / scale - dragStart.y;
-    onUpdate({ positionX: newX, positionY: newY });
-  }, [isDragging, dragStart, scale, offset, onUpdate]);
+    
+    // If onDragDelta is provided (for multi-selection), calculate delta and call it
+    if (onDragDelta) {
+      const deltaX = newX - lastPositionRef.current.x;
+      const deltaY = newY - lastPositionRef.current.y;
+      if (deltaX !== 0 || deltaY !== 0) {
+        onDragDelta(deltaX, deltaY);
+        lastPositionRef.current = { x: newX, y: newY };
+      }
+    } else {
+      // Otherwise, just update this element
+      onUpdate({ positionX: newX, positionY: newY });
+    }
+  }, [isDragging, dragStart, scale, offset, onUpdate, onDragDelta]);
 
   const handleDragEnd = React.useCallback(() => {
     setIsDragging(false);

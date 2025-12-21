@@ -155,6 +155,19 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     }
   };
 
+  // Multi-element drag handler
+  const handleGroupDrag = (deltaX: number, deltaY: number) => {
+    selectedElementIds.forEach(elementId => {
+      const element = elements.find(el => el.id === elementId);
+      if (element) {
+        handleElementUpdate(elementId, {
+          positionX: element.positionX + deltaX,
+          positionY: element.positionY + deltaY
+        });
+      }
+    });
+  };
+
   // Pan handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.target === canvasRef.current || (e.target as HTMLElement).dataset.canvas) {
@@ -342,6 +355,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
               onSelect={(e) => handleElementSelect(element.id, e)}
               onUpdate={(updates) => handleElementUpdate(element.id, updates)}
               onDelete={() => handleElementDelete(element.id)}
+              onDragDelta={selectedElementIds.size > 1 ? handleGroupDrag : undefined}
               scale={scale}
               offset={offset}
             />
