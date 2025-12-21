@@ -100,7 +100,7 @@ export function MentionAutocomplete({
         dialogContent.removeEventListener('scroll', updatePosition);
       }
     };
-  }, [textareaRef, filteredUsers.length]); // Re-calculate when filtered users change (list size affects position)
+  }, [textareaRef]); // Position depends on textarea ref
 
   // Reset selected index when filtered users change
   useEffect(() => {

@@ -2,6 +2,11 @@
  * Утилиты для работы с упоминаниями в комментариях
  */
 
+// Regex pattern for sanitizing usernames - matches frontend implementation
+// Keeps only: \w (word chars: a-z, A-Z, 0-9, _), dots (.), and hyphens (-)
+// Removes special characters like +, !, etc.
+const USERNAME_SANITIZE_PATTERN = /[^\w.-]/g;
+
 export function extractMentions(text: string): string[] {
   const mentionRegex = /@([\w.-]+)/g;
   const matches = text.matchAll(mentionRegex);
@@ -26,13 +31,8 @@ export function getUsersByMentions(
       // Check if email prefix matches (after sanitization)
       if (member.email && member.email.includes('@')) {
         const emailPrefix = member.email.split('@')[0];
-        // Sanitize email prefix the same way frontend does
-        // Pattern [^\w.-] removes everything except:
-        // - \w: word characters (a-z, A-Z, 0-9, _)
-        // - .: dots
-        // - -: hyphens
-        // This ensures matching works for emails with special chars like john+test@example.com
-        const sanitizedPrefix = emailPrefix.replace(/[^\w.-]/g, '').toLowerCase();
+        // Sanitize using the same pattern as frontend (defined at top of file)
+        const sanitizedPrefix = emailPrefix.replace(USERNAME_SANITIZE_PATTERN, '').toLowerCase();
         return sanitizedPrefix === mentionLower;
       }
       
