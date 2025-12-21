@@ -108,7 +108,7 @@ FRONTEND_URL=http://localhost:5173  # For notification links
 ### Bot Setup
 1. Create bot via @BotFather on Telegram
 2. Get bot token
-3. Set username (e.g., @T24_robot)
+3. Set username (e.g., @t24_robobot)
 4. Add token to .env file
 
 ## 🚀 Deployment Instructions
@@ -169,7 +169,7 @@ Quick smoke test:
          │ User copies code
          ▼
 ┌──────────────────────────┐
-│  Telegram @T24_robot     │
+│  Telegram @t24_robobot   │
 │  /start → Welcome        │
 │  LINK-XXX → Validate     │
 └────────┬─────────────────┘

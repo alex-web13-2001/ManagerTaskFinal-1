@@ -4,7 +4,7 @@
 
 1. Database is running and migration has been applied
 2. Server is running with `npm run dev:server`
-3. You have access to the Telegram bot @T24_robot
+3. You have access to the Telegram bot @t24_robobot
 
 ## Test Scenarios
 
@@ -29,7 +29,7 @@ npx prisma studio
 
 **Steps:**
 1. Open Telegram
-2. Search for @T24_robot
+2. Search for @t24_robobot
 3. Send `/start`
 
 **Expected Result:**
@@ -68,7 +68,7 @@ npx prisma studio
 3. Modal should open showing:
    - Instructions
    - Link code (format: LINK-XXXXXX)
-   - "Открыть @T24_robot" button
+   - "Открыть @t24_robobot" button
    - Expiration time
 
 **Expected Result:**
@@ -79,7 +79,7 @@ npx prisma studio
 
 **Steps:**
 4. Copy the link code
-5. Go to Telegram @T24_robot
+5. Go to Telegram @t24_robobot
 6. Send the link code (e.g., LINK-A3F9D2)
 
 **Expected Result:**
