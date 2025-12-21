@@ -79,7 +79,7 @@ export function TelegramLinkModal({ open, onOpenChange }: TelegramLinkModalProps
   };
 
   const handleOpenTelegram = () => {
-    window.open('https://t.me/T24_robot', '_blank');
+    window.open('https://t.me/t24_robobot', '_blank');
   };
 
   const handleUnlink = async () => {
@@ -214,7 +214,7 @@ export function TelegramLinkModal({ open, onOpenChange }: TelegramLinkModalProps
             onClick={handleOpenTelegram}
           >
             <ExternalLink className="w-4 h-4 mr-2" />
-            Открыть @T24_robot
+            Открыть @t24_robobot
           </Button>
         </div>
       </DialogContent>

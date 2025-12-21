@@ -33,7 +33,7 @@ You should see:
 ### Step 5: Test Linking
 1. Open web app → Click "Т24 Бот" button
 2. Copy the link code (LINK-XXXXXX)
-3. Open Telegram → Search @T24_robot
+3. Open Telegram → Search @t24_robobot
 4. Send `/start`, then send your link code
 5. ✅ Account linked!
 
@@ -68,7 +68,7 @@ You should see:
 │  └──────────────────┘ └──┘                  │
 │  Код действителен до: 14:35:00               │
 │                                              │
-│  [ Открыть @T24_robot ]                     │
+│  [ Открыть @t24_robobot ]                   │
 └──────────────────────────────────────────────┘
 ```
 
