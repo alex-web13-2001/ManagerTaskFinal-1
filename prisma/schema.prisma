@@ -45,6 +45,8 @@ model User {
   comments              Comment[]
   taskHistory           TaskHistory[]
   taskSubscriptions     TaskSubscriber[]
+  ownedBoards           Board[]   @relation("BoardOwner")
+  boardMemberships      BoardMember[]
 
   @@map("users")
 }
@@ -310,4 +312,73 @@ model TelegramPendingReply {
   @@index([chatId])
   @@index([userId])
   @@map("telegram_pending_replies")
+}
+
+// Board model - свободное пространство для заметок и медиа
+model Board {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  color       String   @default("#3b82f6")
+  thumbnail   String?  // URL превью доски
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Владелец доски
+  ownerId     String
+  owner       User     @relation("BoardOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  // Элементы на доске
+  elements    BoardElement[]
+  
+  // Будущее: участники доски
+  members     BoardMember[]
+
+  @@index([ownerId])
+  @@map("boards")
+}
+
+// BoardElement - элемент на доске (заметка, фото, заголовок, текст)
+model BoardElement {
+  id        String   @id @default(uuid())
+  type      String   // 'note' | 'image' | 'heading' | 'text'
+  
+  // Позиция на канвасе
+  positionX Float    @default(0)
+  positionY Float    @default(0)
+  width     Float    @default(200)
+  height    Float    @default(150)
+  zIndex    Int      @default(0)
+  rotation  Float    @default(0)
+  
+  // Контент (зависит от типа)
+  content   String?  // Текст для note/heading/text
+  imageUrl  String?  // URL изображения для image
+  color     String?  // Цвет фона для note
+  fontSize  Int?     // Размер шрифта
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Связь с доской
+  boardId   String
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+  @@map("board_elements")
+}
+
+// BoardMember - участники доски (для будущего функционала приглашений)
+model BoardMember {
+  id        String   @id @default(uuid())
+  role      String   // 'owner', 'editor', 'viewer'
+  addedAt   DateTime @default(now())
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boardId   String
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, boardId])
+  @@map("board_members")
 }

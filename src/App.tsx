@@ -11,6 +11,7 @@ import { ProjectsView } from './components/projects-view';
 import { ProjectDetailView } from './components/project-detail-view';
 import { ProjectCalendarView } from './components/project-calendar-view';
 import { TasksView } from './components/tasks-view';
+import { BoardsView } from './components/boards-view';
 import { CategoriesView } from './components/categories-view';
 import { ArchiveView } from './components/archive-view';
 import { ProfileView } from './components/profile-view';
@@ -28,12 +29,13 @@ import { UIProvider } from './contexts/ui-context';
 import { WebSocketProvider } from './contexts/websocket-context';
 import { ProjectsProvider } from './contexts/projects-context';
 import { TasksProvider } from './contexts/tasks-context';
+import { BoardsProvider } from './contexts/boards-context';
 import { ErrorBoundary } from './components/error-boundary';
 import { Loader2 } from 'lucide-react';
 import { DndProviderWrapper } from './components/dnd-provider-wrapper';
 import { generateFaviconDataURL } from './components/favicon-svg';
 
-type View = 'dashboard' | 'dashboard-calendar' | 'tasks' | 'projects' | 'project-calendar' | 'categories' | 'archive' | 'profile' | 'invite';
+type View = 'dashboard' | 'dashboard-calendar' | 'tasks' | 'projects' | 'project-calendar' | 'categories' | 'archive' | 'profile' | 'invite' | 'boards';
 
 function App() {
   return (
@@ -320,7 +322,9 @@ function MainApp() {
             <WebSocketProvider>
               <ProjectsProvider>
                 <TasksProvider>
-                  <MainAppContent />
+                  <BoardsProvider>
+                    <MainAppContent />
+                  </BoardsProvider>
                 </TasksProvider>
               </ProjectsProvider>
             </WebSocketProvider>
@@ -453,6 +457,8 @@ function MainAppContent() {
           return <ProjectsView key="projects" onProjectClick={handleProjectClick} />;
         case 'tasks':
           return <TasksView key="tasks" onTaskClick={handleTaskClick} />;
+        case 'boards':
+          return <BoardsView key="boards" />;
         case 'categories':
           return <CategoriesView key="categories" />;
         case 'archive':
