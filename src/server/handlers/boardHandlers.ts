@@ -2,8 +2,6 @@ import { Request, Response } from 'express';
 import prisma from '../db';
 import { AuthRequest } from '../middleware/auth';
 import { Board, BoardElement } from '@prisma/client';
-import path from 'path';
-import fs from 'fs';
 
 /**
  * Board update data type
