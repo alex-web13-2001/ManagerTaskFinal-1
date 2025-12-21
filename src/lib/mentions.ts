@@ -26,7 +26,12 @@ export function getUsersByMentions(
       // Check if email prefix matches (after sanitization)
       if (member.email && member.email.includes('@')) {
         const emailPrefix = member.email.split('@')[0];
-        // Sanitize email prefix the same way frontend does: only word chars, dots, hyphens
+        // Sanitize email prefix the same way frontend does
+        // Pattern [^\w.-] removes everything except:
+        // - \w: word characters (a-z, A-Z, 0-9, _)
+        // - .: dots
+        // - -: hyphens
+        // This ensures matching works for emails with special chars like john+test@example.com
         const sanitizedPrefix = emailPrefix.replace(/[^\w.-]/g, '').toLowerCase();
         return sanitizedPrefix === mentionLower;
       }

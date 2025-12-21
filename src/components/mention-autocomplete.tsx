@@ -51,16 +51,27 @@ export function MentionAutocomplete({
 
   // Calculate position based on textarea ref
   useEffect(() => {
+    let rafId: number | null = null;
+    
     const updatePosition = () => {
-      if (textareaRef.current) {
-        const textarea = textareaRef.current;
-        const rect = textarea.getBoundingClientRect();
-        
-        setPosition({
-          top: rect.bottom + 4,
-          left: rect.left,
-        });
+      // Cancel any pending animation frame to avoid duplicate updates
+      if (rafId) {
+        cancelAnimationFrame(rafId);
       }
+      
+      // Schedule update for next animation frame for better performance
+      rafId = requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          const textarea = textareaRef.current;
+          const rect = textarea.getBoundingClientRect();
+          
+          setPosition({
+            top: rect.bottom + 4,
+            left: rect.left,
+          });
+        }
+        rafId = null;
+      });
     };
     
     // Calculate initial position immediately
@@ -70,7 +81,9 @@ export function MentionAutocomplete({
     const dialogContent = document.querySelector('[data-slot="dialog-content"]');
     
     // Add listeners
-    window.addEventListener('scroll', updatePosition, true); // Use capture for all scrolls
+    // Note: Using capture:true for window scroll to catch all nested scroll events
+    // Position updates are throttled via requestAnimationFrame for performance
+    window.addEventListener('scroll', updatePosition, true);
     window.addEventListener('resize', updatePosition);
     if (dialogContent) {
       dialogContent.addEventListener('scroll', updatePosition);
@@ -78,6 +91,9 @@ export function MentionAutocomplete({
     
     // Cleanup all listeners
     return () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
       window.removeEventListener('scroll', updatePosition, true);
       window.removeEventListener('resize', updatePosition);
       if (dialogContent) {
