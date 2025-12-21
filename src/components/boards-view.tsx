@@ -29,7 +29,7 @@ interface BoardsViewProps {
   onBoardClick?: (boardId: string) => void;
 }
 
-export function BoardsView({ onBoardClick }: BoardsViewProps = {}) {
+export function BoardsView({ onBoardClick }: BoardsViewProps) {
   const { boards, loading, deleteBoard } = useBoards();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { boardsAPI } from '../utils/api-client';
-import { BoardElement } from '../types';
+import { Board, BoardElement } from '../types';
 import { BoardToolbar } from './board-toolbar';
 import { BoardElementComponent } from './board-element';
 import { Button } from './ui/button';
@@ -13,7 +13,7 @@ interface BoardCanvasProps {
 }
 
 export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
-  const [board, setBoard] = React.useState<any>(null);
+  const [board, setBoard] = React.useState<Board | null>(null);
   const [elements, setElements] = React.useState<BoardElement[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedElementId, setSelectedElementId] = React.useState<string | null>(null);
@@ -230,6 +230,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
               onUpdate={(updates) => handleElementUpdate(element.id, updates)}
               onDelete={() => handleElementDelete(element.id)}
               scale={scale}
+              offset={offset}
             />
           ))}
         </div>

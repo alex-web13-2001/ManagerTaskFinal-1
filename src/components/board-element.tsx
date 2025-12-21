@@ -11,6 +11,7 @@ interface BoardElementComponentProps {
   onUpdate: (updates: Partial<BoardElement>) => void;
   onDelete: () => void;
   scale: number;
+  offset: { x: number; y: number };
 }
 
 export function BoardElementComponent({
@@ -19,7 +20,8 @@ export function BoardElementComponent({
   onSelect,
   onUpdate,
   onDelete,
-  scale
+  scale,
+  offset
 }: BoardElementComponentProps) {
   const [isDragging, setIsDragging] = React.useState(false);
   const [isResizing, setIsResizing] = React.useState(false);
@@ -34,18 +36,20 @@ export function BoardElementComponent({
     e.stopPropagation();
     onSelect();
     setIsDragging(true);
+    // Store the offset from mouse to element's top-left corner in canvas space
     setDragStart({
-      x: e.clientX / scale - element.positionX,
-      y: e.clientY / scale - element.positionY
+      x: (e.clientX - offset.x) / scale - element.positionX,
+      y: (e.clientY - offset.y) / scale - element.positionY
     });
   };
 
   const handleDrag = React.useCallback((e: MouseEvent) => {
     if (!isDragging) return;
-    const newX = e.clientX / scale - dragStart.x;
-    const newY = e.clientY / scale - dragStart.y;
+    // Calculate new position in canvas space
+    const newX = (e.clientX - offset.x) / scale - dragStart.x;
+    const newY = (e.clientY - offset.y) / scale - dragStart.y;
     onUpdate({ positionX: newX, positionY: newY });
-  }, [isDragging, dragStart, scale, onUpdate]);
+  }, [isDragging, dragStart, scale, offset, onUpdate]);
 
   const handleDragEnd = React.useCallback(() => {
     setIsDragging(false);

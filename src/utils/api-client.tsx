@@ -3,6 +3,8 @@
  * Replaces Supabase client with JWT-based authentication
  */
 
+import { BoardElement } from '../types';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 // ========== TOKEN MANAGEMENT ==========
@@ -1082,7 +1084,7 @@ export const boardsAPI = {
   /**
    * Create a new element on the board
    */
-  createElement: async (boardId: string, data: Partial<any>): Promise<any> => {
+  createElement: async (boardId: string, data: Partial<BoardElement>): Promise<BoardElement> => {
     const response = await fetch(`${API_BASE_URL}/api/boards/${boardId}/elements`, {
       method: 'POST',
       headers: {
@@ -1100,7 +1102,7 @@ export const boardsAPI = {
   /**
    * Update a board element
    */
-  updateElement: async (boardId: string, elementId: string, data: Partial<any>): Promise<any> => {
+  updateElement: async (boardId: string, elementId: string, data: Partial<BoardElement>): Promise<BoardElement> => {
     const response = await fetch(`${API_BASE_URL}/api/boards/${boardId}/elements/${elementId}`, {
       method: 'PUT',
       headers: {
