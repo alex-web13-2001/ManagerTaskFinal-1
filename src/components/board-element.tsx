@@ -7,7 +7,7 @@ import { cn } from './ui/utils';
 interface BoardElementComponentProps {
   element: BoardElement;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (e: React.MouseEvent) => void;
   onUpdate: (updates: Partial<BoardElement>) => void;
   onDelete: () => void;
   scale: number;
@@ -34,7 +34,7 @@ export function BoardElementComponent({
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onSelect();
+    onSelect(e);
     setIsDragging(true);
     // Store the offset from mouse to element's top-left corner in canvas space
     setDragStart({
@@ -71,11 +71,23 @@ export function BoardElementComponent({
     if (!isResizing) return;
     const deltaX = (e.clientX - resizeStart.x) / scale;
     const deltaY = (e.clientY - resizeStart.y) / scale;
-    onUpdate({
-      width: Math.max(50, resizeStart.width + deltaX),
-      height: Math.max(30, resizeStart.height + deltaY)
-    });
-  }, [isResizing, resizeStart, scale, onUpdate]);
+    
+    // For images - maintain aspect ratio
+    if (element.type === 'image') {
+      const aspectRatio = resizeStart.width / resizeStart.height;
+      // Use the larger delta to determine new size
+      const maxDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY * aspectRatio;
+      const newWidth = Math.max(50, resizeStart.width + maxDelta);
+      const newHeight = newWidth / aspectRatio;
+      onUpdate({ width: newWidth, height: Math.max(30, newHeight) });
+    } else {
+      // For other elements - free resizing
+      onUpdate({
+        width: Math.max(50, resizeStart.width + deltaX),
+        height: Math.max(30, resizeStart.height + deltaY)
+      });
+    }
+  }, [isResizing, resizeStart, scale, onUpdate, element.type]);
 
   const handleResizeEnd = React.useCallback(() => {
     setIsResizing(false);
@@ -224,7 +236,7 @@ export function BoardElementComponent({
         zIndex: element.zIndex,
         transform: `rotate(${element.rotation || 0}deg)`
       }}
-      onClick={(e) => { e.stopPropagation(); onSelect(); }}
+      onClick={(e) => { e.stopPropagation(); onSelect(e); }}
       onMouseDown={handleDragStart}
       onDoubleClick={handleDoubleClick}
     >
@@ -233,21 +245,25 @@ export function BoardElementComponent({
       {/* Selection controls */}
       {isSelected && (
         <>
-          {/* Delete button */}
+          {/* Delete button - moved to top-left to avoid overlap */}
           <Button
             variant="destructive"
             size="sm"
-            className="absolute -top-3 -right-3 w-6 h-6 p-0 rounded-full"
+            className="absolute -top-3 -left-3 w-6 h-6 p-0 rounded-full z-10"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
           >
             <Trash2 className="w-3 h-3" />
           </Button>
 
-          {/* Resize handle */}
+          {/* Resize handle - bottom-right with increased offset */}
           <div
-            className="absolute -bottom-2 -right-2 w-4 h-4 bg-purple-500 rounded-full cursor-se-resize"
+            className="absolute -bottom-3 -right-3 w-5 h-5 bg-purple-500 rounded-full cursor-se-resize z-10 flex items-center justify-center"
             onMouseDown={handleResizeStart}
-          />
+          >
+            <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 21L12 21M21 21L21 12M21 21L14 14" />
+            </svg>
+          </div>
         </>
       )}
     </div>
