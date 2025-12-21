@@ -520,6 +520,10 @@ function MainAppContent() {
         currentView={currentView}
         onViewChange={(view) => {
           setCurrentView(view as View);
+          // Bug fix: Reset selectedBoardId when switching away from boards view
+          if (view !== 'boards') {
+            setSelectedBoardId(null);
+          }
           // Problem #4 fix: Only navigate to root if not already there or in a detail view
           if (location.pathname !== '/') {
             navigate('/');

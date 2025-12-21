@@ -4,7 +4,7 @@ import { Board, BoardElement } from '../types';
 import { BoardToolbar } from './board-toolbar';
 import { BoardElementComponent } from './board-element';
 import { Button } from './ui/button';
-import { ArrowLeft, Loader2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, ZoomIn, ZoomOut, RotateCcw, Focus } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface BoardCanvasProps {
@@ -16,7 +16,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   const [board, setBoard] = React.useState<Board | null>(null);
   const [elements, setElements] = React.useState<BoardElement[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [selectedElementId, setSelectedElementId] = React.useState<string | null>(null);
+  const [selectedElementIds, setSelectedElementIds] = React.useState<Set<string>>(new Set());
   
   // Pan & Zoom state
   const [scale, setScale] = React.useState(1);
@@ -25,6 +25,9 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   const [panStart, setPanStart] = React.useState({ x: 0, y: 0 });
   
   const canvasRef = React.useRef<HTMLDivElement>(null);
+
+  // Constants
+  const CANVAS_PADDING = 100; // Padding for center-on-content feature
 
   // Load board with elements
   React.useEffect(() => {
@@ -46,7 +49,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   };
 
   // Add new element
-  const handleAddElement = async (type: 'note' | 'image' | 'heading' | 'text', imageUrl?: string) => {
+  const handleAddElement = React.useCallback(async (type: 'note' | 'image' | 'heading' | 'text', imageUrl?: string) => {
     const defaultProps = {
       note: { width: 200, height: 150, color: '#fef08a', content: '' },
       image: { width: 300, height: 200, imageUrl: imageUrl || '' },
@@ -67,13 +70,49 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
       });
       
       setElements(prev => [...prev, newElement]);
-      setSelectedElementId(newElement.id);
+      setSelectedElementIds(new Set([newElement.id]));
       toast.success('Элемент добавлен');
     } catch (error) {
       console.error('Failed to add element:', error);
       toast.error('Не удалось добавить элемент');
     }
-  };
+  }, [boardId, scale, offset, elements.length]);
+
+  // Handle paste from clipboard
+  React.useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      // Don't interfere with paste in text inputs
+      const activeElement = document.activeElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        return;
+      }
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          
+          const file = item.getAsFile();
+          if (file) {
+            try {
+              const { url } = await boardsAPI.uploadImage(boardId, file);
+              await handleAddElement('image', url);
+              toast.success('Изображение вставлено');
+            } catch (error) {
+              console.error('Failed to paste image:', error);
+              toast.error('Не удалось вставить изображение');
+            }
+          }
+          break;
+        }
+      }
+    };
+    
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [boardId, handleAddElement]);
 
   // Update element position/size
   const handleElementUpdate = async (elementId: string, updates: Partial<BoardElement>) => {
@@ -94,7 +133,11 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     try {
       await boardsAPI.deleteElement(boardId, elementId);
       setElements(prev => prev.filter(el => el.id !== elementId));
-      setSelectedElementId(null);
+      setSelectedElementIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(elementId);
+        return newSet;
+      });
       toast.success('Элемент удалён');
     } catch (error) {
       console.error('Failed to delete element:', error);
@@ -102,12 +145,47 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     }
   };
 
+  // Element selection handlers
+  const handleElementSelect = (elementId: string, e: React.MouseEvent) => {
+    if (e.shiftKey) {
+      // Shift+click - add/remove from selection
+      setSelectedElementIds(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(elementId)) {
+          newSet.delete(elementId);
+        } else {
+          newSet.add(elementId);
+        }
+        return newSet;
+      });
+    } else {
+      // Normal click - select only this element
+      setSelectedElementIds(new Set([elementId]));
+    }
+  };
+
+  // Multi-element drag handler
+  // Note: This makes individual API calls per element, but uses optimistic updates
+  // for immediate UI feedback. A batch API endpoint would be more efficient but
+  // would require backend changes.
+  const handleGroupDrag = (deltaX: number, deltaY: number) => {
+    selectedElementIds.forEach(elementId => {
+      const element = elements.find(el => el.id === elementId);
+      if (element) {
+        handleElementUpdate(elementId, {
+          positionX: element.positionX + deltaX,
+          positionY: element.positionY + deltaY
+        });
+      }
+    });
+  };
+
   // Pan handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.target === canvasRef.current || (e.target as HTMLElement).dataset.canvas) {
       setIsPanning(true);
       setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
-      setSelectedElementId(null);
+      setSelectedElementIds(new Set());
     }
   };
 
@@ -128,14 +206,70 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
+      
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      // Mouse position relative to canvas
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      // Mouse position in content coordinates (before zoom)
+      const contentX = (mouseX - offset.x) / scale;
+      const contentY = (mouseY - offset.y) / scale;
+      
+      // New scale
       const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      setScale(prev => Math.min(Math.max(prev * delta, 0.25), 4));
+      const newScale = Math.min(Math.max(scale * delta, 0.25), 4);
+      
+      // New offset so point under cursor stays in place
+      const newOffsetX = mouseX - contentX * newScale;
+      const newOffsetY = mouseY - contentY * newScale;
+      
+      setScale(newScale);
+      setOffset({ x: newOffsetX, y: newOffsetY });
     }
   };
 
   const handleZoomIn = () => setScale(prev => Math.min(prev * 1.2, 4));
   const handleZoomOut = () => setScale(prev => Math.max(prev / 1.2, 0.25));
   const handleResetView = () => { setScale(1); setOffset({ x: 0, y: 0 }); };
+
+  // Center on content
+  const handleCenterOnContent = React.useCallback(() => {
+    if (elements.length === 0) {
+      // If no elements - just reset view
+      setScale(1);
+      setOffset({ x: 0, y: 0 });
+      return;
+    }
+
+    // Find bounding box of all elements
+    const minX = Math.min(...elements.map(el => el.positionX));
+    const minY = Math.min(...elements.map(el => el.positionY));
+    const maxX = Math.max(...elements.map(el => el.positionX + el.width));
+    const maxY = Math.max(...elements.map(el => el.positionY + el.height));
+    
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+    const contentCenterX = minX + contentWidth / 2;
+    const contentCenterY = minY + contentHeight / 2;
+    
+    const canvasWidth = canvasRef.current?.clientWidth || 800;
+    const canvasHeight = canvasRef.current?.clientHeight || 600;
+    
+    // Calculate scale to fit content with padding
+    const scaleX = (canvasWidth - CANVAS_PADDING * 2) / contentWidth;
+    const scaleY = (canvasHeight - CANVAS_PADDING * 2) / contentHeight;
+    const newScale = Math.min(Math.max(Math.min(scaleX, scaleY), 0.25), 2);
+    
+    // Center
+    setScale(newScale);
+    setOffset({
+      x: canvasWidth / 2 - contentCenterX * newScale,
+      y: canvasHeight / 2 - contentCenterY * newScale
+    });
+  }, [elements]);
 
   // Image upload
   const handleImageUpload = async (file: File) => {
@@ -182,6 +316,9 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
           <Button variant="outline" size="sm" onClick={handleResetView}>
             <RotateCcw className="w-4 h-4" />
           </Button>
+          <Button variant="outline" size="sm" onClick={handleCenterOnContent} title="Центрировать на контенте">
+            <Focus className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
@@ -225,10 +362,11 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
             <BoardElementComponent
               key={element.id}
               element={element}
-              isSelected={selectedElementId === element.id}
-              onSelect={() => setSelectedElementId(element.id)}
+              isSelected={selectedElementIds.has(element.id)}
+              onSelect={(e) => handleElementSelect(element.id, e)}
               onUpdate={(updates) => handleElementUpdate(element.id, updates)}
               onDelete={() => handleElementDelete(element.id)}
+              onDragDelta={selectedElementIds.size > 1 ? handleGroupDrag : undefined}
               scale={scale}
               offset={offset}
             />
