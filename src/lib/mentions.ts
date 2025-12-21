@@ -17,10 +17,22 @@ export function getUsersByMentions(
   for (const mention of mentions) {
     const mentionLower = mention.toLowerCase();
     
-    const found = projectMembers.find(member => 
-      (member.name && member.name.toLowerCase().includes(mentionLower)) ||
-      member.email.toLowerCase().startsWith(mentionLower)
-    );
+    const found = projectMembers.find(member => {
+      // Check if name includes the mention
+      if (member.name && member.name.toLowerCase().includes(mentionLower)) {
+        return true;
+      }
+      
+      // Check if email prefix matches (after sanitization)
+      if (member.email && member.email.includes('@')) {
+        const emailPrefix = member.email.split('@')[0];
+        // Sanitize email prefix the same way frontend does: only word chars, dots, hyphens
+        const sanitizedPrefix = emailPrefix.replace(/[^\w.-]/g, '').toLowerCase();
+        return sanitizedPrefix === mentionLower;
+      }
+      
+      return false;
+    });
     
     if (found) {
       userIds.add(found.id);
