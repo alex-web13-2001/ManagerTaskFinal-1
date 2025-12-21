@@ -179,7 +179,7 @@ export function MentionAutocomplete({
   return (
     <div
       ref={listRef}
-      className="fixed z-[100] w-72 max-h-64 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
+      className="fixed z-[200] w-72 max-h-64 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
       style={{
         top: `${position.top}px`,
         left: `${position.left}px`,
