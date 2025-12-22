@@ -261,19 +261,19 @@ export function BoardElementComponent({
       {/* Selection controls */}
       {isSelected && (
         <>
-          {/* Delete button - moved to top-left to avoid overlap */}
+          {/* Delete button - top-left corner */}
           <Button
             variant="destructive"
             size="sm"
-            className="absolute -top-3 -left-3 w-6 h-6 p-0 rounded-full z-10"
+            className="absolute -top-3 -left-3 w-7 h-7 p-0 rounded-full z-20 shadow-lg"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 className="w-4 h-4" />
           </Button>
 
-          {/* Resize handle - bottom-right with increased offset */}
+          {/* Resize handle - bottom-right corner */}
           <div
-            className="absolute -bottom-3 -right-3 w-5 h-5 bg-purple-500 rounded-full cursor-se-resize z-10 flex items-center justify-center"
+            className="absolute -bottom-3 -right-3 w-6 h-6 bg-purple-500 rounded-full cursor-se-resize z-10 flex items-center justify-center shadow-lg border-2 border-white"
             onMouseDown={handleResizeStart}
           >
             <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
