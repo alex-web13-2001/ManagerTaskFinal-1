@@ -58,21 +58,34 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     }
   };
 
-  // History management
-  const saveToHistory = React.useCallback(() => {
-    setHistory(prev => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      newHistory.push(JSON.parse(JSON.stringify(elements)));
-      if (newHistory.length > maxHistorySize) {
-        newHistory.shift();
-        setHistoryIndex(prevIndex => prevIndex); // Don't increment when shifting
+  // Debounced history saving
+  const saveHistoryDebounced = React.useRef<NodeJS.Timeout>();
+
+  React.useEffect(() => {
+    clearTimeout(saveHistoryDebounced.current);
+    saveHistoryDebounced.current = setTimeout(() => {
+      // Save directly to avoid circular dependency
+      setHistory(prev => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        newHistory.push(JSON.parse(JSON.stringify(elements)));
+        if (newHistory.length > maxHistorySize) {
+          newHistory.shift();
+          // Don't increment index when shifting since we removed the first element
+          return newHistory;
+        }
+        // Increment index only when not shifting
+        setHistoryIndex(prev => prev + 1);
         return newHistory;
-      }
-      setHistoryIndex(prevIndex => prevIndex + 1);
-      return newHistory;
-    });
+      });
+    }, 1000);
+    
+    // Cleanup timeout on unmount
+    return () => {
+      clearTimeout(saveHistoryDebounced.current);
+    };
   }, [elements, historyIndex]);
 
+  // Undo/Redo handlers
   const handleUndo = React.useCallback(() => {
     if (historyIndex > 0) {
       const previousState = history[historyIndex - 1];
@@ -88,6 +101,28 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
       setHistoryIndex(prev => prev + 1);
     }
   }, [history, historyIndex]);
+
+  // Keyboard shortcuts for Undo/Redo
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Не перехватывать если фокус в input/textarea
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        return;
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
 
   // Add new element
   const handleAddElement = React.useCallback(async (type: 'note' | 'image' | 'heading' | 'text', imageUrl?: string) => {
@@ -154,58 +189,6 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, [boardId, handleAddElement]);
-
-  // Debounced history saving
-  const saveHistoryDebounced = React.useRef<NodeJS.Timeout>();
-
-  React.useEffect(() => {
-    if (elements.length > 0) {
-      clearTimeout(saveHistoryDebounced.current);
-      saveHistoryDebounced.current = setTimeout(() => {
-        // Save directly without calling saveToHistory to avoid circular dependency
-        setHistory(prev => {
-          const newHistory = prev.slice(0, historyIndex + 1);
-          newHistory.push(JSON.parse(JSON.stringify(elements)));
-          if (newHistory.length > maxHistorySize) {
-            newHistory.shift();
-            return newHistory;
-          }
-          return newHistory;
-        });
-        setHistoryIndex(prev => {
-          const newIndex = prev + 1;
-          return newIndex >= maxHistorySize ? maxHistorySize - 1 : newIndex;
-        });
-      }, 1000);
-    }
-    
-    // Cleanup timeout on unmount
-    return () => {
-      clearTimeout(saveHistoryDebounced.current);
-    };
-  }, [elements, historyIndex]);
-
-  // Keyboard shortcuts for Undo/Redo
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Не перехватывать если фокус в input/textarea
-      const activeEl = document.activeElement;
-      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
-        return;
-      }
-      
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        handleUndo();
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-        e.preventDefault();
-        handleRedo();
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo]);
 
   // Update element position/size
   const handleElementUpdate = async (elementId: string, updates: Partial<BoardElement>) => {
