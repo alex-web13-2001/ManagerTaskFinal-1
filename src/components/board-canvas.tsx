@@ -4,7 +4,7 @@ import { Board, BoardElement } from '../types';
 import { BoardToolbar } from './board-toolbar';
 import { BoardElementComponent } from './board-element';
 import { Button } from './ui/button';
-import { ArrowLeft, Loader2, ZoomIn, ZoomOut, RotateCcw, Focus } from 'lucide-react';
+import { ArrowLeft, Loader2, ZoomIn, ZoomOut, Undo, Redo, Focus } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface BoardCanvasProps {
@@ -18,11 +18,21 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   const [loading, setLoading] = React.useState(true);
   const [selectedElementIds, setSelectedElementIds] = React.useState<Set<string>>(new Set());
   
+  // History state
+  const [history, setHistory] = React.useState<BoardElement[][]>([]);
+  const [historyIndex, setHistoryIndex] = React.useState(-1);
+  const maxHistorySize = 50;
+  
   // Pan & Zoom state
   const [scale, setScale] = React.useState(1);
   const [offset, setOffset] = React.useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = React.useState(false);
   const [panStart, setPanStart] = React.useState({ x: 0, y: 0 });
+  
+  // Selection box state
+  const [isSelecting, setIsSelecting] = React.useState(false);
+  const [selectionStart, setSelectionStart] = React.useState({ x: 0, y: 0 });
+  const [selectionEnd, setSelectionEnd] = React.useState({ x: 0, y: 0 });
   
   const canvasRef = React.useRef<HTMLDivElement>(null);
 
@@ -47,6 +57,76 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
       setLoading(false);
     }
   };
+
+  // Debounced history saving
+  const saveHistoryDebounced = React.useRef<NodeJS.Timeout>();
+
+  React.useEffect(() => {
+    clearTimeout(saveHistoryDebounced.current);
+    saveHistoryDebounced.current = setTimeout(() => {
+      let didShift = false;
+      // Save directly to avoid circular dependency
+      setHistory(prev => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        newHistory.push(JSON.parse(JSON.stringify(elements)));
+        if (newHistory.length > maxHistorySize) {
+          newHistory.shift();
+          didShift = true;
+          // Don't increment index when shifting since we removed the first element
+          return newHistory;
+        }
+        return newHistory;
+      });
+      // Update index separately to avoid race condition
+      if (!didShift) {
+        setHistoryIndex(prev => prev + 1);
+      }
+    }, 1000);
+    
+    // Cleanup timeout on unmount
+    return () => {
+      clearTimeout(saveHistoryDebounced.current);
+    };
+  }, [elements, historyIndex]);
+
+  // Undo/Redo handlers
+  const handleUndo = React.useCallback(() => {
+    if (historyIndex > 0) {
+      const previousState = history[historyIndex - 1];
+      setElements(JSON.parse(JSON.stringify(previousState)));
+      setHistoryIndex(prev => prev - 1);
+    }
+  }, [history, historyIndex]);
+
+  const handleRedo = React.useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const nextState = history[historyIndex + 1];
+      setElements(JSON.parse(JSON.stringify(nextState)));
+      setHistoryIndex(prev => prev + 1);
+    }
+  }, [history, historyIndex]);
+
+  // Keyboard shortcuts for Undo/Redo
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Не перехватывать если фокус в input/textarea
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+        return;
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
 
   // Add new element
   const handleAddElement = React.useCallback(async (type: 'note' | 'image' | 'heading' | 'text', imageUrl?: string) => {
@@ -183,9 +263,22 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   // Pan handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.target === canvasRef.current || (e.target as HTMLElement).dataset.canvas) {
-      setIsPanning(true);
-      setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
-      setSelectedElementIds(new Set());
+      // Если зажат Shift — начинаем выделение областью
+      if (e.shiftKey) {
+        setIsSelecting(true);
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (rect) {
+          const startX = (e.clientX - rect.left - offset.x) / scale;
+          const startY = (e.clientY - rect.top - offset.y) / scale;
+          setSelectionStart({ x: startX, y: startY });
+          setSelectionEnd({ x: startX, y: startY });
+        }
+      } else {
+        // Иначе — panning
+        setIsPanning(true);
+        setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+        setSelectedElementIds(new Set());
+      }
     }
   };
 
@@ -195,10 +288,40 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
         x: e.clientX - panStart.x,
         y: e.clientY - panStart.y
       });
+    } else if (isSelecting) {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+        const endX = (e.clientX - rect.left - offset.x) / scale;
+        const endY = (e.clientY - rect.top - offset.y) / scale;
+        setSelectionEnd({ x: endX, y: endY });
+      }
     }
   };
 
   const handleMouseUp = () => {
+    if (isSelecting) {
+      // Определить элементы в выделенной области
+      const minX = Math.min(selectionStart.x, selectionEnd.x);
+      const maxX = Math.max(selectionStart.x, selectionEnd.x);
+      const minY = Math.min(selectionStart.y, selectionEnd.y);
+      const maxY = Math.max(selectionStart.y, selectionEnd.y);
+      
+      const selectedIds = new Set<string>();
+      elements.forEach(el => {
+        // Проверка пересечения элемента с областью выделения
+        if (
+          el.positionX < maxX &&
+          el.positionX + el.width > minX &&
+          el.positionY < maxY &&
+          el.positionY + el.height > minY
+        ) {
+          selectedIds.add(el.id);
+        }
+      });
+      
+      setSelectedElementIds(selectedIds);
+      setIsSelecting(false);
+    }
     setIsPanning(false);
   };
 
@@ -233,7 +356,6 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
 
   const handleZoomIn = () => setScale(prev => Math.min(prev * 1.2, 4));
   const handleZoomOut = () => setScale(prev => Math.max(prev / 1.2, 0.25));
-  const handleResetView = () => { setScale(1); setOffset({ x: 0, y: 0 }); };
 
   // Center on content
   const handleCenterOnContent = React.useCallback(() => {
@@ -313,8 +435,23 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
           <Button variant="outline" size="sm" onClick={handleZoomIn}>
             <ZoomIn className="w-4 h-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={handleResetView}>
-            <RotateCcw className="w-4 h-4" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleUndo} 
+            disabled={historyIndex <= 0}
+            title="Отменить (Ctrl+Z)"
+          >
+            <Undo className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRedo} 
+            disabled={historyIndex >= history.length - 1}
+            title="Повторить (Ctrl+Y)"
+          >
+            <Redo className="w-4 h-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={handleCenterOnContent} title="Центрировать на контенте">
             <Focus className="w-4 h-4" />
@@ -371,6 +508,19 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
               offset={offset}
             />
           ))}
+          
+          {/* Selection box */}
+          {isSelecting && (
+            <div
+              className="absolute border-2 border-purple-500 bg-purple-100 bg-opacity-20 pointer-events-none"
+              style={{
+                left: Math.min(selectionStart.x, selectionEnd.x),
+                top: Math.min(selectionStart.y, selectionEnd.y),
+                width: Math.abs(selectionEnd.x - selectionStart.x),
+                height: Math.abs(selectionEnd.y - selectionStart.y)
+              }}
+            />
+          )}
         </div>
       </div>
     </div>
