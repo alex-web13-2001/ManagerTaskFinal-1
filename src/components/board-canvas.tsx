@@ -73,9 +73,15 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
           // Don't increment index when shifting since we removed the first element
           return newHistory;
         }
-        // Increment index only when not shifting
-        setHistoryIndex(prev => prev + 1);
         return newHistory;
+      });
+      // Update index separately to avoid race condition
+      setHistoryIndex(prev => {
+        const currentLength = historyIndex + 2; // +1 for current index, +1 for new element
+        if (currentLength > maxHistorySize) {
+          return prev; // Don't increment when we shifted
+        }
+        return prev + 1;
       });
     }, 1000);
     
@@ -89,7 +95,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   const handleUndo = React.useCallback(() => {
     if (historyIndex > 0) {
       const previousState = history[historyIndex - 1];
-      setElements(previousState);
+      setElements(JSON.parse(JSON.stringify(previousState)));
       setHistoryIndex(prev => prev - 1);
     }
   }, [history, historyIndex]);
@@ -97,7 +103,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   const handleRedo = React.useCallback(() => {
     if (historyIndex < history.length - 1) {
       const nextState = history[historyIndex + 1];
-      setElements(nextState);
+      setElements(JSON.parse(JSON.stringify(nextState)));
       setHistoryIndex(prev => prev + 1);
     }
   }, [history, historyIndex]);
