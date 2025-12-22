@@ -64,25 +64,23 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   React.useEffect(() => {
     clearTimeout(saveHistoryDebounced.current);
     saveHistoryDebounced.current = setTimeout(() => {
+      let didShift = false;
       // Save directly to avoid circular dependency
       setHistory(prev => {
         const newHistory = prev.slice(0, historyIndex + 1);
         newHistory.push(JSON.parse(JSON.stringify(elements)));
         if (newHistory.length > maxHistorySize) {
           newHistory.shift();
+          didShift = true;
           // Don't increment index when shifting since we removed the first element
           return newHistory;
         }
         return newHistory;
       });
       // Update index separately to avoid race condition
-      setHistoryIndex(prev => {
-        const currentLength = historyIndex + 2; // +1 for current index, +1 for new element
-        if (currentLength > maxHistorySize) {
-          return prev; // Don't increment when we shifted
-        }
-        return prev + 1;
-      });
+      if (!didShift) {
+        setHistoryIndex(prev => prev + 1);
+      }
     }, 1000);
     
     // Cleanup timeout on unmount
