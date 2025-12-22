@@ -65,11 +65,12 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
       newHistory.push(JSON.parse(JSON.stringify(elements)));
       if (newHistory.length > maxHistorySize) {
         newHistory.shift();
+        setHistoryIndex(prevIndex => prevIndex); // Don't increment when shifting
         return newHistory;
       }
+      setHistoryIndex(prevIndex => prevIndex + 1);
       return newHistory;
     });
-    setHistoryIndex(prev => Math.min(prev + 1, maxHistorySize - 1));
   }, [elements, historyIndex]);
 
   const handleUndo = React.useCallback(() => {
@@ -161,10 +162,28 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     if (elements.length > 0) {
       clearTimeout(saveHistoryDebounced.current);
       saveHistoryDebounced.current = setTimeout(() => {
-        saveToHistory();
+        // Save directly without calling saveToHistory to avoid circular dependency
+        setHistory(prev => {
+          const newHistory = prev.slice(0, historyIndex + 1);
+          newHistory.push(JSON.parse(JSON.stringify(elements)));
+          if (newHistory.length > maxHistorySize) {
+            newHistory.shift();
+            return newHistory;
+          }
+          return newHistory;
+        });
+        setHistoryIndex(prev => {
+          const newIndex = prev + 1;
+          return newIndex >= maxHistorySize ? maxHistorySize - 1 : newIndex;
+        });
       }, 1000);
     }
-  }, [elements, saveToHistory]);
+    
+    // Cleanup timeout on unmount
+    return () => {
+      clearTimeout(saveHistoryDebounced.current);
+    };
+  }, [elements, historyIndex]);
 
   // Keyboard shortcuts for Undo/Redo
   React.useEffect(() => {
