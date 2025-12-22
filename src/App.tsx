@@ -497,7 +497,20 @@ function MainAppContent() {
         </div>
       );
     }
-  }, [selectedProjectId, currentView, handleBackToProjects, handleProjectClick, handleCalendarView, handleBackFromCalendar, handleDashboardCalendarView, handleBackFromDashboardCalendar, handleTaskClick]);
+  }, [
+    selectedProjectId, 
+    currentView, 
+    handleBackToProjects, 
+    handleProjectClick, 
+    handleCalendarView, 
+    handleBackFromCalendar, 
+    handleDashboardCalendarView, 
+    handleBackFromDashboardCalendar, 
+    handleTaskClick,
+    selectedBoardId,
+    handleBoardClick,
+    handleBackFromBoard
+  ]);
 
   return (
     <SidebarProvider>
@@ -520,11 +533,9 @@ function MainAppContent() {
         currentView={currentView}
         onViewChange={(view) => {
           setCurrentView(view as View);
-          // Bug fix: Reset selectedBoardId when switching away from boards view
-          if (view !== 'boards') {
-            setSelectedBoardId(null);
-          }
-          // Problem #4 fix: Only navigate to root if not already there or in a detail view
+          // ВСЕГДА сбрасывать selectedBoardId при клике на любой пункт меню
+          // Это гарантирует что при клике на "Мои доски" покажется список, а не канвас
+          setSelectedBoardId(null);
           if (location.pathname !== '/') {
             navigate('/');
           }
