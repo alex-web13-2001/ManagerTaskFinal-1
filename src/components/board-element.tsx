@@ -331,7 +331,10 @@ export function BoardElementComponent({
           
           return (
             <div
-              className="w-full h-full bg-gradient-to-br from-purple-400 via-pink-500 to-orange-400 rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow flex items-center justify-center"
+              className="w-full h-full rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-xl transition-transform transition-shadow transform hover:scale-105"
+              style={{
+                background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 70%, #FD1D1D 85%, #F77737 100%)'
+              }}
               onClick={(e) => {
                 e.stopPropagation();
                 if (!wasDragging) {
@@ -339,10 +342,35 @@ export function BoardElementComponent({
                 }
               }}
             >
-              <div className="text-center text-white p-6">
-                <div className="text-6xl mb-4">📷</div>
-                <p className="font-bold text-xl mb-2">Instagram {contentType === 'reel' ? 'Reel' : 'Post'}</p>
-                <p className="text-sm opacity-90">Нажмите для просмотра</p>
+              <div className="w-full h-full flex flex-col items-center justify-center text-white p-6">
+                {/* Instagram Icon SVG */}
+                <div className="mb-4 drop-shadow-lg">
+                  <svg 
+                    viewBox="0 0 24 24" 
+                    width="64" 
+                    height="64" 
+                    fill="none" 
+                    stroke="white" 
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {/* Квадрат с округлыми углами */}
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                    {/* Круг камеры */}
+                    <circle cx="12" cy="12" r="4" />
+                    {/* Точка вспышки */}
+                    <circle cx="17.5" cy="6.5" r="1.5" fill="white" stroke="none" />
+                  </svg>
+                </div>
+                
+                {/* Text */}
+                <h3 className="font-bold text-xl mb-2 text-center drop-shadow-md">
+                  Instagram {contentType === 'reel' ? 'Reel' : 'Post'}
+                </h3>
+                <p className="text-sm opacity-90 text-center drop-shadow-sm">
+                  Нажмите для просмотра
+                </p>
               </div>
             </div>
           );
