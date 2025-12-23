@@ -180,6 +180,7 @@ export function BoardElementComponent({
     return () => {
       if (dragResetTimeoutRef.current) {
         clearTimeout(dragResetTimeoutRef.current);
+        dragResetTimeoutRef.current = null;
       }
     };
   }, []);
