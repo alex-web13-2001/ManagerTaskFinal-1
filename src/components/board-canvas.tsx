@@ -481,14 +481,20 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     } | null;
   }) => {
     try {
+      // Detect video type from URL
+      const videoType = detectVideoType(data.url);
+      
+      // Validate video type was detected
+      if (!videoType) {
+        toast.error('Неподдерживаемый тип видео');
+        return;
+      }
+      
       const centerX = (canvasRef.current?.clientWidth || 800) / 2 / scale - offset.x / scale;
       const centerY = (canvasRef.current?.clientHeight || 600) / 2 / scale - offset.y / scale;
       
       const defaultWidth = data.displayMode === 'embed' ? 560 : 400;
       const defaultHeight = data.displayMode === 'embed' ? 315 : 300;
-
-      // Detect video type from URL
-      const videoType = detectVideoType(data.url);
 
       const newElement = await boardsAPI.createElement(boardId, {
         type: 'video',
@@ -498,7 +504,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
         width: defaultWidth,
         height: defaultHeight,
         videoUrl: data.url,
-        videoType: videoType || 'youtube', // Default to youtube if detection fails
+        videoType: videoType,
         displayMode: data.displayMode,
         videoMeta: data.metadata
       });

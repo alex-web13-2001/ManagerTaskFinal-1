@@ -65,6 +65,7 @@ export function extractInstagramId(url: string): string | null {
     /instagram\.com\/p\/([A-Za-z0-9_-]+)/i,
     /instagram\.com\/reel\/([A-Za-z0-9_-]+)/i,
     /instagr\.am\/p\/([A-Za-z0-9_-]+)/i,
+    /instagr\.am\/reel\/([A-Za-z0-9_-]+)/i,  // Short URL reel support
   ];
   
   for (const pattern of patterns) {

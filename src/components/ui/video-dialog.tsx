@@ -29,7 +29,7 @@ interface VideoDialogProps {
 
 export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) {
   const [url, setUrl] = React.useState('');
-  const [displayMode, setDisplayMode] = React.useState<'embed' | 'preview'>('preview');
+  const [displayMode, setDisplayMode] = React.useState<'embed' | 'preview'>('embed');
   const [videoType, setVideoType] = React.useState<'youtube' | 'instagram' | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -97,7 +97,7 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
     
     // Reset state
     setUrl('');
-    setDisplayMode('preview');
+    setDisplayMode('embed');
     setVideoType(null);
     setError('');
     setMetadata(null);
