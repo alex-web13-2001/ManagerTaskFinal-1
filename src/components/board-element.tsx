@@ -341,7 +341,7 @@ export function BoardElementComponent({
               }}
             >
               {hasThumbnail ? (
-                // С thumbnail
+                // With thumbnail
                 <div className="relative w-full h-full">
                   <img 
                     src={element.videoMeta.thumbnail} 
@@ -380,7 +380,7 @@ export function BoardElementComponent({
                   </div>
                 </div>
               ) : (
-                // Без thumbnail - gradient тизер
+                // Without thumbnail - gradient teaser
                 <div 
                   className="w-full h-full flex flex-col items-center justify-center text-white p-6"
                   style={{

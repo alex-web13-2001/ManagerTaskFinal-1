@@ -3,7 +3,7 @@ import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 
 /**
- * Получить metadata Instagram поста через парсинг Open Graph тегов
+ * Get Instagram post metadata through Open Graph tag parsing
  */
 export async function getInstagramMetadata(
   req: express.Request,
@@ -16,9 +16,16 @@ export async function getInstagramMetadata(
       return res.status(400).json({ error: 'URL parameter required' });
     }
 
+    // Validate that URL is from Instagram domain (security: prevent SSRF)
+    const urlObj = new URL(url);
+    const allowedDomains = ['instagram.com', 'www.instagram.com', 'instagr.am'];
+    if (!allowedDomains.includes(urlObj.hostname)) {
+      return res.status(400).json({ error: 'URL must be from Instagram domain' });
+    }
+
     console.log('[Instagram Metadata] Fetching:', url);
 
-    // Fetch HTML страницы Instagram
+    // Fetch HTML page from Instagram
     const response = await fetch(url, {
       headers: {
         'User-Agent':
@@ -35,7 +42,7 @@ export async function getInstagramMetadata(
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    // Извлекаем Open Graph meta теги
+    // Extract Open Graph meta tags
     const ogTitle = $('meta[property="og:title"]').attr('content') || '';
     const ogImage = $('meta[property="og:image"]').attr('content') || '';
     const ogDescription = $('meta[property="og:description"]').attr('content') || '';
@@ -46,14 +53,14 @@ export async function getInstagramMetadata(
       descriptionLength: ogDescription.length,
     });
 
-    // Парсим автора из title (обычно формат: "Author | ... в Instagram: ...")
+    // Parse author from title (usually format: "Author | ... в Instagram: ...")
     let author = 'Instagram';
     const authorMatch = ogTitle.match(/^([^|:]+)/);
     if (authorMatch) {
       author = authorMatch[1].trim();
     }
 
-    // Парсим текст поста (после кавычек или двоеточия)
+    // Parse post text (after quotes or colon)
     let title = 'Instagram Post';
     const textMatch = ogTitle.match(/[«":]\s*[«"]?([^»"]+)/);
     if (textMatch && textMatch[1]) {
@@ -74,7 +81,7 @@ export async function getInstagramMetadata(
   } catch (error) {
     console.error('[Instagram Metadata] Error:', error);
     
-    // Возвращаем fallback данные при ошибке
+    // Return fallback data on error
     res.status(500).json({
       error: 'Failed to fetch metadata',
       fallback: {

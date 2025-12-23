@@ -76,7 +76,7 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
         
         const data = await response.json();
         
-        // Если есть fallback (ошибка на backend), используем его
+        // If there's a fallback (error on backend), use it
         if (data.fallback) {
           setMetadata(data.fallback);
         } else {
@@ -84,7 +84,7 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
         }
       } catch (err) {
         console.error('Failed to load Instagram metadata:', err);
-        // Fallback к статичным данным
+        // Fallback to static data
         setMetadata({
           title: getInstagramContentType(value) === 'reel' ? 'Instagram Reel' : 'Instagram Post',
           thumbnail: '',
@@ -202,7 +202,7 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
             </div>
           )}
           
-          {/* Instagram preview с metadata */}
+          {/* Instagram preview with metadata */}
           {videoType === 'instagram' && metadata && (
             <div className="border rounded-lg overflow-hidden">
               {metadata.thumbnail ? (
