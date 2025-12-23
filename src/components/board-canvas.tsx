@@ -159,6 +159,58 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     }
   }, [boardId, scale, offset, elements.length]);
 
+  // Helper function to add image with proper dimensions
+  const addImageWithDimensions = React.useCallback(async (imageUrl: string, successMessage: string) => {
+    return new Promise<void>((resolve, reject) => {
+      const img = new Image();
+      
+      img.onload = async () => {
+        try {
+          const maxSize = 600;
+          let width = img.naturalWidth;
+          let height = img.naturalHeight;
+          
+          // Scale down if larger than max size
+          if (width > maxSize || height > maxSize) {
+            const ratio = Math.min(maxSize / width, maxSize / height);
+            width = width * ratio;
+            height = height * ratio;
+          }
+          
+          const centerX = (canvasRef.current?.clientWidth || 800) / 2 / scale - offset.x / scale;
+          const centerY = (canvasRef.current?.clientHeight || 600) / 2 / scale - offset.y / scale;
+
+          const newElement = await boardsAPI.createElement(boardId, {
+            type: 'image',
+            positionX: centerX - width / 2,
+            positionY: centerY - height / 2,
+            zIndex: elements.length,
+            width,
+            height,
+            imageUrl
+          });
+          
+          setElements(prev => [...prev, newElement]);
+          setSelectedElementIds(new Set([newElement.id]));
+          toast.success(successMessage);
+          resolve();
+        } catch (error) {
+          console.error('Failed to create image element:', error);
+          toast.error('Не удалось создать элемент изображения');
+          reject(error);
+        }
+      };
+      
+      img.onerror = () => {
+        const error = new Error('Failed to load image');
+        toast.error('Не удалось загрузить изображение');
+        reject(error);
+      };
+      
+      img.src = imageUrl;
+    });
+  }, [boardId, scale, offset, elements.length]);
+
   // Handle paste from clipboard
   React.useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
@@ -179,44 +231,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
           if (file) {
             try {
               const { url } = await boardsAPI.uploadImage(boardId, file);
-              
-              // Load image to get natural dimensions
-              const img = new Image();
-              img.onload = async () => {
-                const maxSize = 600;
-                let width = img.naturalWidth;
-                let height = img.naturalHeight;
-                
-                // Scale down if larger than max size
-                if (width > maxSize || height > maxSize) {
-                  const ratio = Math.min(maxSize / width, maxSize / height);
-                  width = width * ratio;
-                  height = height * ratio;
-                }
-                
-                const centerX = (canvasRef.current?.clientWidth || 800) / 2 / scale - offset.x / scale;
-                const centerY = (canvasRef.current?.clientHeight || 600) / 2 / scale - offset.y / scale;
-
-                const newElement = await boardsAPI.createElement(boardId, {
-                  type: 'image',
-                  positionX: centerX - width / 2,
-                  positionY: centerY - height / 2,
-                  zIndex: elements.length,
-                  width,
-                  height,
-                  imageUrl: url
-                });
-                
-                setElements(prev => [...prev, newElement]);
-                setSelectedElementIds(new Set([newElement.id]));
-                toast.success('Изображение вставлено');
-              };
-              
-              img.onerror = () => {
-                toast.error('Не удалось загрузить изображение');
-              };
-              
-              img.src = url;
+              await addImageWithDimensions(url, 'Изображение вставлено');
             } catch (error) {
               console.error('Failed to paste image:', error);
               toast.error('Не удалось вставить изображение');
@@ -229,7 +244,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [boardId, scale, offset, elements.length]);
+  }, [boardId, addImageWithDimensions]);
 
   // Update element position/size
   const handleElementUpdate = async (elementId: string, updates: Partial<BoardElement>) => {
@@ -434,38 +449,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   const handleImageUpload = async (file: File) => {
     try {
       const { url } = await boardsAPI.uploadImage(boardId, file);
-      
-      const img = new Image();
-      img.onload = async () => {
-        const maxSize = 600;
-        let width = img.naturalWidth;
-        let height = img.naturalHeight;
-        
-        if (width > maxSize || height > maxSize) {
-          const ratio = Math.min(maxSize / width, maxSize / height);
-          width = width * ratio;
-          height = height * ratio;
-        }
-        
-        const centerX = (canvasRef.current?.clientWidth || 800) / 2 / scale - offset.x / scale;
-        const centerY = (canvasRef.current?.clientHeight || 600) / 2 / scale - offset.y / scale;
-
-        const newElement = await boardsAPI.createElement(boardId, {
-          type: 'image',
-          positionX: centerX - width / 2,
-          positionY: centerY - height / 2,
-          zIndex: elements.length,
-          width,
-          height,
-          imageUrl: url
-        });
-        
-        setElements(prev => [...prev, newElement]);
-        setSelectedElementIds(new Set([newElement.id]));
-        toast.success('Изображение добавлено');
-      };
-      
-      img.src = url;
+      await addImageWithDimensions(url, 'Изображение добавлено');
     } catch (error) {
       console.error('Failed to upload image:', error);
       toast.error('Не удалось загрузить изображение');
