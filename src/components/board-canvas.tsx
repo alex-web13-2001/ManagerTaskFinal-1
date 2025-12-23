@@ -6,6 +6,7 @@ import { BoardElementComponent } from './board-element';
 import { Button } from './ui/button';
 import { ArrowLeft, Loader2, ZoomIn, ZoomOut, Undo, Redo, Focus } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from './ui/utils';
 
 interface BoardCanvasProps {
   boardId: string;
@@ -178,8 +179,44 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
           if (file) {
             try {
               const { url } = await boardsAPI.uploadImage(boardId, file);
-              await handleAddElement('image', url);
-              toast.success('Изображение вставлено');
+              
+              // Load image to get natural dimensions
+              const img = new Image();
+              img.onload = async () => {
+                const maxSize = 600;
+                let width = img.naturalWidth;
+                let height = img.naturalHeight;
+                
+                // Scale down if larger than max size
+                if (width > maxSize || height > maxSize) {
+                  const ratio = Math.min(maxSize / width, maxSize / height);
+                  width = width * ratio;
+                  height = height * ratio;
+                }
+                
+                const centerX = (canvasRef.current?.clientWidth || 800) / 2 / scale - offset.x / scale;
+                const centerY = (canvasRef.current?.clientHeight || 600) / 2 / scale - offset.y / scale;
+
+                const newElement = await boardsAPI.createElement(boardId, {
+                  type: 'image',
+                  positionX: centerX - width / 2,
+                  positionY: centerY - height / 2,
+                  zIndex: elements.length,
+                  width,
+                  height,
+                  imageUrl: url
+                });
+                
+                setElements(prev => [...prev, newElement]);
+                setSelectedElementIds(new Set([newElement.id]));
+                toast.success('Изображение вставлено');
+              };
+              
+              img.onerror = () => {
+                toast.error('Не удалось загрузить изображение');
+              };
+              
+              img.src = url;
             } catch (error) {
               console.error('Failed to paste image:', error);
               toast.error('Не удалось вставить изображение');
@@ -192,7 +229,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [boardId, handleAddElement]);
+  }, [boardId, scale, offset, elements.length]);
 
   // Update element position/size
   const handleElementUpdate = async (elementId: string, updates: Partial<BoardElement>) => {
@@ -397,7 +434,38 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   const handleImageUpload = async (file: File) => {
     try {
       const { url } = await boardsAPI.uploadImage(boardId, file);
-      await handleAddElement('image', url);
+      
+      const img = new Image();
+      img.onload = async () => {
+        const maxSize = 600;
+        let width = img.naturalWidth;
+        let height = img.naturalHeight;
+        
+        if (width > maxSize || height > maxSize) {
+          const ratio = Math.min(maxSize / width, maxSize / height);
+          width = width * ratio;
+          height = height * ratio;
+        }
+        
+        const centerX = (canvasRef.current?.clientWidth || 800) / 2 / scale - offset.x / scale;
+        const centerY = (canvasRef.current?.clientHeight || 600) / 2 / scale - offset.y / scale;
+
+        const newElement = await boardsAPI.createElement(boardId, {
+          type: 'image',
+          positionX: centerX - width / 2,
+          positionY: centerY - height / 2,
+          zIndex: elements.length,
+          width,
+          height,
+          imageUrl: url
+        });
+        
+        setElements(prev => [...prev, newElement]);
+        setSelectedElementIds(new Set([newElement.id]));
+        toast.success('Изображение добавлено');
+      };
+      
+      img.src = url;
     } catch (error) {
       console.error('Failed to upload image:', error);
       toast.error('Не удалось загрузить изображение');
@@ -470,7 +538,10 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
       {/* Canvas */}
       <div
         ref={canvasRef}
-        className="flex-1 overflow-hidden cursor-grab active:cursor-grabbing"
+        className={cn(
+          "flex-1 overflow-hidden",
+          isSelecting ? "cursor-crosshair" : isPanning ? "cursor-grabbing" : "cursor-grab"
+        )}
         data-canvas="true"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
