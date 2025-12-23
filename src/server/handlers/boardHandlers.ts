@@ -215,8 +215,18 @@ export async function deleteBoard(req: Request, res: Response) {
 export async function createElement(req: Request, res: Response) {
   try {
     const { id } = req.params;
-    const { type, positionX, positionY, width, height, content, imageUrl, color, fontSize, zIndex, rotation } = req.body;
+    const { type, positionX, positionY, width, height, content, imageUrl, color, fontSize, zIndex, rotation, videoUrl, videoType, displayMode, videoMeta } = req.body;
     const userId = (req as AuthRequest).user!.sub;
+
+    // Debug: логировать создание video элемента
+    if (type === 'video') {
+      console.log('[CREATE VIDEO ELEMENT]', {
+        videoUrl,
+        videoType,
+        displayMode,
+        videoMeta: videoMeta && typeof videoMeta === 'object' && Object.keys(videoMeta).length > 0 ? 'present' : 'null'
+      });
+    }
 
     // Проверить права доступа к доске
     const board = await prisma.board.findUnique({
@@ -245,6 +255,10 @@ export async function createElement(req: Request, res: Response) {
         imageUrl: imageUrl || null,
         color: color || null,
         fontSize: fontSize || null,
+        videoUrl: videoUrl || null,
+        videoType: videoType || null,
+        displayMode: displayMode || null,
+        videoMeta: videoMeta || null,
         boardId: id,
       },
     });
@@ -263,7 +277,7 @@ export async function createElement(req: Request, res: Response) {
 export async function updateElement(req: Request, res: Response) {
   try {
     const { id, elementId } = req.params;
-    const { positionX, positionY, width, height, zIndex, rotation, content, imageUrl, color, fontSize } = req.body;
+    const { positionX, positionY, width, height, zIndex, rotation, content, imageUrl, color, fontSize, videoUrl, videoType, displayMode, videoMeta } = req.body;
     const userId = (req as AuthRequest).user!.sub;
 
     // Проверить права доступа
@@ -296,6 +310,19 @@ export async function updateElement(req: Request, res: Response) {
     if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
     if (color !== undefined) updateData.color = color;
     if (fontSize !== undefined) updateData.fontSize = fontSize;
+    if (videoUrl !== undefined) updateData.videoUrl = videoUrl;
+    if (videoType !== undefined) updateData.videoType = videoType;
+    if (displayMode !== undefined) updateData.displayMode = displayMode;
+    if (videoMeta !== undefined) updateData.videoMeta = videoMeta;
+
+    // Debug: логировать обновление video полей
+    if (videoUrl !== undefined || displayMode !== undefined) {
+      console.log('[UPDATE VIDEO ELEMENT]', elementId, {
+        videoUrl,
+        displayMode,
+        videoMeta: videoMeta && typeof videoMeta === 'object' && Object.keys(videoMeta).length > 0 ? 'present' : 'null'
+      });
+    }
 
     // Обновить элемент
     const updatedElement = await prisma.boardElement.update({
