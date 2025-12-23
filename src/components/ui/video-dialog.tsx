@@ -66,7 +66,7 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Вставить видео</DialogTitle>
         </DialogHeader>
