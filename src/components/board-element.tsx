@@ -240,11 +240,9 @@ export function BoardElementComponent({
   return (
     <div
       ref={elementRef}
-      className={cn(
-        'absolute cursor-move',
-        isSelected && 'ring-2 ring-purple-500 ring-offset-2'
-      )}
+      className="cursor-move"
       style={{
+        position: 'absolute',
         left: element.positionX,
         top: element.positionY,
         width: element.width,
@@ -256,32 +254,38 @@ export function BoardElementComponent({
       onMouseDown={handleDragStart}
       onDoubleClick={handleDoubleClick}
     >
-      {renderContent()}
+      {/* Wrapper with relative for proper button positioning */}
+      <div className={cn(
+        'relative w-full h-full',
+        isSelected && 'ring-2 ring-purple-500 ring-offset-2'
+      )}>
+        {renderContent()}
 
-      {/* Selection controls */}
-      {isSelected && (
-        <>
-          {/* Delete button - top-left corner */}
-          <Button
-            variant="destructive"
-            size="sm"
-            className="absolute -top-3 -left-3 w-7 h-7 p-0 rounded-full z-20 shadow-lg"
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+        {/* Selection controls */}
+        {isSelected && (
+          <>
+            {/* Delete button - top-left corner */}
+            <Button
+              variant="destructive"
+              size="sm"
+              className="absolute -top-3 -left-3 w-7 h-7 p-0 rounded-full z-20 shadow-lg"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
 
-          {/* Resize handle - bottom-right corner */}
-          <div
-            className="absolute -bottom-3 -right-3 w-6 h-6 bg-purple-500 rounded-full cursor-se-resize z-10 flex items-center justify-center shadow-lg border-2 border-white"
-            onMouseDown={handleResizeStart}
-          >
-            <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 21L12 21M21 21L21 12M21 21L14 14" />
-            </svg>
-          </div>
-        </>
-      )}
+            {/* Resize handle - bottom-right corner */}
+            <div
+              className="absolute -bottom-3 -right-3 w-6 h-6 bg-purple-500 rounded-full cursor-se-resize z-10 flex items-center justify-center shadow-lg border-2 border-white"
+              onMouseDown={handleResizeStart}
+            >
+              <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 21L12 21M21 21L21 12M21 21L14 14" />
+              </svg>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

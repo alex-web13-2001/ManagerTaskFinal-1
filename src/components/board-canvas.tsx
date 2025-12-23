@@ -6,6 +6,7 @@ import { BoardElementComponent } from './board-element';
 import { Button } from './ui/button';
 import { ArrowLeft, Loader2, ZoomIn, ZoomOut, Undo, Redo, Focus } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from './ui/utils';
 
 interface BoardCanvasProps {
   boardId: string;
@@ -38,6 +39,20 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
 
   // Constants
   const CANVAS_PADDING = 100; // Padding for center-on-content feature
+  const MAX_IMAGE_SIZE = 600; // Maximum dimension for uploaded images
+
+  // Utility function to calculate scaled dimensions maintaining aspect ratio
+  const calculateScaledDimensions = (width: number, height: number, maxSize: number) => {
+    if (width <= maxSize && height <= maxSize) {
+      return { width, height };
+    }
+    
+    const ratio = Math.min(maxSize / width, maxSize / height);
+    return {
+      width: width * ratio,
+      height: height * ratio
+    };
+  };
 
   // Load board with elements
   React.useEffect(() => {
@@ -158,6 +173,54 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     }
   }, [boardId, scale, offset, elements.length]);
 
+  // Helper function to add image with proper dimensions
+  const addImageWithDimensions = React.useCallback(async (imageUrl: string, successMessage: string) => {
+    return new Promise<void>((resolve, reject) => {
+      const img = new Image();
+      
+      img.onload = async () => {
+        try {
+          // Get scaled dimensions maintaining aspect ratio
+          const { width, height } = calculateScaledDimensions(
+            img.naturalWidth,
+            img.naturalHeight,
+            MAX_IMAGE_SIZE
+          );
+          
+          const centerX = (canvasRef.current?.clientWidth || 800) / 2 / scale - offset.x / scale;
+          const centerY = (canvasRef.current?.clientHeight || 600) / 2 / scale - offset.y / scale;
+
+          const newElement = await boardsAPI.createElement(boardId, {
+            type: 'image',
+            positionX: centerX - width / 2,
+            positionY: centerY - height / 2,
+            zIndex: elements.length,
+            width,
+            height,
+            imageUrl
+          });
+          
+          setElements(prev => [...prev, newElement]);
+          setSelectedElementIds(new Set([newElement.id]));
+          toast.success(successMessage);
+          resolve();
+        } catch (error) {
+          console.error('Failed to create image element:', error);
+          toast.error('Не удалось создать элемент изображения');
+          reject(error);
+        }
+      };
+      
+      img.onerror = () => {
+        const error = new Error('Failed to load image');
+        toast.error('Не удалось загрузить изображение');
+        reject(error);
+      };
+      
+      img.src = imageUrl;
+    });
+  }, [boardId, scale, offset, elements.length]);
+
   // Handle paste from clipboard
   React.useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
@@ -178,8 +241,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
           if (file) {
             try {
               const { url } = await boardsAPI.uploadImage(boardId, file);
-              await handleAddElement('image', url);
-              toast.success('Изображение вставлено');
+              await addImageWithDimensions(url, 'Изображение вставлено');
             } catch (error) {
               console.error('Failed to paste image:', error);
               toast.error('Не удалось вставить изображение');
@@ -192,7 +254,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [boardId, handleAddElement]);
+  }, [boardId, addImageWithDimensions]);
 
   // Update element position/size
   const handleElementUpdate = async (elementId: string, updates: Partial<BoardElement>) => {
@@ -397,7 +459,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   const handleImageUpload = async (file: File) => {
     try {
       const { url } = await boardsAPI.uploadImage(boardId, file);
-      await handleAddElement('image', url);
+      await addImageWithDimensions(url, 'Изображение добавлено');
     } catch (error) {
       console.error('Failed to upload image:', error);
       toast.error('Не удалось загрузить изображение');
@@ -470,7 +532,10 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
       {/* Canvas */}
       <div
         ref={canvasRef}
-        className="flex-1 overflow-hidden cursor-grab active:cursor-grabbing"
+        className={cn(
+          "flex-1 overflow-hidden",
+          isSelecting ? "cursor-crosshair" : isPanning ? "cursor-grabbing" : "cursor-grab"
+        )}
         data-canvas="true"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
