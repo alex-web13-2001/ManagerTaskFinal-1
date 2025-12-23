@@ -185,30 +185,29 @@ export function BoardElementComponent({
     }
   }, [isResizing, handleResize, handleResizeEnd]);
 
-  // Cleanup timeout on unmount
+  // Cleanup timeout on unmount and force remove all event listeners
   React.useEffect(() => {
+    // Store current handlers for cleanup
+    const currentHandleDrag = handleDrag;
+    const currentHandleDragEnd = handleDragEnd;
+    const currentHandleResize = handleResize;
+    const currentHandleResizeEnd = handleResizeEnd;
+    
     return () => {
       // Force stop any ongoing drag/resize
       isDraggingRef.current = false;
       isResizingRef.current = false;
-      setIsDragging(false);
-      setIsResizing(false);
+      
+      // Force remove ALL listeners with current handler references
+      window.removeEventListener('mousemove', currentHandleDrag);
+      window.removeEventListener('mouseup', currentHandleDragEnd);
+      window.removeEventListener('mousemove', currentHandleResize);
+      window.removeEventListener('mouseup', currentHandleResizeEnd);
       
       if (dragResetTimeoutRef.current) {
         clearTimeout(dragResetTimeoutRef.current);
         dragResetTimeoutRef.current = null;
       }
-    };
-  }, []);
-
-  // Force cleanup ALL listeners on unmount to prevent memory leaks
-  React.useEffect(() => {
-    return () => {
-      // Force remove ALL listeners
-      window.removeEventListener('mousemove', handleDrag);
-      window.removeEventListener('mouseup', handleDragEnd);
-      window.removeEventListener('mousemove', handleResize);
-      window.removeEventListener('mouseup', handleResizeEnd);
     };
   }, [handleDrag, handleDragEnd, handleResize, handleResizeEnd]);
 
