@@ -3,6 +3,7 @@ import { BoardElement } from '../types';
 import { Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from './ui/utils';
+import { extractYouTubeId } from '../utils/video-parser';
 
 // Button offset for positioning delete and resize buttons at corners
 const BUTTON_CORNER_OFFSET = '-12px';
@@ -91,8 +92,8 @@ export function BoardElementComponent({
     const deltaX = (e.clientX - resizeStart.x) / scale;
     const deltaY = (e.clientY - resizeStart.y) / scale;
     
-    // For images - maintain aspect ratio
-    if (element.type === 'image') {
+    // For images and videos - maintain aspect ratio
+    if (element.type === 'image' || (element.type === 'video' && element.displayMode === 'embed')) {
       const aspectRatio = resizeStart.width / resizeStart.height;
       // Use the larger delta to determine new size
       const maxDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY * aspectRatio;
@@ -106,7 +107,7 @@ export function BoardElementComponent({
         height: Math.max(30, resizeStart.height + deltaY)
       });
     }
-  }, [isResizing, resizeStart, scale, onUpdate, element.type]);
+  }, [isResizing, resizeStart, scale, onUpdate, element.type, element.displayMode]);
 
   const handleResizeEnd = React.useCallback(() => {
     setIsResizing(false);
@@ -114,7 +115,12 @@ export function BoardElementComponent({
 
   // Content editing
   const handleDoubleClick = () => {
-    if (element.type !== 'image') {
+    if (element.type === 'video') {
+      // Toggle display mode for video
+      onUpdate({
+        displayMode: element.displayMode === 'embed' ? 'preview' : 'embed'
+      });
+    } else if (element.type !== 'image') {
       setIsEditing(true);
       setTimeout(() => textRef.current?.focus(), 0);
     }
@@ -234,6 +240,57 @@ export function BoardElementComponent({
             {element.content || 'Текст'}
           </div>
         );
+      
+      case 'video':
+        if (!element.videoUrl) return null;
+        
+        const videoId = extractYouTubeId(element.videoUrl);
+        if (!videoId) return null;
+        
+        if (element.displayMode === 'embed') {
+          // Embedded player
+          return (
+            <iframe
+              src={`https://www.youtube.com/embed/${videoId}`}
+              className="w-full h-full rounded-lg"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title="YouTube video"
+            />
+          );
+        } else {
+          // Preview mode
+          return (
+            <div
+              className="w-full h-full bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => window.open(element.videoUrl, '_blank')}
+            >
+              <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                <img
+                  src={element.videoMeta?.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
+                  alt={element.videoMeta?.title || 'Video thumbnail'}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                {/* Play button overlay */}
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 hover:bg-opacity-30 transition-all">
+                  <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div className="p-3">
+                <h3 className="font-semibold text-sm line-clamp-2 mb-1">
+                  {element.videoMeta?.title || 'YouTube Video'}
+                </h3>
+                <p className="text-xs text-gray-600">
+                  {element.videoMeta?.author || 'YouTube'}
+                </p>
+              </div>
+            </div>
+          );
+        }
       
       default:
         return null;

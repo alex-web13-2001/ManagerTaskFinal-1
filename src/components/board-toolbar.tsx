@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from './ui/button';
-import { StickyNote, Type, Heading1, Image } from 'lucide-react';
+import { StickyNote, Type, Heading1, Image, Video } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface BoardToolbarProps {
@@ -8,9 +8,10 @@ interface BoardToolbarProps {
   onAddHeading: () => void;
   onAddText: () => void;
   onAddImage: (file: File) => void;
+  onAddVideo: () => void;
 }
 
-export function BoardToolbar({ onAddNote, onAddHeading, onAddText, onAddImage }: BoardToolbarProps) {
+export function BoardToolbar({ onAddNote, onAddHeading, onAddText, onAddImage, onAddVideo }: BoardToolbarProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,6 +54,11 @@ export function BoardToolbar({ onAddNote, onAddHeading, onAddText, onAddImage }:
       <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
         <Image className="w-4 h-4 mr-2" />
         Изображение
+      </Button>
+      
+      <Button variant="outline" size="sm" onClick={onAddVideo}>
+        <Video className="w-4 h-4 mr-2" />
+        Видео
       </Button>
       
       <input

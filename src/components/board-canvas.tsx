@@ -3,6 +3,7 @@ import { boardsAPI } from '../utils/api-client';
 import { Board, BoardElement } from '../types';
 import { BoardToolbar } from './board-toolbar';
 import { BoardElementComponent } from './board-element';
+import { VideoDialog } from './ui/video-dialog';
 import { Button } from './ui/button';
 import { ArrowLeft, Loader2, ZoomIn, ZoomOut, Undo, Redo, Focus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,6 +19,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
   const [elements, setElements] = React.useState<BoardElement[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedElementIds, setSelectedElementIds] = React.useState<Set<string>>(new Set());
+  const [videoDialogOpen, setVideoDialogOpen] = React.useState(false);
   
   // History state
   const [history, setHistory] = React.useState<BoardElement[][]>([]);
@@ -466,6 +468,46 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     }
   };
 
+  // Video insertion
+  const handleAddVideo = async (data: {
+    url: string;
+    displayMode: 'embed' | 'preview';
+    metadata: {
+      title: string;
+      thumbnail: string;
+      description: string;
+      author: string;
+    } | null;
+  }) => {
+    try {
+      const centerX = (canvasRef.current?.clientWidth || 800) / 2 / scale - offset.x / scale;
+      const centerY = (canvasRef.current?.clientHeight || 600) / 2 / scale - offset.y / scale;
+      
+      const defaultWidth = data.displayMode === 'embed' ? 560 : 400;
+      const defaultHeight = data.displayMode === 'embed' ? 315 : 300;
+
+      const newElement = await boardsAPI.createElement(boardId, {
+        type: 'video',
+        positionX: centerX - defaultWidth / 2,
+        positionY: centerY - defaultHeight / 2,
+        zIndex: elements.length,
+        width: defaultWidth,
+        height: defaultHeight,
+        videoUrl: data.url,
+        videoType: 'youtube',
+        displayMode: data.displayMode,
+        videoMeta: data.metadata
+      });
+      
+      setElements(prev => [...prev, newElement]);
+      setSelectedElementIds(new Set([newElement.id]));
+      toast.success('Видео добавлено');
+    } catch (error) {
+      console.error('Failed to add video:', error);
+      toast.error('Не удалось добавить видео');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -527,6 +569,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
         onAddHeading={() => handleAddElement('heading')}
         onAddText={() => handleAddElement('text')}
         onAddImage={handleImageUpload}
+        onAddVideo={() => setVideoDialogOpen(true)}
       />
 
       {/* Canvas */}
@@ -593,6 +636,13 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
           )}
         </div>
       </div>
+      
+      {/* Video Dialog */}
+      <VideoDialog
+        open={videoDialogOpen}
+        onOpenChange={setVideoDialogOpen}
+        onInsert={handleAddVideo}
+      />
     </div>
   );
 }

@@ -132,7 +132,7 @@ export interface Board {
 
 export interface BoardElement {
   id: string;
-  type: 'note' | 'image' | 'heading' | 'text';
+  type: 'note' | 'image' | 'heading' | 'text' | 'video';
   positionX: number;
   positionY: number;
   width: number;
@@ -143,6 +143,16 @@ export interface BoardElement {
   imageUrl?: string;
   color?: string;
   fontSize?: number;
+  // Video-specific fields
+  videoUrl?: string;
+  videoType?: 'youtube' | 'vimeo';
+  displayMode?: 'embed' | 'preview';
+  videoMeta?: {
+    title: string;
+    thumbnail: string;
+    description: string;
+    author: string;
+  };
   boardId: string;
   createdAt: string;
   updatedAt: string;

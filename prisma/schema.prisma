@@ -341,7 +341,7 @@ model Board {
 // BoardElement - элемент на доске (заметка, фото, заголовок, текст)
 model BoardElement {
   id        String   @id @default(uuid())
-  type      String   // 'note' | 'image' | 'heading' | 'text'
+  type      String   // 'note' | 'image' | 'heading' | 'text' | 'video'
   
   // Позиция на канвасе
   positionX Float    @default(0)
@@ -356,6 +356,12 @@ model BoardElement {
   imageUrl  String?  // URL изображения для image
   color     String?  // Цвет фона для note
   fontSize  Int?     // Размер шрифта
+  
+  // Video fields
+  videoUrl    String?
+  videoType   String?  // 'youtube' | 'vimeo'
+  displayMode String?  // 'embed' | 'preview'
+  videoMeta   Json?    // { title, thumbnail, description, author }
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
