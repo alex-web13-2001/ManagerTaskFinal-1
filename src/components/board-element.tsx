@@ -45,12 +45,17 @@ export function BoardElementComponent({
   const textRef = React.useRef<HTMLTextAreaElement>(null);
   const lastPositionRef = React.useRef({ x: element.positionX, y: element.positionY });
   const dragResetTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  
+  // Refs for stable drag/resize tracking without triggering re-renders
+  const isDraggingRef = React.useRef(false);
+  const isResizingRef = React.useRef(false);
 
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent) => {
     e.stopPropagation();
     onSelect(e);
-    setIsDragging(true);
+    isDraggingRef.current = true;  // Ref for stable tracking
+    setIsDragging(true);            // State for UI updates
     // Store the offset from mouse to element's top-left corner in canvas space
     lastPositionRef.current = { x: element.positionX, y: element.positionY };
     setDragStart({
@@ -60,7 +65,7 @@ export function BoardElementComponent({
   };
 
   const handleDrag = React.useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
+    if (!isDraggingRef.current) return;  // Use ref instead of state
     
     // Mark that dragging is happening
     setWasDragging(true);
@@ -81,10 +86,12 @@ export function BoardElementComponent({
       // Otherwise, just update this element
       onUpdate({ positionX: newX, positionY: newY });
     }
-  }, [isDragging, dragStart, scale, offset, onUpdate, onDragDelta]);
+  }, [scale, offset, dragStart, onUpdate, onDragDelta]);
+  // Removed isDragging from dependencies to prevent function recreation
 
   const handleDragEnd = React.useCallback(() => {
-    setIsDragging(false);
+    isDraggingRef.current = false;  // Clear ref
+    setIsDragging(false);            // Clear state
     // Clear any existing timeout
     if (dragResetTimeoutRef.current) {
       clearTimeout(dragResetTimeoutRef.current);
@@ -96,7 +103,8 @@ export function BoardElementComponent({
   // Resize handlers
   const handleResizeStart = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsResizing(true);
+    isResizingRef.current = true;  // Ref for stable tracking
+    setIsResizing(true);            // State for UI updates
     setResizeStart({
       width: element.width,
       height: element.height,
@@ -106,7 +114,7 @@ export function BoardElementComponent({
   };
 
   const handleResize = React.useCallback((e: MouseEvent) => {
-    if (!isResizing) return;
+    if (!isResizingRef.current) return;  // Use ref instead of state
     const deltaX = (e.clientX - resizeStart.x) / scale;
     const deltaY = (e.clientY - resizeStart.y) / scale;
     
@@ -125,10 +133,12 @@ export function BoardElementComponent({
         height: Math.max(30, resizeStart.height + deltaY)
       });
     }
-  }, [isResizing, resizeStart, scale, onUpdate, element.type]);
+  }, [resizeStart, scale, onUpdate, element.type]);
+  // Removed isResizing from dependencies to prevent function recreation
 
   const handleResizeEnd = React.useCallback(() => {
-    setIsResizing(false);
+    isResizingRef.current = false;  // Clear ref
+    setIsResizing(false);            // Clear state
   }, []);
 
   // Content editing
@@ -178,14 +188,29 @@ export function BoardElementComponent({
   // Cleanup timeout on unmount
   React.useEffect(() => {
     return () => {
+      // Force stop any ongoing drag/resize
+      isDraggingRef.current = false;
+      isResizingRef.current = false;
       setIsDragging(false);
       setIsResizing(false);
+      
       if (dragResetTimeoutRef.current) {
         clearTimeout(dragResetTimeoutRef.current);
         dragResetTimeoutRef.current = null;
       }
     };
   }, []);
+
+  // Force cleanup ALL listeners on unmount to prevent memory leaks
+  React.useEffect(() => {
+    return () => {
+      // Force remove ALL listeners
+      window.removeEventListener('mousemove', handleDrag);
+      window.removeEventListener('mouseup', handleDragEnd);
+      window.removeEventListener('mousemove', handleResize);
+      window.removeEventListener('mouseup', handleResizeEnd);
+    };
+  }, [handleDrag, handleDragEnd, handleResize, handleResizeEnd]);
 
   // Keyboard delete
   React.useEffect(() => {
