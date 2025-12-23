@@ -224,7 +224,7 @@ export async function createElement(req: Request, res: Response) {
         videoUrl,
         videoType,
         displayMode,
-        videoMeta: videoMeta ? 'present' : 'null'
+        videoMeta: videoMeta && typeof videoMeta === 'object' && Object.keys(videoMeta).length > 0 ? 'present' : 'null'
       });
     }
 
@@ -320,7 +320,7 @@ export async function updateElement(req: Request, res: Response) {
       console.log('[UPDATE VIDEO ELEMENT]', elementId, {
         videoUrl,
         displayMode,
-        videoMeta: videoMeta ? 'present' : 'null'
+        videoMeta: videoMeta && typeof videoMeta === 'object' && Object.keys(videoMeta).length > 0 ? 'present' : 'null'
       });
     }
 
