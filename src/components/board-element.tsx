@@ -178,6 +178,8 @@ export function BoardElementComponent({
   // Cleanup timeout on unmount
   React.useEffect(() => {
     return () => {
+      setIsDragging(false);
+      setIsResizing(false);
       if (dragResetTimeoutRef.current) {
         clearTimeout(dragResetTimeoutRef.current);
         dragResetTimeoutRef.current = null;
@@ -305,7 +307,7 @@ export function BoardElementComponent({
               {!isSelected && (
                 <div 
                   className="absolute inset-0 cursor-move"
-                  style={{ pointerEvents: 'auto' }}
+                  style={{ pointerEvents: isDragging ? 'none' : 'auto' }}
                 />
               )}
             </div>
