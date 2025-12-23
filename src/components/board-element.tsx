@@ -4,6 +4,9 @@ import { Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from './ui/utils';
 
+// Button offset for positioning delete and resize buttons at corners
+const BUTTON_CORNER_OFFSET = '-12px';
+
 interface BoardElementComponentProps {
   element: BoardElement;
   isSelected: boolean;
@@ -270,8 +273,8 @@ export function BoardElementComponent({
               size="sm"
               className="absolute w-7 h-7 p-0 rounded-full z-20 shadow-lg"
               style={{
-                top: '-12px',
-                right: '-12px'
+                top: BUTTON_CORNER_OFFSET,
+                right: BUTTON_CORNER_OFFSET
               }}
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
             >
@@ -282,8 +285,8 @@ export function BoardElementComponent({
             <div
               className="absolute w-6 h-6 bg-purple-500 rounded-full cursor-se-resize z-10 flex items-center justify-center shadow-lg border-2 border-white"
               style={{
-                bottom: '-12px',
-                right: '-12px'
+                bottom: BUTTON_CORNER_OFFSET,
+                right: BUTTON_CORNER_OFFSET
               }}
               onMouseDown={handleResizeStart}
             >
