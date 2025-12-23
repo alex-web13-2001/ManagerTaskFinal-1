@@ -40,7 +40,7 @@ export async function getYouTubeMetadata(url: string): Promise<{
     return {
       title: data.title || 'YouTube Video',
       thumbnail: data.thumbnail_url || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-      description: data.author_name || '',
+      description: data.title || '',
       author: data.author_name || 'YouTube'
     };
   } catch (error) {

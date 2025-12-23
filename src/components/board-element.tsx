@@ -8,6 +8,9 @@ import { extractYouTubeId } from '../utils/video-parser';
 // Button offset for positioning delete and resize buttons at corners
 const BUTTON_CORNER_OFFSET = '-12px';
 
+// Video aspect ratio constant (16:9)
+const VIDEO_ASPECT_RATIO_PADDING = '56.25%';
+
 interface BoardElementComponentProps {
   element: BoardElement;
   isSelected: boolean;
@@ -92,8 +95,8 @@ export function BoardElementComponent({
     const deltaX = (e.clientX - resizeStart.x) / scale;
     const deltaY = (e.clientY - resizeStart.y) / scale;
     
-    // For images and videos - maintain aspect ratio
-    if (element.type === 'image' || (element.type === 'video' && element.displayMode === 'embed')) {
+    // For images and videos in embed mode - maintain aspect ratio
+    if (element.type === 'image' || element.type === 'video') {
       const aspectRatio = resizeStart.width / resizeStart.height;
       // Use the larger delta to determine new size
       const maxDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY * aspectRatio;
@@ -107,7 +110,7 @@ export function BoardElementComponent({
         height: Math.max(30, resizeStart.height + deltaY)
       });
     }
-  }, [isResizing, resizeStart, scale, onUpdate, element.type, element.displayMode]);
+  }, [isResizing, resizeStart, scale, onUpdate, element.type]);
 
   const handleResizeEnd = React.useCallback(() => {
     setIsResizing(false);
@@ -265,7 +268,7 @@ export function BoardElementComponent({
               className="w-full h-full bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
               onClick={() => window.open(element.videoUrl, '_blank')}
             >
-              <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+              <div className="relative w-full" style={{ paddingBottom: VIDEO_ASPECT_RATIO_PADDING }}>
                 <img
                   src={element.videoMeta?.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
                   alt={element.videoMeta?.title || 'Video thumbnail'}
@@ -281,7 +284,12 @@ export function BoardElementComponent({
                 </div>
               </div>
               <div className="p-3">
-                <h3 className="font-semibold text-sm line-clamp-2 mb-1">
+                <h3 className="font-semibold text-sm mb-1" style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}>
                   {element.videoMeta?.title || 'YouTube Video'}
                 </h3>
                 <p className="text-xs text-gray-600">
