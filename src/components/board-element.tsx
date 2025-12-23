@@ -331,7 +331,7 @@ export function BoardElementComponent({
           
           return (
             <div
-              className="w-full h-full rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-xl transition-all transform hover:scale-105"
+              className="w-full h-full rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-xl transition-transform transition-shadow transform hover:scale-105"
               style={{
                 background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 70%, #FD1D1D 85%, #F77737 100%)'
               }}
