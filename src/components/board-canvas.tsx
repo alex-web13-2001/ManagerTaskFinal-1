@@ -39,6 +39,20 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
 
   // Constants
   const CANVAS_PADDING = 100; // Padding for center-on-content feature
+  const MAX_IMAGE_SIZE = 600; // Maximum dimension for uploaded images
+
+  // Utility function to calculate scaled dimensions maintaining aspect ratio
+  const calculateScaledDimensions = (width: number, height: number, maxSize: number) => {
+    if (width <= maxSize && height <= maxSize) {
+      return { width, height };
+    }
+    
+    const ratio = Math.min(maxSize / width, maxSize / height);
+    return {
+      width: width * ratio,
+      height: height * ratio
+    };
+  };
 
   // Load board with elements
   React.useEffect(() => {
@@ -166,16 +180,12 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
       
       img.onload = async () => {
         try {
-          const maxSize = 600;
-          let width = img.naturalWidth;
-          let height = img.naturalHeight;
-          
-          // Scale down if larger than max size
-          if (width > maxSize || height > maxSize) {
-            const ratio = Math.min(maxSize / width, maxSize / height);
-            width = width * ratio;
-            height = height * ratio;
-          }
+          // Get scaled dimensions maintaining aspect ratio
+          const { width, height } = calculateScaledDimensions(
+            img.naturalWidth,
+            img.naturalHeight,
+            MAX_IMAGE_SIZE
+          );
           
           const centerX = (canvasRef.current?.clientWidth || 800) / 2 / scale - offset.x / scale;
           const centerY = (canvasRef.current?.clientHeight || 600) / 2 / scale - offset.y / scale;
