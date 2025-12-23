@@ -27,6 +27,7 @@ async function main() {
       email: adminEmail,
       password: hashedPassword,
       name: adminName,
+      emailVerified: true,
     },
   });
 
