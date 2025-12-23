@@ -49,6 +49,12 @@ export function BoardElementComponent({
   // Refs for stable drag/resize tracking without triggering re-renders
   const isDraggingRef = React.useRef(false);
   const isResizingRef = React.useRef(false);
+  
+  // Refs to store current handlers for cleanup
+  const handleDragRef = React.useRef<((e: MouseEvent) => void) | null>(null);
+  const handleDragEndRef = React.useRef<(() => void) | null>(null);
+  const handleResizeRef = React.useRef<((e: MouseEvent) => void) | null>(null);
+  const handleResizeEndRef = React.useRef<(() => void) | null>(null);
 
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent) => {
@@ -88,6 +94,9 @@ export function BoardElementComponent({
     }
   }, [scale, offset, dragStart, onUpdate, onDragDelta]);
   // Removed isDragging from dependencies to prevent function recreation
+  
+  // Store handler in ref for cleanup
+  handleDragRef.current = handleDrag;
 
   const handleDragEnd = React.useCallback(() => {
     isDraggingRef.current = false;  // Clear ref
@@ -99,6 +108,9 @@ export function BoardElementComponent({
     // Reset the flag after a small delay to prevent onClick from firing
     dragResetTimeoutRef.current = setTimeout(() => setWasDragging(false), DRAG_RESET_DELAY);
   }, []);
+  
+  // Store handler in ref for cleanup
+  handleDragEndRef.current = handleDragEnd;
 
   // Resize handlers
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -135,11 +147,17 @@ export function BoardElementComponent({
     }
   }, [resizeStart, scale, onUpdate, element.type]);
   // Removed isResizing from dependencies to prevent function recreation
+  
+  // Store handler in ref for cleanup
+  handleResizeRef.current = handleResize;
 
   const handleResizeEnd = React.useCallback(() => {
     isResizingRef.current = false;  // Clear ref
     setIsResizing(false);            // Clear state
   }, []);
+  
+  // Store handler in ref for cleanup
+  handleResizeEndRef.current = handleResizeEnd;
 
   // Content editing
   const handleDoubleClick = () => {
@@ -187,29 +205,31 @@ export function BoardElementComponent({
 
   // Cleanup timeout on unmount and force remove all event listeners
   React.useEffect(() => {
-    // Store current handlers for cleanup
-    const currentHandleDrag = handleDrag;
-    const currentHandleDragEnd = handleDragEnd;
-    const currentHandleResize = handleResize;
-    const currentHandleResizeEnd = handleResizeEnd;
-    
     return () => {
       // Force stop any ongoing drag/resize
       isDraggingRef.current = false;
       isResizingRef.current = false;
       
-      // Force remove ALL listeners with current handler references
-      window.removeEventListener('mousemove', currentHandleDrag);
-      window.removeEventListener('mouseup', currentHandleDragEnd);
-      window.removeEventListener('mousemove', currentHandleResize);
-      window.removeEventListener('mouseup', currentHandleResizeEnd);
+      // Force remove ALL listeners using refs to get current handlers
+      if (handleDragRef.current) {
+        window.removeEventListener('mousemove', handleDragRef.current);
+      }
+      if (handleDragEndRef.current) {
+        window.removeEventListener('mouseup', handleDragEndRef.current);
+      }
+      if (handleResizeRef.current) {
+        window.removeEventListener('mousemove', handleResizeRef.current);
+      }
+      if (handleResizeEndRef.current) {
+        window.removeEventListener('mouseup', handleResizeEndRef.current);
+      }
       
       if (dragResetTimeoutRef.current) {
         clearTimeout(dragResetTimeoutRef.current);
         dragResetTimeoutRef.current = null;
       }
     };
-  }, [handleDrag, handleDragEnd, handleResize, handleResizeEnd]);
+  }, []); // Empty deps - only runs on mount/unmount
 
   // Keyboard delete
   React.useEffect(() => {
