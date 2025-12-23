@@ -3,7 +3,7 @@ import { BoardElement } from '../types';
 import { Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from './ui/utils';
-import { extractYouTubeId, extractInstagramId, getInstagramContentType } from '../utils/video-parser';
+import { extractYouTubeId, getInstagramContentType } from '../utils/video-parser';
 
 // Button offset for positioning delete and resize buttons at corners
 const BUTTON_CORNER_OFFSET = '-12px';
@@ -327,7 +327,6 @@ export function BoardElementComponent({
         
         // Instagram rendering
         if (element.videoType === 'instagram') {
-          const instagramId = extractInstagramId(element.videoUrl);
           const contentType = getInstagramContentType(element.videoUrl);
           
           return (
@@ -349,12 +348,12 @@ export function BoardElementComponent({
           );
         }
         
-        // YouTube rendering
+        // YouTube rendering (only if videoType is not instagram)
         const videoId = extractYouTubeId(element.videoUrl);
         if (!videoId) {
           return (
             <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
-              <p className="text-gray-500 text-sm">Некорректная ссылка YouTube</p>
+              <p className="text-gray-500 text-sm">Некорректная ссылка видео</p>
             </div>
           );
         }
