@@ -550,10 +550,15 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
             transformOrigin: '0 0'
           }}
         >
-          {/* Grid pattern */}
+          {/* Grid pattern - infinite canvas with clicks enabled */}
           <div 
-            className="absolute inset-0 pointer-events-none"
+            data-canvas="true"
+            className="absolute"
             style={{
+              left: -10000,
+              top: -10000,
+              width: 20000,
+              height: 20000,
               backgroundImage: 'radial-gradient(circle, #ddd 1px, transparent 1px)',
               backgroundSize: '20px 20px'
             }}
