@@ -245,10 +245,22 @@ export function BoardElementComponent({
         );
       
       case 'video':
-        if (!element.videoUrl) return null;
+        if (!element.videoUrl) {
+          return (
+            <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+              <p className="text-gray-500 text-sm">Нет URL видео</p>
+            </div>
+          );
+        }
         
         const videoId = extractYouTubeId(element.videoUrl);
-        if (!videoId) return null;
+        if (!videoId) {
+          return (
+            <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+              <p className="text-gray-500 text-sm">Некорректная ссылка YouTube</p>
+            </div>
+          );
+        }
         
         if (element.displayMode === 'embed') {
           // Embedded player
@@ -262,17 +274,21 @@ export function BoardElementComponent({
             />
           );
         } else {
-          // Preview mode
+          // Preview mode - use flex instead of paddingBottom
           return (
             <div
-              className="w-full h-full bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => window.open(element.videoUrl, '_blank')}
+              className="w-full h-full bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow flex flex-col"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(element.videoUrl, '_blank');
+              }}
             >
-              <div className="relative w-full" style={{ paddingBottom: VIDEO_ASPECT_RATIO_PADDING }}>
+              {/* Thumbnail - takes remaining space */}
+              <div className="relative flex-1 overflow-hidden bg-black">
                 <img
                   src={element.videoMeta?.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
                   alt={element.videoMeta?.title || 'Video thumbnail'}
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="w-full h-full object-cover"
                 />
                 {/* Play button overlay */}
                 <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 hover:bg-opacity-30 transition-all">
@@ -283,13 +299,10 @@ export function BoardElementComponent({
                   </div>
                 </div>
               </div>
-              <div className="p-3">
-                <h3 className="font-semibold text-sm mb-1" style={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden'
-                }}>
+              
+              {/* Info - fixed height at bottom */}
+              <div className="p-3 flex-shrink-0 bg-white">
+                <h3 className="font-semibold text-sm line-clamp-2 mb-1">
                   {element.videoMeta?.title || 'YouTube Video'}
                 </h3>
                 <p className="text-xs text-gray-600">
