@@ -264,11 +264,11 @@ export function BoardElementComponent({
         {/* Selection controls */}
         {isSelected && (
           <>
-            {/* Delete button - top-left corner */}
+            {/* Delete button - top-right corner */}
             <Button
               variant="destructive"
               size="sm"
-              className="absolute -top-3 -left-3 w-7 h-7 p-0 rounded-full z-20 shadow-lg"
+              className="absolute -top-3 -right-3 w-7 h-7 p-0 rounded-full z-20 shadow-lg"
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
             >
               <Trash2 className="w-4 h-4" />
