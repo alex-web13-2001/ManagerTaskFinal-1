@@ -182,14 +182,19 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
           
           {/* Instagram Information */}
           {videoType === 'instagram' && (
-            <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
-              <div className="flex items-center gap-3">
+            <div className="p-4 rounded-lg" style={{
+              background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 70%, #FD1D1D 85%, #F77737 100%)'
+            }}>
+              <div className="flex items-center gap-3 text-white">
                 <div className="text-3xl">📷</div>
                 <div>
-                  <p className="font-medium text-gray-900">
+                  <p className="font-semibold">
                     Instagram {getInstagramContentType(url) === 'reel' ? 'Reel' : 'Post'}
                   </p>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm opacity-90">
+                    Будет показан как тизер
+                  </p>
+                  <p className="text-xs opacity-75 mt-1">
                     Откроется в новой вкладке при клике
                   </p>
                 </div>
