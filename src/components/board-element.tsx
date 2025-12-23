@@ -274,7 +274,7 @@ export function BoardElementComponent({
             />
           );
         } else {
-          // Preview mode - использовать flex вместо paddingBottom
+          // Preview mode - use flex instead of paddingBottom
           return (
             <div
               className="w-full h-full bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow flex flex-col"
@@ -283,7 +283,7 @@ export function BoardElementComponent({
                 window.open(element.videoUrl, '_blank');
               }}
             >
-              {/* Thumbnail - занимает оставшееся пространство */}
+              {/* Thumbnail - takes remaining space */}
               <div className="relative flex-1 overflow-hidden bg-black">
                 <img
                   src={element.videoMeta?.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
@@ -300,7 +300,7 @@ export function BoardElementComponent({
                 </div>
               </div>
               
-              {/* Info - фиксированная высота внизу */}
+              {/* Info - fixed height at bottom */}
               <div className="p-3 flex-shrink-0 bg-white">
                 <h3 className="font-semibold text-sm line-clamp-2 mb-1">
                   {element.videoMeta?.title || 'YouTube Video'}
