@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { ArrowLeft, Loader2, ZoomIn, ZoomOut, Undo, Redo, Focus } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from './ui/utils';
+import { detectVideoType } from '../utils/video-parser';
 
 interface BoardCanvasProps {
   boardId: string;
@@ -480,6 +481,15 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
     } | null;
   }) => {
     try {
+      // Detect video type from URL
+      const videoType = detectVideoType(data.url);
+      
+      // Validate video type was detected
+      if (!videoType) {
+        toast.error('Неподдерживаемый тип видео');
+        return;
+      }
+      
       const centerX = (canvasRef.current?.clientWidth || 800) / 2 / scale - offset.x / scale;
       const centerY = (canvasRef.current?.clientHeight || 600) / 2 / scale - offset.y / scale;
       
@@ -494,7 +504,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
         width: defaultWidth,
         height: defaultHeight,
         videoUrl: data.url,
-        videoType: 'youtube',
+        videoType: videoType,
         displayMode: data.displayMode,
         videoMeta: data.metadata
       });
