@@ -21,6 +21,7 @@ import { authenticate, canAccessProject, AuthRequest, UserRole } from './middlew
 import { webhookHandler } from './handlers/webhookHandler.js';
 import { createProject } from './handlers/projectHandlers.js';
 import * as boardHandlers from './handlers/boardHandlers.js';
+import { getInstagramMetadata } from './handlers/videoMetadataHandler.js';
 import { authRateLimiter, uploadRateLimiter, passwordResetRateLimiter } from './middleware/rateLimiter.js';
 import { 
   initializeWebSocket, 
@@ -387,6 +388,10 @@ const healthHandler = async (_req: Request, res: Response) => {
 
 app.get('/health', healthHandler);
 app.get('/api/health', healthHandler);
+
+// ========== INSTAGRAM METADATA ENDPOINT ==========
+// Public endpoint for fetching Instagram Open Graph metadata
+app.get('/api/instagram-metadata', getInstagramMetadata);
 
 // ========== PUBLIC WEBHOOKS ==========
 // Webhooks must be placed BEFORE authentication middleware

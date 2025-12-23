@@ -18,7 +18,7 @@ interface VideoDialogProps {
   onInsert: (data: {
     url: string;
     displayMode: 'embed' | 'preview';
-    metadata: {
+    metadata?: {
       title: string;
       thumbnail: string;
       description: string;
@@ -61,9 +61,39 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
       return;
     }
     
-    // For Instagram, set preview mode by default
+    // For Instagram, set preview mode by default and load metadata
     if (type === 'instagram') {
       setDisplayMode('preview');
+      setLoading(true);
+      try {
+        const response = await fetch(
+          `/api/instagram-metadata?url=${encodeURIComponent(value)}`
+        );
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch metadata');
+        }
+        
+        const data = await response.json();
+        
+        // Если есть fallback (ошибка на backend), используем его
+        if (data.fallback) {
+          setMetadata(data.fallback);
+        } else {
+          setMetadata(data);
+        }
+      } catch (err) {
+        console.error('Failed to load Instagram metadata:', err);
+        // Fallback к статичным данным
+        setMetadata({
+          title: getInstagramContentType(value) === 'reel' ? 'Instagram Reel' : 'Instagram Post',
+          thumbnail: '',
+          description: '',
+          author: 'Instagram',
+        });
+      } finally {
+        setLoading(false);
+      }
     }
     
     // Load metadata for YouTube
@@ -83,24 +113,11 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
   const handleInsert = () => {
     if (!videoType) return;
     
-    if (videoType === 'youtube') {
-      onInsert({
-        url,
-        displayMode,
-        metadata
-      });
-    } else if (videoType === 'instagram') {
-      onInsert({
-        url,
-        displayMode: 'preview',
-        metadata: {
-          title: getInstagramContentType(url) === 'reel' ? 'Instagram Reel' : 'Instagram Post',
-          thumbnail: '',
-          description: '',
-          author: 'Instagram'
-        }
-      });
-    }
+    onInsert({
+      url,
+      displayMode: videoType === 'instagram' ? 'preview' : displayMode,
+      metadata: metadata || undefined,
+    });
     
     // Reset state
     setUrl('');
@@ -111,7 +128,7 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
     onOpenChange(false);
   };
 
-  const isInsertDisabled = !url || !videoType || !!error;
+  const isInsertDisabled = !url || !videoType || !!error || loading;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -135,15 +152,20 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
             />
             
             {/* Detection Status */}
-            {videoType === 'youtube' && (
+            {videoType === 'youtube' && !loading && (
               <p className="text-sm text-green-600 mt-1">
                 ✅ YouTube видео определено
               </p>
             )}
-            {videoType === 'instagram' && (
+            {videoType === 'instagram' && !loading && (
               <p className="text-sm text-green-600 mt-1">
                 ✅ Instagram {getInstagramContentType(url) === 'reel' ? 'Reel' : 'пост'} определен
               </p>
+            )}
+            
+            {/* Loading */}
+            {loading && (
+              <p className="text-sm text-blue-600 mt-2">Загрузка данных...</p>
             )}
             
             {/* Error Message */}
@@ -180,44 +202,87 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
             </div>
           )}
           
-          {/* Instagram Information */}
-          {videoType === 'instagram' && (
-            <div className="p-4 rounded-lg" style={{
-              background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 70%, #FD1D1D 85%, #F77737 100%)'
-            }}>
-              <div className="flex items-center gap-3 text-white">
-                <div className="text-3xl">📷</div>
-                <div>
-                  <p className="font-semibold">
-                    Instagram {getInstagramContentType(url) === 'reel' ? 'Reel' : 'Post'}
-                  </p>
-                  <p className="text-sm opacity-90">
-                    Будет показан как тизер
-                  </p>
-                  <p className="text-xs opacity-75 mt-1">
-                    Откроется в новой вкладке при клике
-                  </p>
+          {/* Instagram preview с metadata */}
+          {videoType === 'instagram' && metadata && (
+            <div className="border rounded-lg overflow-hidden">
+              {metadata.thumbnail ? (
+                <div className="relative">
+                  <img 
+                    src={metadata.thumbnail} 
+                    alt="Instagram preview" 
+                    className="w-full aspect-square object-cover"
+                  />
+                  <div 
+                    className="absolute inset-0 flex flex-col items-center justify-center text-white p-4"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(131, 58, 180, 0.8) 0%, rgba(193, 53, 132, 0.8) 50%, rgba(225, 48, 108, 0.8) 70%, rgba(253, 29, 29, 0.8) 85%, rgba(247, 119, 55, 0.8) 100%)'
+                    }}
+                  >
+                    <svg 
+                      viewBox="0 0 24 24" 
+                      width="48" 
+                      height="48" 
+                      fill="none" 
+                      stroke="white" 
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="mb-2"
+                    >
+                      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                      <circle cx="12" cy="12" r="4" />
+                      <circle cx="17.5" cy="6.5" r="1.5" fill="white" stroke="none" />
+                    </svg>
+                    <p className="text-sm font-semibold text-center drop-shadow-lg">
+                      {metadata.author}
+                    </p>
+                  </div>
                 </div>
+              ) : (
+                <div 
+                  className="w-full aspect-square flex flex-col items-center justify-center text-white"
+                  style={{
+                    background: 'linear-gradient(135deg, #833AB4 0%, #C13584 50%, #E1306C 70%, #FD1D1D 85%, #F77737 100%)'
+                  }}
+                >
+                  <svg 
+                    viewBox="0 0 24 24" 
+                    width="64" 
+                    height="64" 
+                    fill="none" 
+                    stroke="white" 
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="mb-3"
+                  >
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                    <circle cx="12" cy="12" r="4" />
+                    <circle cx="17.5" cy="6.5" r="1.5" fill="white" stroke="none" />
+                  </svg>
+                  <p className="font-bold text-lg">Instagram {getInstagramContentType(url) === 'reel' ? 'Reel' : 'Post'}</p>
+                </div>
+              )}
+              <div className="p-3 bg-white">
+                <p className="text-sm line-clamp-2">{metadata.title}</p>
               </div>
             </div>
           )}
           
           {/* YouTube Metadata Preview */}
           {videoType === 'youtube' && metadata && (
-            <div className="border rounded-lg p-3">
+            <div className="border rounded-lg overflow-hidden">
               {metadata.thumbnail && (
-                <img src={metadata.thumbnail} alt="Thumbnail" className="w-full rounded" />
+                <img 
+                  src={metadata.thumbnail} 
+                  alt="Thumbnail" 
+                  className="w-full aspect-video object-cover" 
+                />
               )}
-              <p className="font-medium mt-2">{metadata.title}</p>
-              <p className="text-sm text-gray-600">{metadata.author}</p>
-            </div>
-          )}
-          
-          {/* Loading indicator for YouTube metadata */}
-          {videoType === 'youtube' && loading && (
-            <div className="flex items-center justify-center p-4">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-              <span className="ml-2 text-sm text-gray-600">Загрузка метаданных...</span>
+              <div className="p-3">
+                <p className="font-medium line-clamp-2">{metadata.title}</p>
+                <p className="text-sm text-gray-600 mt-1">{metadata.author}</p>
+              </div>
             </div>
           )}
         </div>
@@ -227,7 +292,7 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
             Отмена
           </Button>
           <Button onClick={handleInsert} disabled={isInsertDisabled}>
-            Вставить
+            {loading ? 'Загрузка...' : 'Вставить'}
           </Button>
         </DialogFooter>
       </DialogContent>
