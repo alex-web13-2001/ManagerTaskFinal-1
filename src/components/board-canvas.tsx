@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { ArrowLeft, Loader2, ZoomIn, ZoomOut, Undo, Redo, Focus } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from './ui/utils';
+import { detectVideoType } from '../utils/video-parser';
 
 interface BoardCanvasProps {
   boardId: string;
@@ -486,6 +487,9 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
       const defaultWidth = data.displayMode === 'embed' ? 560 : 400;
       const defaultHeight = data.displayMode === 'embed' ? 315 : 300;
 
+      // Detect video type from URL
+      const videoType = detectVideoType(data.url);
+
       const newElement = await boardsAPI.createElement(boardId, {
         type: 'video',
         positionX: centerX - defaultWidth / 2,
@@ -494,7 +498,7 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
         width: defaultWidth,
         height: defaultHeight,
         videoUrl: data.url,
-        videoType: 'youtube',
+        videoType: videoType || 'youtube', // Default to youtube if detection fails
         displayMode: data.displayMode,
         videoMeta: data.metadata
       });

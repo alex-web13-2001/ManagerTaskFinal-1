@@ -5,7 +5,8 @@ export function extractYouTubeId(url: string): string | null {
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\?\/]+)/,
     /youtube\.com\/embed\/([^&\?\/]+)/,
-    /youtube\.com\/v\/([^&\?\/]+)/
+    /youtube\.com\/v\/([^&\?\/]+)/,
+    /m\.youtube\.com\/watch\?v=([^&\?\/]+)/  // Mobile YouTube support
   ];
   
   for (const pattern of patterns) {
@@ -54,4 +55,45 @@ export async function getYouTubeMetadata(url: string): Promise<{
  */
 export function isYouTubeUrl(url: string): boolean {
   return extractYouTubeId(url) !== null;
+}
+
+/**
+ * Extract Instagram Post/Reel ID from URL
+ */
+export function extractInstagramId(url: string): string | null {
+  const patterns = [
+    /instagram\.com\/p\/([A-Za-z0-9_-]+)/i,
+    /instagram\.com\/reel\/([A-Za-z0-9_-]+)/i,
+    /instagr\.am\/p\/([A-Za-z0-9_-]+)/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Get Instagram content type (post or reel)
+ */
+export function getInstagramContentType(url: string): 'post' | 'reel' | null {
+  if (url.includes('/reel/')) return 'reel';
+  if (url.includes('/p/')) return 'post';
+  return null;
+}
+
+/**
+ * Detect video type by URL
+ */
+export function detectVideoType(url: string): 'youtube' | 'instagram' | null {
+  if (!url || !url.trim()) return null;
+  
+  if (extractYouTubeId(url)) return 'youtube';
+  if (extractInstagramId(url)) return 'instagram';
+  
+  return null;
 }

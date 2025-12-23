@@ -145,7 +145,7 @@ export interface BoardElement {
   fontSize?: number;
   // Video-specific fields
   videoUrl?: string;
-  videoType?: 'youtube' | 'vimeo';
+  videoType?: 'youtube' | 'instagram';
   displayMode?: 'embed' | 'preview';
   videoMeta?: {
     title: string;

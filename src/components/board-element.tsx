@@ -3,7 +3,7 @@ import { BoardElement } from '../types';
 import { Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from './ui/utils';
-import { extractYouTubeId } from '../utils/video-parser';
+import { extractYouTubeId, extractInstagramId, getInstagramContentType } from '../utils/video-parser';
 
 // Button offset for positioning delete and resize buttons at corners
 const BUTTON_CORNER_OFFSET = '-12px';
@@ -325,6 +325,31 @@ export function BoardElementComponent({
           );
         }
         
+        // Instagram rendering
+        if (element.videoType === 'instagram') {
+          const instagramId = extractInstagramId(element.videoUrl);
+          const contentType = getInstagramContentType(element.videoUrl);
+          
+          return (
+            <div
+              className="w-full h-full bg-gradient-to-br from-purple-400 via-pink-500 to-orange-400 rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow flex items-center justify-center"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!wasDragging) {
+                  window.open(element.videoUrl, '_blank');
+                }
+              }}
+            >
+              <div className="text-center text-white p-6">
+                <div className="text-6xl mb-4">📷</div>
+                <p className="font-bold text-xl mb-2">Instagram {contentType === 'reel' ? 'Reel' : 'Post'}</p>
+                <p className="text-sm opacity-90">Нажмите для просмотра</p>
+              </div>
+            </div>
+          );
+        }
+        
+        // YouTube rendering
         const videoId = extractYouTubeId(element.videoUrl);
         if (!videoId) {
           return (
