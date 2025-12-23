@@ -4,6 +4,9 @@ import { Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { cn } from './ui/utils';
 
+// Button offset for positioning delete and resize buttons at corners
+const BUTTON_CORNER_OFFSET = '-12px';
+
 interface BoardElementComponentProps {
   element: BoardElement;
   isSelected: boolean;
@@ -257,7 +260,7 @@ export function BoardElementComponent({
       {/* Wrapper with relative for proper button positioning */}
       <div className={cn(
         'relative w-full h-full',
-        isSelected && 'ring-2 ring-purple-500 ring-offset-2'
+        isSelected && 'ring-2 ring-purple-500'
       )}>
         {renderContent()}
 
@@ -268,7 +271,11 @@ export function BoardElementComponent({
             <Button
               variant="destructive"
               size="sm"
-              className="absolute -top-3 -right-3 w-7 h-7 p-0 rounded-full z-20 shadow-lg"
+              className="absolute w-7 h-7 p-0 rounded-full z-20 shadow-lg"
+              style={{
+                top: BUTTON_CORNER_OFFSET,
+                right: BUTTON_CORNER_OFFSET
+              }}
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
             >
               <Trash2 className="w-4 h-4" />
@@ -276,7 +283,11 @@ export function BoardElementComponent({
 
             {/* Resize handle - bottom-right corner */}
             <div
-              className="absolute -bottom-3 -right-3 w-6 h-6 bg-purple-500 rounded-full cursor-se-resize z-10 flex items-center justify-center shadow-lg border-2 border-white"
+              className="absolute w-6 h-6 bg-purple-500 rounded-full cursor-se-resize z-10 flex items-center justify-center shadow-lg border-2 border-white"
+              style={{
+                bottom: BUTTON_CORNER_OFFSET,
+                right: BUTTON_CORNER_OFFSET
+              }}
               onMouseDown={handleResizeStart}
             >
               <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
