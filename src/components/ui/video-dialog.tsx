@@ -27,13 +27,20 @@ interface VideoDialogProps {
   }) => void;
 }
 
+interface VideoMetadata {
+  title: string;
+  thumbnail: string;
+  description: string;
+  author: string;
+}
+
 export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) {
   const [url, setUrl] = React.useState('');
   const [displayMode, setDisplayMode] = React.useState<'embed' | 'preview'>('embed');
   const [videoType, setVideoType] = React.useState<'youtube' | 'instagram' | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
-  const [metadata, setMetadata] = React.useState<any>(null);
+  const [metadata, setMetadata] = React.useState<VideoMetadata | null>(null);
 
   // Handle URL change with auto-detection
   const handleUrlChange = async (value: string) => {

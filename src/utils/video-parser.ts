@@ -82,8 +82,25 @@ export function extractInstagramId(url: string): string | null {
  * Get Instagram content type (post or reel)
  */
 export function getInstagramContentType(url: string): 'post' | 'reel' | null {
-  if (url.includes('/reel/')) return 'reel';
-  if (url.includes('/p/')) return 'post';
+  // Use regex patterns to reliably detect content type
+  const reelPatterns = [
+    /instagram\.com\/reel\//i,
+    /instagr\.am\/reel\//i,
+  ];
+  
+  const postPatterns = [
+    /instagram\.com\/p\//i,
+    /instagr\.am\/p\//i,
+  ];
+  
+  for (const pattern of reelPatterns) {
+    if (pattern.test(url)) return 'reel';
+  }
+  
+  for (const pattern of postPatterns) {
+    if (pattern.test(url)) return 'post';
+  }
+  
   return null;
 }
 
