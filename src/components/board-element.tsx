@@ -316,7 +316,11 @@ export function BoardElementComponent({
           // Preview mode - open link ONLY when clicking WITHOUT drag
           return (
             <div
-              className="w-full h-full bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow flex flex-col"
+              className="w-full h-full bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow flex flex-col"
+              style={{
+                cursor: isDragging ? 'move' : 'pointer',
+                pointerEvents: isDragging ? 'none' : 'auto'
+              }}
               onClick={(e) => {
                 e.stopPropagation();
                 // Open ONLY if there was NO dragging
