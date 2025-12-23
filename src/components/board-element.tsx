@@ -11,6 +11,9 @@ const BUTTON_CORNER_OFFSET = '-12px';
 // Video aspect ratio constant (16:9)
 const VIDEO_ASPECT_RATIO_PADDING = '56.25%';
 
+// Delay to reset wasDragging flag after drag ends (prevents onClick from firing)
+const DRAG_RESET_DELAY = 100;
+
 interface BoardElementComponentProps {
   element: BoardElement;
   isSelected: boolean;
@@ -41,6 +44,7 @@ export function BoardElementComponent({
   const elementRef = React.useRef<HTMLDivElement>(null);
   const textRef = React.useRef<HTMLTextAreaElement>(null);
   const lastPositionRef = React.useRef({ x: element.positionX, y: element.positionY });
+  const dragResetTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent) => {
@@ -81,8 +85,12 @@ export function BoardElementComponent({
 
   const handleDragEnd = React.useCallback(() => {
     setIsDragging(false);
+    // Clear any existing timeout
+    if (dragResetTimeoutRef.current) {
+      clearTimeout(dragResetTimeoutRef.current);
+    }
     // Reset the flag after a small delay to prevent onClick from firing
-    setTimeout(() => setWasDragging(false), 100);
+    dragResetTimeoutRef.current = setTimeout(() => setWasDragging(false), DRAG_RESET_DELAY);
   }, []);
 
   // Resize handlers
@@ -166,6 +174,15 @@ export function BoardElementComponent({
       };
     }
   }, [isResizing, handleResize, handleResizeEnd]);
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (dragResetTimeoutRef.current) {
+        clearTimeout(dragResetTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Keyboard delete
   React.useEffect(() => {
