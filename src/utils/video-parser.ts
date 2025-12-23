@@ -6,7 +6,8 @@ export function extractYouTubeId(url: string): string | null {
     /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\?\/]+)/,
     /youtube\.com\/embed\/([^&\?\/]+)/,
     /youtube\.com\/v\/([^&\?\/]+)/,
-    /m\.youtube\.com\/watch\?v=([^&\?\/]+)/  // Mobile YouTube support
+    /m\.youtube\.com\/watch\?v=([^&\?\/]+)/,  // Mobile YouTube support
+    /youtube\.com\/shorts\/([^&\?\/]+)/        // YouTube Shorts support
   ];
   
   for (const pattern of patterns) {
@@ -63,9 +64,9 @@ export function isYouTubeUrl(url: string): boolean {
 export function extractInstagramId(url: string): string | null {
   const patterns = [
     /instagram\.com\/p\/([A-Za-z0-9_-]+)/i,
-    /instagram\.com\/reel\/([A-Za-z0-9_-]+)/i,
+    /instagram\.com\/reels?\/([A-Za-z0-9_-]+)/i,  // /reel/ OR /reels/
     /instagr\.am\/p\/([A-Za-z0-9_-]+)/i,
-    /instagr\.am\/reel\/([A-Za-z0-9_-]+)/i,  // Short URL reel support
+    /instagr\.am\/reels?\/([A-Za-z0-9_-]+)/i,     // Short URL with reels
   ];
   
   for (const pattern of patterns) {
@@ -84,8 +85,8 @@ export function extractInstagramId(url: string): string | null {
 export function getInstagramContentType(url: string): 'post' | 'reel' | null {
   // Use regex patterns to reliably detect content type
   const reelPatterns = [
-    /instagram\.com\/reel\//i,
-    /instagr\.am\/reel\//i,
+    /instagram\.com\/reels?\//i,  // /reel/ OR /reels/
+    /instagr\.am\/reels?\//i,     // Short URL
   ];
   
   const postPatterns = [
