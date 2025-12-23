@@ -35,6 +35,7 @@ export function BoardElementComponent({
   const [isDragging, setIsDragging] = React.useState(false);
   const [isResizing, setIsResizing] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
+  const [wasDragging, setWasDragging] = React.useState(false);
   const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
   const [resizeStart, setResizeStart] = React.useState({ width: 0, height: 0, x: 0, y: 0 });
   const elementRef = React.useRef<HTMLDivElement>(null);
@@ -56,6 +57,10 @@ export function BoardElementComponent({
 
   const handleDrag = React.useCallback((e: MouseEvent) => {
     if (!isDragging) return;
+    
+    // Mark that dragging is happening
+    setWasDragging(true);
+    
     // Calculate new position in canvas space
     const newX = (e.clientX - offset.x) / scale - dragStart.x;
     const newY = (e.clientY - offset.y) / scale - dragStart.y;
@@ -76,6 +81,8 @@ export function BoardElementComponent({
 
   const handleDragEnd = React.useCallback(() => {
     setIsDragging(false);
+    // Reset the flag after a small delay to prevent onClick from firing
+    setTimeout(() => setWasDragging(false), 100);
   }, []);
 
   // Resize handlers
@@ -263,24 +270,39 @@ export function BoardElementComponent({
         }
         
         if (element.displayMode === 'embed') {
-          // Embedded player
+          // Embedded player with drag overlay
           return (
-            <iframe
-              src={`https://www.youtube.com/embed/${videoId}`}
-              className="w-full h-full rounded-lg"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title="YouTube video"
-            />
+            <div className="relative w-full h-full">
+              <iframe
+                src={`https://www.youtube.com/embed/${videoId}`}
+                className="w-full h-full rounded-lg"
+                style={{
+                  pointerEvents: isSelected ? 'auto' : 'none'
+                }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title="YouTube video"
+              />
+              {/* Overlay for drag when NOT selected */}
+              {!isSelected && (
+                <div 
+                  className="absolute inset-0 cursor-move"
+                  style={{ pointerEvents: 'auto' }}
+                />
+              )}
+            </div>
           );
         } else {
-          // Preview mode - use flex instead of paddingBottom
+          // Preview mode - open link ONLY when clicking WITHOUT drag
           return (
             <div
               className="w-full h-full bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow flex flex-col"
               onClick={(e) => {
                 e.stopPropagation();
-                window.open(element.videoUrl, '_blank');
+                // Open ONLY if there was NO dragging
+                if (!wasDragging) {
+                  window.open(element.videoUrl, '_blank');
+                }
               }}
             >
               {/* Thumbnail - takes remaining space */}
