@@ -11,6 +11,9 @@ const BUTTON_CORNER_OFFSET = '-12px';
 // Video aspect ratio constant (16:9)
 const VIDEO_ASPECT_RATIO_PADDING = '56.25%';
 
+// Delay to reset wasDragging flag after drag ends (prevents onClick from firing)
+const DRAG_RESET_DELAY = 100;
+
 interface BoardElementComponentProps {
   element: BoardElement;
   isSelected: boolean;
@@ -35,11 +38,13 @@ export function BoardElementComponent({
   const [isDragging, setIsDragging] = React.useState(false);
   const [isResizing, setIsResizing] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
+  const [wasDragging, setWasDragging] = React.useState(false);
   const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
   const [resizeStart, setResizeStart] = React.useState({ width: 0, height: 0, x: 0, y: 0 });
   const elementRef = React.useRef<HTMLDivElement>(null);
   const textRef = React.useRef<HTMLTextAreaElement>(null);
   const lastPositionRef = React.useRef({ x: element.positionX, y: element.positionY });
+  const dragResetTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent) => {
@@ -56,6 +61,10 @@ export function BoardElementComponent({
 
   const handleDrag = React.useCallback((e: MouseEvent) => {
     if (!isDragging) return;
+    
+    // Mark that dragging is happening
+    setWasDragging(true);
+    
     // Calculate new position in canvas space
     const newX = (e.clientX - offset.x) / scale - dragStart.x;
     const newY = (e.clientY - offset.y) / scale - dragStart.y;
@@ -76,6 +85,12 @@ export function BoardElementComponent({
 
   const handleDragEnd = React.useCallback(() => {
     setIsDragging(false);
+    // Clear any existing timeout
+    if (dragResetTimeoutRef.current) {
+      clearTimeout(dragResetTimeoutRef.current);
+    }
+    // Reset the flag after a small delay to prevent onClick from firing
+    dragResetTimeoutRef.current = setTimeout(() => setWasDragging(false), DRAG_RESET_DELAY);
   }, []);
 
   // Resize handlers
@@ -159,6 +174,16 @@ export function BoardElementComponent({
       };
     }
   }, [isResizing, handleResize, handleResizeEnd]);
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (dragResetTimeoutRef.current) {
+        clearTimeout(dragResetTimeoutRef.current);
+        dragResetTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Keyboard delete
   React.useEffect(() => {
@@ -263,24 +288,39 @@ export function BoardElementComponent({
         }
         
         if (element.displayMode === 'embed') {
-          // Embedded player
+          // Embedded player with drag overlay
           return (
-            <iframe
-              src={`https://www.youtube.com/embed/${videoId}`}
-              className="w-full h-full rounded-lg"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title="YouTube video"
-            />
+            <div className="relative w-full h-full">
+              <iframe
+                src={`https://www.youtube.com/embed/${videoId}`}
+                className="w-full h-full rounded-lg"
+                style={{
+                  pointerEvents: isSelected ? 'auto' : 'none'
+                }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title="YouTube video"
+              />
+              {/* Overlay for drag when NOT selected */}
+              {!isSelected && (
+                <div 
+                  className="absolute inset-0 cursor-move"
+                  style={{ pointerEvents: 'auto' }}
+                />
+              )}
+            </div>
           );
         } else {
-          // Preview mode - use flex instead of paddingBottom
+          // Preview mode - open link ONLY when clicking WITHOUT drag
           return (
             <div
               className="w-full h-full bg-white rounded-lg shadow-md overflow-hidden cursor-pointer hover:shadow-lg transition-shadow flex flex-col"
               onClick={(e) => {
                 e.stopPropagation();
-                window.open(element.videoUrl, '_blank');
+                // Open ONLY if there was NO dragging
+                if (!wasDragging) {
+                  window.open(element.videoUrl, '_blank');
+                }
               }}
             >
               {/* Thumbnail - takes remaining space */}
