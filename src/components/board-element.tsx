@@ -59,6 +59,7 @@ export function BoardElementComponent({
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();  // Prevent default browser behavior
     onSelect(e);
     isDraggingRef.current = true;  // Ref for stable tracking
     setIsDragging(true);            // State for UI updates
@@ -351,7 +352,6 @@ export function BoardElementComponent({
               {!isSelected && (
                 <div 
                   className="absolute inset-0 cursor-move"
-                  style={{ pointerEvents: isDragging ? 'none' : 'auto' }}
                 />
               )}
             </div>
@@ -362,8 +362,7 @@ export function BoardElementComponent({
             <div
               className="w-full h-full bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow flex flex-col"
               style={{
-                cursor: isDragging ? 'move' : 'pointer',
-                pointerEvents: isDragging ? 'none' : 'auto'
+                cursor: isDragging ? 'move' : 'pointer'
               }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -423,6 +422,12 @@ export function BoardElementComponent({
       }}
       onClick={(e) => { e.stopPropagation(); onSelect(e); }}
       onMouseDown={handleDragStart}
+      onMouseUp={(e) => {
+        e.stopPropagation();
+        if (isDraggingRef.current) {
+          handleDragEnd();
+        }
+      }}
       onDoubleClick={handleDoubleClick}
     >
       {/* Wrapper with relative for proper button positioning */}
