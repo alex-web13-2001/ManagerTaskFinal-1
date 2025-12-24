@@ -304,8 +304,16 @@ export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
         return newSet;
       });
     } else {
-      // Normal click - select only this element
-      setSelectedElementIds(new Set([elementId]));
+      // Normal click
+      // Don't clear selection if clicking an already-selected element (preserves group selection for dragging)
+      setSelectedElementIds(prev => {
+        if (prev.has(elementId) && prev.size > 1) {
+          // Element is already selected and there are other selected elements - keep current selection
+          return prev;
+        }
+        // Otherwise - select only this element
+        return new Set([elementId]);
+      });
     }
   };
 
