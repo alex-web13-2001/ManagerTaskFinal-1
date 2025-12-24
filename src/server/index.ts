@@ -2834,6 +2834,7 @@ apiRouter.post('/tasks', async (req: AuthRequest, res: Response) => {
 
     // Record task creation in history
     await recordTaskCreated(task.id, userId, task);
+    console.log(`📜 Task history: Created entry for task ${task.id}`);
 
     // Emit WebSocket event for real-time synchronization
     const transformedTask = transformTaskForResponse(task);
@@ -3008,6 +3009,7 @@ apiRouter.patch('/tasks/:id', async (req: AuthRequest, res: Response) => {
 
     // Record task updates in history
     await recordTaskUpdates(taskId, userId, existingTask, updateData);
+    console.log(`📜 Task history: Recorded ${Object.keys(updateData).length} updates for task ${taskId}`);
 
     // Emit WebSocket event for real-time synchronization
     const transformedTask = transformTaskForResponse(updatedTask);
@@ -3315,6 +3317,7 @@ apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) =>
 
     // Record comment in task history
     await recordCommentAdded(id, userId, comment.id, comment.text);
+    console.log(`📜 Task history: Recorded comment for task ${id}`);
 
     // Emit WebSocket event for real-time updates (only for project tasks)
     if (task.projectId) {
