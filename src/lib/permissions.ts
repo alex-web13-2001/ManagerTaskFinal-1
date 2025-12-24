@@ -131,35 +131,52 @@ export async function canViewTask(
   userId: string,
   taskId: string
 ): Promise<boolean> {
+  console.log('🔍 canViewTask called:', { userId, taskId });
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
     });
 
+    console.log('📋 Task found:', { 
+      taskId, 
+      found: !!task, 
+      hasProject: !!task?.projectId,
+      creatorId: task?.creatorId,
+      assigneeId: task?.assigneeId
+    });
+
     if (!task) {
+      console.log('❌ canViewTask: Task not found');
       return false;
     }
 
     // Personal tasks - only creator can view
     if (!task.projectId) {
-      return task.creatorId === userId;
+      const canView = task.creatorId === userId;
+      console.log('👤 Personal task, canView:', canView);
+      return canView;
     }
 
     const role = await getUserRoleInProject(userId, task.projectId);
+    console.log('🎭 User role in project:', { userId, projectId: task.projectId, role });
 
     if (!role) {
+      console.log('❌ canViewTask: No role in project');
       return false;
     }
 
     // Member can only view their own tasks
     if (role === 'member') {
-      return task.creatorId === userId || task.assigneeId === userId;
+      const canView = task.creatorId === userId || task.assigneeId === userId;
+      console.log('👥 Member role, canView:', canView);
+      return canView;
     }
 
     // All other roles can view all tasks
+    console.log('✅ canViewTask: Access granted (role: ' + role + ')');
     return true;
   } catch (error) {
-    console.error('Error checking task view permission:', error);
+    console.error('💥 Error checking task view permission:', error);
     return false;
   }
 }

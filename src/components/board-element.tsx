@@ -39,8 +39,7 @@ export function BoardElementComponent({
   const [isResizing, setIsResizing] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [wasDragging, setWasDragging] = React.useState(false);
-  const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
-  const [resizeStart, setResizeStart] = React.useState({ width: 0, height: 0, x: 0, y: 0 });
+  // Removed - using refs instead (dragStartRef, offsetRef, resizeStartRef)
   const elementRef = React.useRef<HTMLDivElement>(null);
   const textRef = React.useRef<HTMLTextAreaElement>(null);
   const lastPositionRef = React.useRef({ x: element.positionX, y: element.positionY });
@@ -50,11 +49,19 @@ export function BoardElementComponent({
   const isDraggingRef = React.useRef(false);
   const isResizingRef = React.useRef(false);
   const scaleRef = React.useRef(scale);
+  const dragStartRef = React.useRef({ x: 0, y: 0 });
+  const offsetRef = React.useRef(offset);
+  const resizeStartRef = React.useRef({ width: 0, height: 0, x: 0, y: 0 });
   
   // Sync scaleRef with scale prop to avoid recreating handleResize
   React.useEffect(() => {
     scaleRef.current = scale;
   }, [scale]);
+  
+  // Sync offsetRef with offset prop
+  React.useEffect(() => {
+    offsetRef.current = offset;
+  }, [offset]);
   
   // Refs to store current handlers for cleanup
   const handleDragRef = React.useRef<((e: MouseEvent) => void) | null>(null);
@@ -71,10 +78,10 @@ export function BoardElementComponent({
     setIsDragging(true);            // State for UI updates
     // Store the offset from mouse to element's top-left corner in canvas space
     lastPositionRef.current = { x: element.positionX, y: element.positionY };
-    setDragStart({
+    dragStartRef.current = {
       x: (e.clientX - offset.x) / scale - element.positionX,
       y: (e.clientY - offset.y) / scale - element.positionY
-    });
+    };
   };
 
   const handleDrag = React.useCallback((e: MouseEvent) => {
@@ -84,8 +91,8 @@ export function BoardElementComponent({
     setWasDragging(true);
     
     // Calculate new position in canvas space
-    const newX = (e.clientX - offset.x) / scaleRef.current - dragStart.x;
-    const newY = (e.clientY - offset.y) / scaleRef.current - dragStart.y;
+    const newX = (e.clientX - offsetRef.current.x) / scaleRef.current - dragStartRef.current.x;
+    const newY = (e.clientY - offsetRef.current.y) / scaleRef.current - dragStartRef.current.y;
     
     // If onDragDelta is provided (for multi-selection), calculate delta and call it
     if (onDragDelta) {
@@ -99,7 +106,7 @@ export function BoardElementComponent({
       // Otherwise, just update this element
       onUpdate({ positionX: newX, positionY: newY });
     }
-  }, [offset, dragStart, onUpdate, onDragDelta]);
+  }, [onUpdate, onDragDelta]);
   // Removed isDragging from dependencies to prevent function recreation
   
   // Store handler in ref for cleanup
@@ -124,35 +131,35 @@ export function BoardElementComponent({
     e.stopPropagation();
     isResizingRef.current = true;  // Ref for stable tracking
     setIsResizing(true);            // State for UI updates
-    setResizeStart({
+    resizeStartRef.current = {
       width: element.width,
       height: element.height,
       x: e.clientX,
       y: e.clientY
-    });
+    };
   };
 
   const handleResize = React.useCallback((e: MouseEvent) => {
     if (!isResizingRef.current) return;  // Use ref instead of state
-    const deltaX = (e.clientX - resizeStart.x) / scaleRef.current;
-    const deltaY = (e.clientY - resizeStart.y) / scaleRef.current;
+    const deltaX = (e.clientX - resizeStartRef.current.x) / scaleRef.current;
+    const deltaY = (e.clientY - resizeStartRef.current.y) / scaleRef.current;
     
     // For images and videos in embed mode - maintain aspect ratio
     if (element.type === 'image' || element.type === 'video') {
-      const aspectRatio = resizeStart.width / resizeStart.height;
+      const aspectRatio = resizeStartRef.current.width / resizeStartRef.current.height;
       // Use the larger delta to determine new size
       const maxDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY * aspectRatio;
-      const newWidth = Math.max(50, resizeStart.width + maxDelta);
+      const newWidth = Math.max(50, resizeStartRef.current.width + maxDelta);
       const newHeight = newWidth / aspectRatio;
       onUpdate({ width: newWidth, height: Math.max(30, newHeight) });
     } else {
       // For other elements - free resizing
       onUpdate({
-        width: Math.max(50, resizeStart.width + deltaX),
-        height: Math.max(30, resizeStart.height + deltaY)
+        width: Math.max(50, resizeStartRef.current.width + deltaX),
+        height: Math.max(30, resizeStartRef.current.height + deltaY)
       });
     }
-  }, [resizeStart, onUpdate, element.type]);
+  }, [onUpdate, element.type]);
   // Removed isResizing from dependencies to prevent function recreation
   
   // Store handler in ref for cleanup

@@ -848,29 +848,62 @@ export function TaskModal({
 
   const loadTaskHistory = async (taskId: string) => {
     setIsLoadingHistory(true);
+    console.log('📜 Loading task history for:', taskId);
+    
     try {
       const token = localStorage.getItem('token');
+      
+      if (!token) {
+        console.error('❌ No auth token found in localStorage');
+        toast.error('Необходима авторизация');
+        setTaskHistory([]);
+        return;
+      }
+      
+      console.log('🔑 Token found, length:', token.length);
+      console.log('🌐 API URL:', `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/tasks/${taskId}/history`);
+      
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/tasks/${taskId}/history`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
 
+      console.log('📡 Response status:', response.status, response.statusText);
+
+      if (response.status === 401) {
+        console.error('❌ 401 Unauthorized - token expired or invalid');
+        toast.error('Сессия истекла. Войдите заново');
+        setTaskHistory([]);
+        return;
+      }
+
+      if (response.status === 403) {
+        console.error('❌ 403 Forbidden - no access to task');
+        toast.error('Нет доступа к истории задачи');
+        setTaskHistory([]);
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to load task history');
+        const errorText = await response.text();
+        console.error(`❌ HTTP ${response.status}:`, errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log('📜 Task history loaded:', {
+      console.log('📜 Task history loaded successfully:', {
         taskId,
         historyCount: data.history?.length || 0,
         firstEntry: data.history?.[0],
         isEmpty: !data.history || data.history.length === 0,
         rawData: data
       });
+      
       setTaskHistory(data.history || []);
     } catch (error) {
-      console.error('Error loading task history:', error);
+      console.error('💥 Error loading task history:', error);
+      toast.error('Ошибка загрузки истории задачи');
       setTaskHistory([]);
     } finally {
       setIsLoadingHistory(false);
