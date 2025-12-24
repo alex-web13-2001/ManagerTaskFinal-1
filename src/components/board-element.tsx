@@ -84,8 +84,8 @@ export function BoardElementComponent({
     setWasDragging(true);
     
     // Calculate new position in canvas space
-    const newX = (e.clientX - offset.x) / scale - dragStart.x;
-    const newY = (e.clientY - offset.y) / scale - dragStart.y;
+    const newX = (e.clientX - offset.x) / scaleRef.current - dragStart.x;
+    const newY = (e.clientY - offset.y) / scaleRef.current - dragStart.y;
     
     // If onDragDelta is provided (for multi-selection), calculate delta and call it
     if (onDragDelta) {
@@ -99,7 +99,7 @@ export function BoardElementComponent({
       // Otherwise, just update this element
       onUpdate({ positionX: newX, positionY: newY });
     }
-  }, [scale, offset, dragStart, onUpdate, onDragDelta]);
+  }, [offset, dragStart, onUpdate, onDragDelta]);
   // Removed isDragging from dependencies to prevent function recreation
   
   // Store handler in ref for cleanup
