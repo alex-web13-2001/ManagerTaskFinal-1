@@ -61,39 +61,16 @@ export function VideoDialog({ open, onOpenChange, onInsert }: VideoDialogProps) 
       return;
     }
     
-    // For Instagram, set preview mode by default and load metadata
+    // For Instagram, set preview mode by default with static metadata
     if (type === 'instagram') {
       setDisplayMode('preview');
-      setLoading(true);
-      try {
-        const response = await fetch(
-          `/api/instagram-metadata?url=${encodeURIComponent(value)}`
-        );
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch metadata');
-        }
-        
-        const data = await response.json();
-        
-        // If there's a fallback (error on backend), use it
-        if (data.fallback) {
-          setMetadata(data.fallback);
-        } else {
-          setMetadata(data);
-        }
-      } catch (err) {
-        console.error('Failed to load Instagram metadata:', err);
-        // Fallback to static data
-        setMetadata({
-          title: getInstagramContentType(value) === 'reel' ? 'Instagram Reel' : 'Instagram Post',
-          thumbnail: '',
-          description: '',
-          author: 'Instagram',
-        });
-      } finally {
-        setLoading(false);
-      }
+      // Use static metadata without API call (Instagram blocks server requests)
+      setMetadata({
+        title: getInstagramContentType(value) === 'reel' ? 'Instagram Reel' : 'Instagram Post',
+        thumbnail: '',
+        description: '',
+        author: 'Instagram',
+      });
     }
     
     // Load metadata for YouTube
