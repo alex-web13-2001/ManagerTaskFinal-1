@@ -39,7 +39,7 @@ export function BoardElementComponent({
   const [isResizing, setIsResizing] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [wasDragging, setWasDragging] = React.useState(false);
-  // Removed - using refs instead (dragStartRef, resizeStartRef)
+  // Removed - using refs instead (dragStartRef, offsetRef, resizeStartRef)
   const elementRef = React.useRef<HTMLDivElement>(null);
   const textRef = React.useRef<HTMLTextAreaElement>(null);
   const lastPositionRef = React.useRef({ x: element.positionX, y: element.positionY });
