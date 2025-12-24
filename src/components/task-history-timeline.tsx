@@ -25,12 +25,12 @@ export interface TaskHistoryEntry {
     text?: string;
   } | null;
   createdAt: string;
-  user: {
+  user?: {
     id: string;
     name: string;
     email: string;
     avatarUrl?: string | null;
-  };
+  } | null;
 }
 
 interface TaskHistoryTimelineProps {
@@ -42,12 +42,16 @@ interface TaskHistoryTimelineProps {
 
 // Helper to get initials from name
 const getInitials = (name: string) => {
+  if (!name || name.trim() === '') {
+    return 'П';
+  }
   return name
     .split(' ')
     .map(part => part[0])
+    .filter(Boolean)
     .join('')
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || 'П';
 };
 
 // Get icon for action type
@@ -93,24 +97,40 @@ function getColorForAction(action: string) {
   }
 }
 
+// Safely convert value to string
+function safeString(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value);
+}
+
 // Translate status values
-function translateStatus(status: string): string {
+function translateStatus(status: unknown): string {
+  if (status === null || status === undefined) {
+    return 'Не указан';
+  }
+  const statusStr = String(status);
   const statusMap: Record<string, string> = {
     todo: 'К выполнению',
     in_progress: 'В процессе',
     done: 'Выполнено',
   };
-  return statusMap[status] || status;
+  return statusMap[statusStr] || statusStr;
 }
 
 // Translate priority values
-function translatePriority(priority: string): string {
+function translatePriority(priority: unknown): string {
+  if (priority === null || priority === undefined) {
+    return 'Не указан';
+  }
+  const priorityStr = String(priority);
   const priorityMap: Record<string, string> = {
     low: 'Низкий',
     medium: 'Средний',
     high: 'Высокий',
   };
-  return priorityMap[priority] || priority;
+  return priorityMap[priorityStr] || priorityStr;
 }
 
 // Format history message
@@ -134,7 +154,8 @@ function formatHistoryMessage(
     }
 
     case 'ASSIGNED': {
-      const userName = users?.find(u => u.id === entry.newValue)?.name || 'Пользователь';
+      const newValueStr = safeString(entry.newValue);
+      const userName = users?.find(u => u.id === newValueStr)?.name || 'Пользователь';
       return {
         message: 'назначил исполнителя',
         details: userName,
@@ -142,7 +163,8 @@ function formatHistoryMessage(
     }
 
     case 'UNASSIGNED': {
-      const userName = users?.find(u => u.id === entry.oldValue)?.name || 'Пользователь';
+      const oldValueStr = safeString(entry.oldValue);
+      const userName = users?.find(u => u.id === oldValueStr)?.name || 'Пользователь';
       return {
         message: 'снял исполнителя',
         details: userName,
@@ -159,20 +181,34 @@ function formatHistoryMessage(
     }
 
     case 'DEADLINE_SET': {
-      const date = format(new Date(entry.newValue), 'd MMMM yyyy', { locale: ru });
-      return {
-        message: 'установил дедлайн',
-        details: date,
-      };
+      if (!entry.newValue) {
+        return { message: 'установил дедлайн' };
+      }
+      try {
+        const date = format(new Date(entry.newValue as string), 'd MMMM yyyy', { locale: ru });
+        return {
+          message: 'установил дедлайн',
+          details: date,
+        };
+      } catch {
+        return { message: 'установил дедлайн' };
+      }
     }
 
     case 'DEADLINE_CHANGED': {
-      const oldDate = format(new Date(entry.oldValue), 'd MMM', { locale: ru });
-      const newDate = format(new Date(entry.newValue), 'd MMM', { locale: ru });
-      return {
-        message: 'изменил дедлайн',
-        details: `${oldDate} → ${newDate}`,
-      };
+      if (!entry.oldValue || !entry.newValue) {
+        return { message: 'изменил дедлайн' };
+      }
+      try {
+        const oldDate = format(new Date(entry.oldValue as string), 'd MMM', { locale: ru });
+        const newDate = format(new Date(entry.newValue as string), 'd MMM', { locale: ru });
+        return {
+          message: 'изменил дедлайн',
+          details: `${oldDate} → ${newDate}`,
+        };
+      } catch {
+        return { message: 'изменил дедлайн' };
+      }
     }
 
     case 'DEADLINE_REMOVED':
@@ -187,8 +223,10 @@ function formatHistoryMessage(
     }
 
     case 'PROJECT_CHANGED': {
-      const oldProject = projects?.find(p => p.id === entry.oldValue)?.name || 'Личные задачи';
-      const newProject = projects?.find(p => p.id === entry.newValue)?.name || 'Личные задачи';
+      const oldValueStr = safeString(entry.oldValue);
+      const newValueStr = safeString(entry.newValue);
+      const oldProject = projects?.find(p => p.id === oldValueStr)?.name || 'Личные задачи';
+      const newProject = projects?.find(p => p.id === newValueStr)?.name || 'Личные задачи';
       return {
         message: 'переместил в другой проект',
         details: `${oldProject} → ${newProject}`,
@@ -196,8 +234,10 @@ function formatHistoryMessage(
     }
 
     case 'CATEGORY_CHANGED': {
-      const oldCategory = categories?.find(c => c.id === entry.oldValue)?.name || 'Без категории';
-      const newCategory = categories?.find(c => c.id === entry.newValue)?.name || 'Без категории';
+      const oldValueStr = safeString(entry.oldValue);
+      const newValueStr = safeString(entry.newValue);
+      const oldCategory = categories?.find(c => c.id === oldValueStr)?.name || 'Без категории';
+      const newCategory = categories?.find(c => c.id === newValueStr)?.name || 'Без категории';
       return {
         message: 'изменил категорию',
         details: `${oldCategory} → ${newCategory}`,
@@ -206,9 +246,10 @@ function formatHistoryMessage(
 
     case 'UPDATED':
       if (entry.field === 'title') {
+        const titleValue = entry.newValue != null ? safeString(entry.newValue) : undefined;
         return {
           message: 'изменил название',
-          details: entry.newValue,
+          details: titleValue || undefined,
         };
       }
       if (entry.field === 'description') {
@@ -241,6 +282,8 @@ export function TaskHistoryTimeline({
       {history.map((entry, index) => {
         const { message, details } = formatHistoryMessage(entry, projects, categories, users);
         const isLast = index === history.length - 1;
+        const userName = entry.user?.name || 'Пользователь';
+        const userAvatarUrl = entry.user?.avatarUrl;
 
         return (
           <div key={entry.id} className="relative flex gap-3">
@@ -262,14 +305,14 @@ export function TaskHistoryTimeline({
             <div className="flex-1 pt-1">
               <div className="flex items-start gap-2">
                 <Avatar className="w-6 h-6">
-                  {entry.user.avatarUrl && <AvatarImage src={entry.user.avatarUrl} />}
+                  {userAvatarUrl && <AvatarImage src={userAvatarUrl} />}
                   <AvatarFallback className="text-xs">
-                    {getInitials(entry.user.name)}
+                    {getInitials(userName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <p className="text-sm">
-                    <span className="font-medium">{entry.user.name}</span>
+                    <span className="font-medium">{userName}</span>
                     {' '}
                     <span className="text-gray-600">{message}</span>
                   </p>
@@ -277,10 +320,16 @@ export function TaskHistoryTimeline({
                     <p className="text-sm text-gray-700 mt-1 font-medium">{details}</p>
                   )}
                   <p className="text-xs text-gray-400 mt-1">
-                    {formatDistanceToNow(new Date(entry.createdAt), {
-                      addSuffix: true,
-                      locale: ru,
-                    })}
+                    {(() => {
+                      try {
+                        return formatDistanceToNow(new Date(entry.createdAt), {
+                          addSuffix: true,
+                          locale: ru,
+                        });
+                      } catch {
+                        return 'Недавно';
+                      }
+                    })()}
                   </p>
                 </div>
               </div>
