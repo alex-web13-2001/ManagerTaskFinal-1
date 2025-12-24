@@ -865,7 +865,8 @@ export function TaskModal({
         taskId,
         historyCount: data.history?.length || 0,
         firstEntry: data.history?.[0],
-        isEmpty: !data.history || data.history.length === 0
+        isEmpty: !data.history || data.history.length === 0,
+        rawData: data
       });
       setTaskHistory(data.history || []);
     } catch (error) {
