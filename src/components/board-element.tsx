@@ -518,7 +518,6 @@ export function BoardElementComponent({
         zIndex: element.zIndex,
         transform: `rotate(${element.rotation || 0}deg)`
       }}
-      onClick={(e) => { e.stopPropagation(); onSelect(e); }}
       onMouseDown={handleDragStart}
       onMouseUp={(e) => {
         e.stopPropagation();
