@@ -861,6 +861,12 @@ export function TaskModal({
       }
 
       const data = await response.json();
+      console.log('📜 Task history loaded:', {
+        taskId,
+        historyCount: data.history?.length || 0,
+        firstEntry: data.history?.[0],
+        isEmpty: !data.history || data.history.length === 0
+      });
       setTaskHistory(data.history || []);
     } catch (error) {
       console.error('Error loading task history:', error);

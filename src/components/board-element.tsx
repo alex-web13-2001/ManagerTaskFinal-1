@@ -49,6 +49,12 @@ export function BoardElementComponent({
   // Refs for stable drag/resize tracking without triggering re-renders
   const isDraggingRef = React.useRef(false);
   const isResizingRef = React.useRef(false);
+  const scaleRef = React.useRef(scale);
+  
+  // Sync scaleRef with scale prop to avoid recreating handleResize
+  React.useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
   
   // Refs to store current handlers for cleanup
   const handleDragRef = React.useRef<((e: MouseEvent) => void) | null>(null);
@@ -128,8 +134,8 @@ export function BoardElementComponent({
 
   const handleResize = React.useCallback((e: MouseEvent) => {
     if (!isResizingRef.current) return;  // Use ref instead of state
-    const deltaX = (e.clientX - resizeStart.x) / scale;
-    const deltaY = (e.clientY - resizeStart.y) / scale;
+    const deltaX = (e.clientX - resizeStart.x) / scaleRef.current;
+    const deltaY = (e.clientY - resizeStart.y) / scaleRef.current;
     
     // For images and videos in embed mode - maintain aspect ratio
     if (element.type === 'image' || element.type === 'video') {
@@ -146,7 +152,7 @@ export function BoardElementComponent({
         height: Math.max(30, resizeStart.height + deltaY)
       });
     }
-  }, [resizeStart, scale, onUpdate, element.type]);
+  }, [resizeStart, onUpdate, element.type]);
   // Removed isResizing from dependencies to prevent function recreation
   
   // Store handler in ref for cleanup
