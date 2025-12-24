@@ -3395,18 +3395,35 @@ apiRouter.get('/tasks/:id/history', async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const userId = req.user!.sub;
 
+    console.log('📜 GET /api/tasks/:id/history called:', { 
+      taskId: id, 
+      userId,
+      userEmail: req.user!.email
+    });
+
     // Check if task exists and user has access
     const canView = await canViewTaskFromDB(userId, id);
+    
+    console.log('🔐 Permission check result:', { taskId: id, userId, canView });
+
     if (!canView) {
+      console.log('❌ Access denied to task history');
       return res.status(403).json({ error: 'Нет доступа к этой задаче' });
     }
 
     // Get task history
     const history = await getTaskHistory(id);
+    
+    console.log('📊 Task history retrieved:', { 
+      taskId: id, 
+      historyCount: history.length,
+      firstEntry: history[0]
+    });
 
     res.json({ history });
   } catch (error: any) {
-    console.error('Error getting task history:', error);
+    console.error('💥 Error getting task history:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ error: 'Ошибка при получении истории задачи' });
   }
 });
