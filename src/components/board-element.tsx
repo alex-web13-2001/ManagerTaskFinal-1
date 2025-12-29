@@ -71,6 +71,12 @@ export function BoardElementComponent({
 
   // Drag handlers
   const handleDragStart = (e: React.MouseEvent) => {
+    // Don't init drag if clicking input elements (allows text selection/cursor placement)
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable) {
+      return;
+    }
+
     e.stopPropagation();
     e.preventDefault();  // Prevent default browser behavior
     onSelect(e);
@@ -82,6 +88,10 @@ export function BoardElementComponent({
       x: (e.clientX - offset.x) / scale - element.positionX,
       y: (e.clientY - offset.y) / scale - element.positionY
     };
+    
+    // Add global listeners directly with capture to ensure we catch them even if stopPropagation is called
+    window.addEventListener('mousemove', handleDrag, { capture: true });
+    window.addEventListener('mouseup', handleDragEnd, { capture: true });
   };
 
   const handleDrag = React.useCallback((e: MouseEvent) => {
@@ -113,6 +123,10 @@ export function BoardElementComponent({
   handleDragRef.current = handleDrag;
 
   const handleDragEnd = React.useCallback(() => {
+    // Remove global listeners directly
+    window.removeEventListener('mousemove', handleDrag, { capture: true });
+    window.removeEventListener('mouseup', handleDragEnd, { capture: true });
+
     isDraggingRef.current = false;  // Clear ref
     setIsDragging(false);            // Clear state
     // Clear any existing timeout
@@ -129,6 +143,7 @@ export function BoardElementComponent({
   // Resize handlers
   const handleResizeStart = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault(); // Prevent text selection/dragging images
     isResizingRef.current = true;  // Ref for stable tracking
     setIsResizing(true);            // State for UI updates
     resizeStartRef.current = {
@@ -137,6 +152,10 @@ export function BoardElementComponent({
       x: e.clientX,
       y: e.clientY
     };
+    
+    // Add global listeners directly with capture
+    window.addEventListener('mousemove', handleResize, { capture: true });
+    window.addEventListener('mouseup', handleResizeEnd, { capture: true });
   };
 
   const handleResize = React.useCallback((e: MouseEvent) => {
@@ -166,9 +185,13 @@ export function BoardElementComponent({
   handleResizeRef.current = handleResize;
 
   const handleResizeEnd = React.useCallback(() => {
+    // Remove global listeners directly
+    window.removeEventListener('mousemove', handleResize, { capture: true });
+    window.removeEventListener('mouseup', handleResizeEnd, { capture: true });
+
     isResizingRef.current = false;  // Clear ref
     setIsResizing(false);            // Clear state
-  }, []);
+  }, [handleResize]); // Added handleResize as dependency since it's used in removeEventListener
   
   // Store handler in ref for cleanup
   handleResizeEndRef.current = handleResizeEnd;
@@ -194,28 +217,10 @@ export function BoardElementComponent({
     onUpdate({ content: e.target.value });
   };
 
-  // Global mouse events
-  React.useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', handleDrag);
-      window.addEventListener('mouseup', handleDragEnd);
-      return () => {
-        window.removeEventListener('mousemove', handleDrag);
-        window.removeEventListener('mouseup', handleDragEnd);
-      };
-    }
-  }, [isDragging, handleDrag, handleDragEnd]);
+  // Global mouse events - REMOVED useEffects in favor of direct handler attachment
+  // This prevents issues where listeners might be attached/detached incorrectly
+  // during React render cycles
 
-  React.useEffect(() => {
-    if (isResizing) {
-      window.addEventListener('mousemove', handleResize);
-      window.addEventListener('mouseup', handleResizeEnd);
-      return () => {
-        window.removeEventListener('mousemove', handleResize);
-        window.removeEventListener('mouseup', handleResizeEnd);
-      };
-    }
-  }, [isResizing, handleResize, handleResizeEnd]);
 
   // Cleanup timeout on unmount and force remove all event listeners
   React.useEffect(() => {
@@ -274,7 +279,7 @@ export function BoardElementComponent({
                 placeholder="Введите текст..."
               />
             ) : (
-              <div className="w-full h-full overflow-auto whitespace-pre-wrap">
+              <div className="w-full h-full overflow-auto whitespace-pre-wrap break-all">
                 {element.content || 'Двойной клик для редактирования'}
               </div>
             )}
@@ -303,7 +308,7 @@ export function BoardElementComponent({
           />
         ) : (
           <div
-            className="font-bold"
+            className="font-bold break-all w-full"
             style={{ fontSize: element.fontSize || 24 }}
           >
             {element.content || 'Заголовок'}
@@ -322,7 +327,7 @@ export function BoardElementComponent({
           />
         ) : (
           <div
-            className="whitespace-pre-wrap"
+            className="whitespace-pre-wrap break-all w-full"
             style={{ fontSize: element.fontSize || 14 }}
           >
             {element.content || 'Текст'}
@@ -445,9 +450,9 @@ export function BoardElementComponent({
                 src={`https://www.youtube.com/embed/${videoId}`}
                 className="w-full h-full rounded-lg"
                 style={{
-                  // CRITICAL FIX: Block pointer-events if NOT selected OR during drag
-                  // This prevents iframe from capturing mouseUp events during drag operations
-                  pointerEvents: (isSelected && !isDragging) ? 'auto' : 'none'
+                  // CRITICAL FIX: Block pointer-events if NOT selected, OR during drag, OR during resize
+                  // This prevents iframe from capturing mouseUp events during drag/resize operations
+                  pointerEvents: (isSelected && !isDragging && !isResizing) ? 'auto' : 'none'
                 }}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
