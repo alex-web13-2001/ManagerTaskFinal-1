@@ -444,10 +444,40 @@ export const tasksAPI = {
     return true;
   },
 
-  addComment: async (taskId: string, text: string, mentionedUsers?: string[]) => {
+  addComment: async (taskId: string, text: string, mentionedUsers?: string[], files?: File[]) => {
     const token = getAuthToken();
     if (!token) throw new Error('Not authenticated');
 
+    // Use FormData if there are files
+    if (files && files.length > 0) {
+      const formData = new FormData();
+      formData.append('text', text);
+      if (mentionedUsers) {
+        formData.append('mentionedUsers', JSON.stringify(mentionedUsers));
+      }
+      
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/comments`, {
+        method: 'POST',
+        headers: {
+          // Content-Type header excluded to let browser set boundary
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to add comment');
+      }
+
+      return response.json();
+    } 
+    
+    // Use JSON if no files (backward compatibility)
     const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/comments`, {
       method: 'POST',
       headers: {

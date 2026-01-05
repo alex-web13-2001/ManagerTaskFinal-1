@@ -230,6 +230,8 @@ export function TaskModal({
   const [mentionQuery, setMentionQuery] = React.useState('');
   const [mentionStartIndex, setMentionStartIndex] = React.useState(0);
   const commentTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const commentFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [commentFiles, setCommentFiles] = React.useState<File[]>([]);
 
   // History-related state
   const [taskHistory, setTaskHistory] = React.useState<Array<import('./task-history-timeline').TaskHistoryEntry>>([]);
@@ -805,6 +807,18 @@ export function TaskModal({
     }, 0);
   };
 
+  const handleCommentFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setCommentFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+      // Clear input so same file can be selected again if needed
+      e.target.value = '';
+    }
+  };
+
+  const removeCommentFile = (index: number) => {
+    setCommentFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmitComment = async () => {
     if (!commentText.trim() || !existingTask) return;
     
@@ -813,8 +827,9 @@ export function TaskModal({
       // Extract mentioned users from the comment text
       const mentionedUsers = extractMentionedUsers(commentText.trim());
       
-      await addTaskComment(existingTask.id, commentText.trim(), mentionedUsers);
+      await addTaskComment(existingTask.id, commentText.trim(), mentionedUsers, commentFiles);
       setCommentText('');
+      setCommentFiles([]);
       setShowMentionAutocomplete(false);
       toast.success('Комментарий добавлен');
       // Reload history to show the comment event
@@ -1510,11 +1525,51 @@ export function TaskModal({
                         />,
                         document.body
                       )}
+
+                      {/* Comment Files Preview */}
+                      {commentFiles.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {commentFiles.map((file, index) => (
+                            <div key={index} className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-xs border border-gray-200 dark:border-gray-700">
+                              <span className="truncate max-w-[150px]">{file.name}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-4 w-4 ml-1 text-gray-500 hover:text-red-500"
+                                onClick={() => removeCommentFile(index)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       
-                      <div className="flex justify-end">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <input
+                             type="file"
+                             ref={commentFileInputRef}
+                             className="hidden"
+                             multiple
+                             onChange={handleCommentFileSelect}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-gray-500 hover:text-gray-700"
+                            onClick={() => commentFileInputRef.current?.click()}
+                          >
+                            <Paperclip className="w-4 h-4 mr-1" />
+                            Прикрепить
+                          </Button>
+                        </div>
+
                         <Button
                           onClick={handleSubmitComment}
-                          disabled={!commentText.trim() || isSubmittingComment}
+                          disabled={(!commentText.trim() && commentFiles.length === 0) || isSubmittingComment}
                           className="bg-purple-600 hover:bg-purple-700"
                         >
                           {isSubmittingComment ? (
@@ -1575,6 +1630,39 @@ export function TaskModal({
                                       <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                                         {renderCommentWithMentions(comment.text)}
                                       </p>
+                                      
+                                      {/* Comment Attachments */}
+                                      {comment.attachments && comment.attachments.length > 0 && (
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                          {comment.attachments.map((att) => (
+                                            <a 
+                                              key={att.id} 
+                                              href={att.url} 
+                                              target="_blank" 
+                                              rel="noopener noreferrer"
+                                              className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors group"
+                                            >
+                                              {att.type?.startsWith('image/') || att.name.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                                                 <div className="relative w-10 h-10 overflow-hidden rounded bg-gray-100">
+                                                   <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
+                                                 </div>
+                                              ) : (
+                                                 <div className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded text-gray-500">
+                                                   <Paperclip className="w-5 h-5" />
+                                                 </div>
+                                              )}
+                                              <div className="flex flex-col overflow-hidden">
+                                                <span className="text-xs font-medium truncate max-w-[150px] group-hover:text-purple-600 transition-colors" title={att.name}>
+                                                  {att.name}
+                                                </span>
+                                                <span className="text-[10px] text-gray-400">
+                                                  {(att.size / 1024).toFixed(1)} KB
+                                                </span>
+                                              </div>
+                                            </a>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 );

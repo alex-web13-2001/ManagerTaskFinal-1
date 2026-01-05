@@ -26,6 +26,7 @@ export interface Comment {
     avatarUrl?: string;
   };
   mentionedUsers?: string[];
+  attachments?: TaskAttachment[];
 }
 
 export interface Task {

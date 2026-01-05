@@ -147,6 +147,7 @@ model Task {
   history     TaskHistory[]
   subscribers TaskSubscriber[]
 
+
   @@index([projectId])
   @@index([creatorId])
   @@index([assigneeId])
@@ -165,10 +166,16 @@ model Attachment {
   createdAt DateTime @default(now())
 
   // Связь с задачей (удаляется каскадно при удалении задачи)
-  taskId    String
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  // Связь с задачей (удаляется каскадно при удалении задачи)
+  taskId    String?
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  // Связь с комментарием
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
+  @@index([commentId])
   @@map("attachments")
 }
 
@@ -243,6 +250,8 @@ model Comment {
   user            User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
   
   mentionedUsers  String[] @default([])
+  attachments     Attachment[]
+
   
   @@index([taskId])
   @@index([createdBy])

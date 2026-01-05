@@ -3240,198 +3240,257 @@ apiRouter.delete('/tasks/:taskId/attachments/:attachmentId', uploadRateLimiter, 
  * POST /api/tasks/:id/comments
  * Add comment to task with mentions, subscriptions, and WebSocket real-time updates
  */
-apiRouter.post('/tasks/:id/comments', async (req: AuthRequest, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { text } = req.body;
-    const userId = req.user!.sub;
+// Configure multer for comment attachments
+const commentUpload = upload.array('files', 10); // Allow up to 10 files
 
-    // Validate comment text
-    if (!text || text.trim().length === 0) {
-      return res.status(400).json({ error: 'Текст комментария не может быть пустым' });
+/**
+ * POST /api/tasks/:id/comments
+ * Add comment to task with mentions, subscriptions, attachments and WebSocket real-time updates
+ */
+apiRouter.post('/tasks/:id/comments', (req: AuthRequest, res: Response, next: NextFunction) => {
+  // Wrap in multer middleware
+  commentUpload(req, res, async (err) => {
+    if (err) {
+      console.error('Multer error:', err);
+      return res.status(400).json({ error: 'Ошибка загрузки файлов' });
     }
 
-    // Check if task exists and user has access
-    const task = await prisma.task.findUnique({
-      where: { id },
-      include: {
-        project: {
-          include: {
-            members: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true
+    try {
+      const { id } = req.params;
+      const { text } = req.body;
+      const userId = req.user!.sub;
+      const files = req.files as Express.Multer.File[];
+
+      // Validate comment text or files (allow empty text if files are present)
+      if ((!text || text.trim().length === 0) && (!files || files.length === 0)) {
+        return res.status(400).json({ error: 'Текст комментария не может быть пустым' });
+      }
+
+      // Check if task exists and user has access
+      const task = await prisma.task.findUnique({
+        where: { id },
+        include: {
+          project: {
+            include: {
+              members: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true
+                    }
                   }
                 }
               }
             }
           }
         }
-      }
-    });
-
-    if (!task) {
-      return res.status(404).json({ error: 'Задача не найдена' });
-    }
-
-    // Check access: task creator, assignee, or project member
-    const isCreator = task.creatorId === userId;
-    const isAssignee = task.assigneeId === userId;
-    const userMember = task.project?.members.find(m => m.userId === userId);
-    const isProjectMember = !!userMember;
-    const isProjectOwner = task.project?.ownerId === userId;
-
-    if (!isCreator && !isAssignee && !isProjectMember && !isProjectOwner) {
-      return res.status(403).json({ error: 'Нет доступа к этой задаче' });
-    }
-
-    // Extract mentions from comment text
-    const mentions = extractMentions(text);
-    
-    // Get all project members for mention matching
-    const projectMembers = task.project?.members.map(m => ({
-      id: m.user.id,
-      name: m.user.name,
-      email: m.user.email
-    })) || [];
-    
-    // Also include task creator and assignee if they're not project members
-    const allAccessibleUsers = [...projectMembers];
-    if (task.creatorId) {
-      const creator = await prisma.user.findUnique({
-        where: { id: task.creatorId },
-        select: { id: true, name: true, email: true }
       });
-      if (creator && !allAccessibleUsers.find(u => u.id === creator.id)) {
-        allAccessibleUsers.push(creator);
-      }
-    }
-    if (task.assigneeId) {
-      const assignee = await prisma.user.findUnique({
-        where: { id: task.assigneeId },
-        select: { id: true, name: true, email: true }
-      });
-      if (assignee && !allAccessibleUsers.find(u => u.id === assignee.id)) {
-        allAccessibleUsers.push(assignee);
-      }
-    }
-    
-    // Find mentioned user IDs
-    const mentionedUserIds = getUsersByMentions(mentions, allAccessibleUsers);
 
-    // Create comment with mentioned users
-    const comment = await prisma.comment.create({
-      data: {
-        text: text.trim(),
-        taskId: id,
-        createdBy: userId,
-        mentionedUsers: mentionedUserIds
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatarUrl: true
-          }
+      if (!task) {
+        // Clean up uploaded files
+        if (files) files.forEach(file => fs.unlinkSync(file.path));
+        return res.status(404).json({ error: 'Задача не найдена' });
+      }
+
+      // Check access: task creator, assignee, or project member
+      const isCreator = task.creatorId === userId;
+      const isAssignee = task.assigneeId === userId;
+      const userMember = task.project?.members.find(m => m.userId === userId);
+      const isProjectMember = !!userMember;
+      const isProjectOwner = task.project?.ownerId === userId;
+
+      if (!isCreator && !isAssignee && !isProjectMember && !isProjectOwner) {
+        // Clean up uploaded files
+        if (files) files.forEach(file => fs.unlinkSync(file.path));
+        return res.status(403).json({ error: 'Нет доступа к этой задаче' });
+      }
+
+      // Extract mentions from comment text (if text exists)
+      const mentions = text ? extractMentions(text) : [];
+      
+      // Get all project members for mention matching
+      const projectMembers = task.project?.members.map(m => ({
+        id: m.user.id,
+        name: m.user.name,
+        email: m.user.email
+      })) || [];
+      
+      // Also include task creator and assignee if they're not project members
+      const allAccessibleUsers = [...projectMembers];
+      if (task.creatorId) {
+        const creator = await prisma.user.findUnique({
+          where: { id: task.creatorId },
+          select: { id: true, name: true, email: true }
+        });
+        if (creator && !allAccessibleUsers.find(u => u.id === creator.id)) {
+          allAccessibleUsers.push(creator);
         }
       }
-    });
+      if (task.assigneeId) {
+        const assignee = await prisma.user.findUnique({
+          where: { id: task.assigneeId },
+          select: { id: true, name: true, email: true }
+        });
+        if (assignee && !allAccessibleUsers.find(u => u.id === assignee.id)) {
+          allAccessibleUsers.push(assignee);
+        }
+      }
+      
+      // Find mentioned user IDs
+      const mentionedUserIds = getUsersByMentions(mentions, allAccessibleUsers);
 
-    // Add comment author to task subscribers (if not already subscribed)
-    await prisma.taskSubscriber.upsert({
-      where: {
-        taskId_userId: {
+      // Create comment with mentioned users and attachments
+      const comment = await prisma.comment.create({
+        data: {
+          text: text ? text.trim() : '',
+          taskId: id,
+          createdBy: userId,
+          mentionedUsers: mentionedUserIds,
+          // Create attachments if files were uploaded
+          attachments: files && files.length > 0 ? {
+            create: files.map(file => {
+              const fileUrl = getFullFileUrl(`uploads/${file.filename}`);
+              const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+              return {
+                name: decodedFileName,
+                url: fileUrl,
+                size: file.size,
+                mimeType: file.mimetype,
+                // Linked to task as well for easier file management
+                taskId: id
+              };
+            })
+          } : undefined
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatarUrl: true
+            }
+          },
+          attachments: true // Return created attachments
+        }
+      });
+
+      // Add comment author to task subscribers (if not already subscribed)
+      await prisma.taskSubscriber.upsert({
+        where: {
+          taskId_userId: {
+            taskId: id,
+            userId: userId
+          }
+        },
+        create: {
           taskId: id,
           userId: userId
+        },
+        update: {} // Do nothing if already exists
+      });
+
+      // Get all task subscribers
+      const subscribers = await prisma.taskSubscriber.findMany({
+        where: { taskId: id },
+        select: { userId: true }
+      });
+
+      // Record comment in task history
+      await recordCommentAdded(id, userId, comment.id, comment.text);
+      console.log(`📜 Task history: Recorded comment for task ${id}`);
+
+      // Emit WebSocket event for real-time updates (only for project tasks)
+      if (task.projectId) {
+        const commentData = {
+          id: comment.id,
+          text: comment.text,
+          createdBy: comment.createdBy,
+          createdAt: comment.createdAt.toISOString(),
+          user: comment.user,
+          mentionedUsers: comment.mentionedUsers,
+          attachments: comment.attachments.map((att: any) => ({
+             id: att.id,
+             name: att.name,
+             url: att.url,
+             size: att.size,
+             mimeType: att.mimeType,
+             createdAt: att.createdAt.toISOString()
+          }))
+        };
+        emitCommentAdded(id, commentData, task.projectId);
+      }
+
+      // Send mention notifications
+      for (const mentionedUserId of mentionedUserIds) {
+        if (mentionedUserId !== userId) { // Don't notify the author
+          await sendMentionNotification(
+            {
+              id: task.id,
+              title: task.title,
+              creatorId: task.creatorId,
+              assigneeId: task.assigneeId,
+              project: task.project ? { name: task.project.name } : null,
+            },
+            comment,
+            mentionedUserId
+          );
         }
-      },
-      create: {
-        taskId: id,
-        userId: userId
-      },
-      update: {} // Do nothing if already exists
-    });
-
-    // Get all task subscribers
-    const subscribers = await prisma.taskSubscriber.findMany({
-      where: { taskId: id },
-      select: { userId: true }
-    });
-
-    // Record comment in task history
-    await recordCommentAdded(id, userId, comment.id, comment.text);
-    console.log(`📜 Task history: Recorded comment for task ${id}`);
-
-    // Emit WebSocket event for real-time updates (only for project tasks)
-    if (task.projectId) {
-      const commentData = {
-        id: comment.id,
-        text: comment.text,
-        createdBy: comment.createdBy,
-        createdAt: comment.createdAt.toISOString(),
-        user: comment.user,
-        mentionedUsers: comment.mentionedUsers
-      };
-      emitCommentAdded(id, commentData, task.projectId);
-    }
-
-    // Send mention notifications
-    for (const mentionedUserId of mentionedUserIds) {
-      if (mentionedUserId !== userId) { // Don't notify the author
-        await sendMentionNotification(
-          {
-            id: task.id,
-            title: task.title,
-            creatorId: task.creatorId,
-            assigneeId: task.assigneeId,
-            project: task.project ? { name: task.project.name } : null,
-          },
-          comment,
-          mentionedUserId
-        );
       }
-    }
 
-    // Send subscriber notifications (excluding mentioned users and author)
-    const mentionedSet = new Set(mentionedUserIds);
-    for (const subscriber of subscribers) {
-      // Skip if user was mentioned (they already got a mention notification)
-      // Skip if user is the author (don't notify about own comment)
-      if (!mentionedSet.has(subscriber.userId) && subscriber.userId !== userId) {
-        await sendSubscriberNotification(
-          {
-            id: task.id,
-            title: task.title,
-            creatorId: task.creatorId,
-            assigneeId: task.assigneeId,
-            project: task.project ? { name: task.project.name } : null,
-          },
-          comment,
-          subscriber.userId
-        );
+      // Send subscriber notifications (excluding mentioned users and author)
+      const mentionedSet = new Set(mentionedUserIds);
+      for (const subscriber of subscribers) {
+        // Skip if user was mentioned (they already got a mention notification)
+        // Skip if user is the author (don't notify about own comment)
+        if (!mentionedSet.has(subscriber.userId) && subscriber.userId !== userId) {
+          await sendSubscriberNotification(
+            {
+              id: task.id,
+              title: task.title,
+              creatorId: task.creatorId,
+              assigneeId: task.assigneeId,
+              project: task.project ? { name: task.project.name } : null,
+            },
+            comment,
+            subscriber.userId
+          );
+        }
       }
-    }
 
-    console.log(`💬 Comment added to task ${id} by user ${userId}`);
-    res.json({
-      comment: {
-        id: comment.id,
-        text: comment.text,
-        createdBy: comment.createdBy,
-        createdAt: comment.createdAt.toISOString(),
-        user: comment.user,
-        mentionedUsers: comment.mentionedUsers
+      console.log(`💬 Comment added to task ${id} by user ${userId}`);
+      res.json({
+        comment: {
+          id: comment.id,
+          text: comment.text,
+          createdBy: comment.createdBy,
+          createdAt: comment.createdAt.toISOString(),
+          user: comment.user,
+          mentionedUsers: comment.mentionedUsers,
+          attachments: comment.attachments.map((att: any) => ({
+             id: att.id,
+             name: att.name,
+             url: att.url,
+             size: att.size,
+             mimeType: att.mimeType,
+             createdAt: att.createdAt.toISOString()
+          }))
+        }
+      });
+    } catch (error: any) {
+      console.error('Error adding comment:', error);
+      // Clean up files if error occurred
+      const files = req.files as Express.Multer.File[];
+      if (files) {
+        files.forEach(file => {
+           if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+        });
       }
-    });
-  } catch (error: any) {
-    console.error('Error adding comment:', error);
-    res.status(500).json({ error: 'Ошибка при добавлении комментария' });
-  }
+      res.status(500).json({ error: 'Ошибка при добавлении комментария' });
+    }
+  });
 });
 
 /**

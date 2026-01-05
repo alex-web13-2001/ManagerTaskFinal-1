@@ -43,7 +43,7 @@ interface TasksContextType {
   uploadTaskAttachment: (taskId: string, file: File) => Promise<TaskAttachment>;
   uploadMultipleTaskAttachments: (taskId: string, files: File[]) => Promise<TaskAttachment[]>;
   deleteTaskAttachment: (taskId: string, attachmentId: string) => Promise<void>;
-  addTaskComment: (taskId: string, text: string) => Promise<Comment>;
+  addTaskComment: (taskId: string, text: string, mentionedUsers?: string[], files?: File[]) => Promise<Comment>;
   canViewAllProjectTasks: (projectId: string) => boolean;
   canEditTask: (task: Task) => boolean;
   canDeleteTask: (task: Task) => boolean;
@@ -347,12 +347,16 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const addTaskComment = useCallback(async (taskId: string, text: string, mentionedUsers?: string[]): Promise<Comment> => {
+  const addTaskComment = useCallback(async (taskId: string, text: string, mentionedUsers?: string[], files?: File[]): Promise<Comment> => {
     try {
-      const { comment } = await tasksAPI.addComment(taskId, text, mentionedUsers);
+      const { comment } = await tasksAPI.addComment(taskId, text, mentionedUsers, files);
       
       setTasks((prev) => prev.map((t) => {
         if (t.id === taskId) {
+          // Check if comment already exists (from websocket)
+          const exists = t.comments?.some(c => c.id === comment.id);
+          if (exists) return t;
+
           return {
             ...t,
             comments: [...(t.comments || []), comment],
