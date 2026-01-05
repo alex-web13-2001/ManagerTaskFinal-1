@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { tasksAPI } from '../utils/api-client';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -53,6 +54,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from './ui/alert-dialog';
 import { useAuth } from '../contexts/auth-context';
 import { useTasks } from '../contexts/tasks-context';
@@ -593,7 +595,7 @@ export function TaskModal({
         
         try {
           // Upload all files at once instead of one by one
-          const uploadedAttachments = await uploadMultipleTaskAttachments(savedTask.id, pendingFiles);
+          const uploadedAttachments = await tasksAPI.uploadMultipleAttachments(savedTask.id, pendingFiles);
           console.log(`✅ Successfully uploaded ${uploadedAttachments.length} files`);
           toast.success(`Загружено файлов: ${uploadedAttachments.length}`);
         } catch (uploadError: any) {
@@ -706,8 +708,8 @@ export function TaskModal({
     
     try {
       setIsLoading(true);
-      // FIX Problem #4: Add await and proper error handling for file deletion
-      await deleteTaskAttachment(existingTask.id, attachmentId);
+      // FIX Problem #4: Add await and proper error handling
+      await tasksAPI.deleteAttachment(existingTask.id, attachmentId);
       console.log(`✅ File deleted successfully: ${attachmentId}`);
       // The task list will be automatically updated by the context
       // which will trigger a re-render with updated existingTask
@@ -851,59 +853,26 @@ export function TaskModal({
     console.log('📜 Loading task history for:', taskId);
     
     try {
-      const token = localStorage.getItem('token');
+      const data = await tasksAPI.getHistory(taskId);
       
-      if (!token) {
-        console.error('❌ No auth token found in localStorage');
-        toast.error('Необходима авторизация');
-        setTaskHistory([]);
-        return;
-      }
-      
-      console.log('🔑 Token found, length:', token.length);
-      console.log('🌐 API URL:', `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/tasks/${taskId}/history`);
-      
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'}/api/tasks/${taskId}/history`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      console.log('📡 Response status:', response.status, response.statusText);
-
-      if (response.status === 401) {
-        console.error('❌ 401 Unauthorized - token expired or invalid');
-        toast.error('Сессия истекла. Войдите заново');
-        setTaskHistory([]);
-        return;
-      }
-
-      if (response.status === 403) {
-        console.error('❌ 403 Forbidden - no access to task');
-        toast.error('Нет доступа к истории задачи');
-        setTaskHistory([]);
-        return;
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ HTTP ${response.status}:`, errorText);
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
       console.log('📜 Task history loaded successfully:', {
         taskId,
         historyCount: data.history?.length || 0,
         firstEntry: data.history?.[0],
         isEmpty: !data.history || data.history.length === 0,
-        rawData: data
       });
       
       setTaskHistory(data.history || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('💥 Error loading task history:', error);
-      toast.error('Ошибка загрузки истории задачи');
+      
+      // Handle auth errors specifically
+      if (error.message?.includes('401') || error.message?.includes('authenticated')) {
+         toast.error('Сессия истекла. Войдите заново');
+      } else {
+         toast.error(error.message || 'Ошибка загрузки истории задачи');
+      }
+      
       setTaskHistory([]);
     } finally {
       setIsLoadingHistory(false);

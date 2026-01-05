@@ -465,6 +465,24 @@ export const tasksAPI = {
     return response.json();
   },
 
+  getHistory: async (taskId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/history`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to fetch task history' }));
+      throw new Error(errorData.error || 'Failed to fetch task history');
+    }
+
+    return response.json();
+  },
+
   /**
    * Upload project attachment
    */
