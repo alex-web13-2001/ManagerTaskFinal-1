@@ -21,7 +21,7 @@ class EmailService {
   constructor() {
     this.from = process.env.EMAIL_FROM || 'noreply@taskmanager.com';
     this.fromName = process.env.EMAIL_FROM_NAME || 'Task Manager';
-    this.initializeTransporter();
+    setTimeout(() => this.initializeTransporter(), 100);
   }
 
   private initializeTransporter() {

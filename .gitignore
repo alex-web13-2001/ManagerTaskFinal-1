@@ -45,3 +45,4 @@ uploads/*
 
 # TypeScript
 *.tsbuildinfo
+ecosystem.config.cjs

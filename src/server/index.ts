@@ -1,5 +1,7 @@
+import "dotenv/config";
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -61,6 +63,12 @@ const PORT = process.env.PORT || 3001;
 // CORS must be the first middleware to ensure headers are set for all responses
 app.use(cors());
 
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for now to allow external images/videos and Vite scripts
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow cross-origin resource sharing (needed for images)
+}));
+
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -72,7 +80,23 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from uploads directory
-app.use('/uploads', express.static(uploadsDir));
+// Serve static files from uploads directory with security headers
+app.use('/uploads', (req, res, next) => {
+  // Prevent SVG/HTML from executing scripts
+  if (req.url.match(/\.(svg|html?|xml)$/i)) {
+    res.setHeader('Content-Disposition', 'attachment');
+    res.setHeader('Content-Type', 'application/octet-stream');
+  }
+  next();
+}, express.static(uploadsDir, {
+  setHeaders: (res, filePath) => {
+    // Force download for potentially dangerous types even if they slipped through
+    if (filePath.match(/\.(svg|html?|xml|js|exe|sh)$/i)) {
+      res.setHeader('Content-Disposition', 'attachment');
+      res.setHeader('Content-Type', 'application/octet-stream');
+    }
+  }
+}));
 
 // Configure multer for file uploads
 // FIX Problem #3: Handle Cyrillic filenames properly
@@ -98,6 +122,30 @@ const upload = multer({
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },
+  fileFilter: (_req, file, cb) => {
+    // Block dangerous file types
+    const dangerousExtensions = ['.exe', '.sh', '.bat', '.cmd', '.js', '.html', '.htm', '.php', '.pl', '.py', '.rb', '.cgi', '.jar', '.vbs', '.asp', '.aspx', '.jsp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    
+    if (dangerousExtensions.includes(ext)) {
+      return cb(new Error('File type not allowed for security reasons'));
+    }
+    
+    // Block suspicious MIME types
+    const dangerousMimeTypes = [
+      'application/javascript', 
+      'text/html', 
+      'application/x-msdownload', 
+      'application/x-sh', 
+      'application/x-httpd-php'
+    ];
+    
+    if (dangerousMimeTypes.includes(file.mimetype)) {
+      return cb(new Error('File type not allowed for security reasons'));
+    }
+    
+    cb(null, true);
+  }
 });
 
 /**
