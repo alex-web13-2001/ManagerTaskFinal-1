@@ -15,8 +15,7 @@ async function main() {
 
   if (existingUser) {
     console.log('✅ Admin user already exists:', adminEmail);
-    return;
-  }
+  } else {
 
   // Hash password
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
@@ -30,15 +29,63 @@ async function main() {
       emailVerified: true,
     },
   });
+  }
 
-  console.log('✅ Admin user created:', {
-    id: adminUser.id,
-    email: adminUser.email,
-    name: adminUser.name,
-  });
+
+
+  // Create additional test users
+  const testUsers = [
+    { email: 'manager@example.com', name: 'Ivan Manager' },
+    { email: 'dev@example.com', name: 'Petr Developer' },
+    { email: 'designer@example.com', name: 'Anna Designer' },
+  ];
+
+  for (const u of testUsers) {
+    const exists = await prisma.user.findUnique({ where: { email: u.email } });
+    if (!exists) {
+        const hashedPassword = await bcrypt.hash('password123', 10);
+        await prisma.user.create({
+            data: {
+                email: u.email,
+                name: u.name,
+                password: hashedPassword,
+                emailVerified: true,
+            }
+        });
+        console.log(`✅ Created test user: ${u.email}`);
+    }
+  }
 
   console.log('🎉 Seeding completed successfully!');
 }
+
+async function createTestUsers() {
+  const users = [
+    { email: 'manager@example.com', name: 'Ivan Manager', role: 'owner' },
+    { email: 'dev@example.com', name: 'Petr Developer', role: 'member' },
+    { email: 'designer@example.com', name: 'Anna Designer', role: 'member' },
+  ];
+
+  for (const u of users) {
+    const exists = await prisma.user.findUnique({ where: { email: u.email } });
+    if (!exists) {
+        const hashedPassword = await bcrypt.hash('password123', 10);
+        await prisma.user.create({
+            data: {
+                email: u.email,
+                name: u.name,
+                password: hashedPassword,
+                emailVerified: true,
+            }
+        });
+        console.log(`Created test user: ${u.email}`);
+    }
+  }
+}
+
+// Rename main to originalMain or just call createTestUsers inside main
+// Let's modify the end of the file instead to keep it clean.
+
 
 main()
   .catch((e) => {

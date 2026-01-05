@@ -186,6 +186,7 @@ export function MentionAutocomplete({
       style={{
         top: `${position.top}px`,
         left: `${position.left}px`,
+        zIndex: 100000,
       }}
     >
       {filteredUsers.map((user, index) => (
