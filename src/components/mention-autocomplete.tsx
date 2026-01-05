@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { TeamMember } from '../types';
 
@@ -176,10 +177,12 @@ export function MentionAutocomplete({
     return null;
   }
 
-  return (
+  // Use createPortal to render the autocomplete list outside of the current DOM hierarchy
+  // This prevents z-index issues when used inside modals that use transforms
+  return createPortal(
     <div
       ref={listRef}
-      className="fixed z-[200] w-72 max-h-64 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
+      className="fixed z-[9999] w-72 max-h-64 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
       style={{
         top: `${position.top}px`,
         left: `${position.left}px`,
@@ -188,7 +191,7 @@ export function MentionAutocomplete({
       {filteredUsers.map((user, index) => (
         <div
           key={user.id}
-          ref={el => itemRefs.current[index] = el}
+          ref={el => { itemRefs.current[index] = el; }}
           className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
             index === selectedIndex
               ? 'bg-purple-100 dark:bg-purple-900/30'
@@ -222,6 +225,7 @@ export function MentionAutocomplete({
           </div>
         </div>
       ))}
-    </div>
+    </div>,
+    document.body
   );
 }
