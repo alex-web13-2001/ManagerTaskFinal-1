@@ -531,8 +531,13 @@ export function ProjectKanbanBoard({
       if (filters.priorities.length > 0 && !filters.priorities.includes(task.priority)) {
         return false;
       }
-      if (filters.assignees.length > 0 && task.assigneeId && !filters.assignees.includes(task.assigneeId)) {
-        return false;
+      if (filters.assignees.length > 0) {
+        // Фильтр по исполнителям: проверяем assigneeId
+        // Если выбран конкретный исполнитель, скрываем задачи без исполнителя
+        // или с другим исполнителем
+        if (!task.assigneeId || !filters.assignees.includes(task.assigneeId)) {
+          return false;
+        }
       }
       if (filters.tags.length > 0 && task.tags) {
         const hasTag = filters.tags.some((tag) => task.tags.includes(tag));

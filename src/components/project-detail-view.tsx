@@ -123,6 +123,8 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView, onTaskCli
   const currentUserRole = getUserRoleInProject(projectId);
   
   // Получаем участников проекта для фильтра
+  // ВАЖНО: используем userId (ID пользователя), а не member.id (ID записи ProjectMember)
+  // потому что task.assigneeId хранит ID пользователя
   const projectMembers = React.useMemo(() => {
     const members: Array<{ id: string; name: string; email?: string }> = [];
     const seenIds = new Set<string>();
@@ -130,7 +132,9 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView, onTaskCli
     // Добавляем участников проекта
     if (project?.members) {
       project.members.forEach((member: any) => {
-        const memberId = member.id || member.userId;
+        // Приоритет: member.userId (из ProjectMember таблицы) или member.user?.id (из вложенного User)
+        // НЕ используем member.id — это ID записи ProjectMember, а не ID пользователя!
+        const memberId = member.userId || member.user?.id;
         const memberName = member.user?.name || member.name || member.user?.email || member.email || 'Без имени';
         const memberEmail = member.user?.email || member.email;
 
