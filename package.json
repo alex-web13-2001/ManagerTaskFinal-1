@@ -12,6 +12,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
     "migrate:kv": "tsx src/lib/migrateKV.ts",
+    "migrate:manual": "tsx src/scripts/manual-migration.ts",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down"
   },
