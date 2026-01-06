@@ -344,8 +344,7 @@ model Board {
   members     BoardMember[]
 
   // Публичный доступ
-  isPublic    Boolean  @default(false)
-  publicToken String?  @unique
+
 
   @@index([ownerId])
   @@map("boards")

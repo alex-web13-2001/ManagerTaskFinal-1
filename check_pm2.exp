@@ -1,6 +1,6 @@
 #!/usr/bin/expect -f
 
-set timeout 300
+set timeout 30
 set host "82.97.253.158"
 set user "root"
 set password "frGyWb_kF#651v"
@@ -13,19 +13,9 @@ expect {
 }
 
 expect "#"
-send "cd $project_path\r"
+send "pm2 list\r"
 expect "#"
-send "git pull\r"
-expect "#"
-send "npm install\r"
-expect "#"
-send "npx prisma db push --accept-data-loss\r"
-expect "#"
-send "npx prisma generate\r"
-expect "#"
-send "npm run build\r"
-expect "#"
-send "pm2 restart all\r"
+send "pm2 logs kanban-server --lines 20 --nostream\r"
 expect "#"
 send "exit\r"
 expect eof

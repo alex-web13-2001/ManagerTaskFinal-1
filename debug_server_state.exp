@@ -1,6 +1,6 @@
 #!/usr/bin/expect -f
 
-set timeout 300
+set timeout 30
 set host "82.97.253.158"
 set user "root"
 set password "frGyWb_kF#651v"
@@ -15,17 +15,9 @@ expect {
 expect "#"
 send "cd $project_path\r"
 expect "#"
-send "git pull\r"
+send "grep -n \"isPublic\" src/server/handlers/boardHandlers.ts\r"
 expect "#"
-send "npm install\r"
-expect "#"
-send "npx prisma db push --accept-data-loss\r"
-expect "#"
-send "npx prisma generate\r"
-expect "#"
-send "npm run build\r"
-expect "#"
-send "pm2 restart all\r"
+send "grep -r \"isPublic\" node_modules/.prisma/client/index.d.ts | head -n 5\r"
 expect "#"
 send "exit\r"
 expect eof
