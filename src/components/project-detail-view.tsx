@@ -131,12 +131,15 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView, onTaskCli
     if (project?.members) {
       project.members.forEach((member: any) => {
         const memberId = member.id || member.userId;
+        const memberName = member.user?.name || member.name || member.user?.email || member.email || 'Без имени';
+        const memberEmail = member.user?.email || member.email;
+
         if (memberId && !seenIds.has(memberId)) {
           seenIds.add(memberId);
           members.push({
             id: memberId,
-            name: member.name || member.email || 'Без имени',
-            email: member.email,
+            name: memberName,
+            email: memberEmail,
           });
         }
       });
