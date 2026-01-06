@@ -142,22 +142,8 @@ export function ProjectDetailView({ projectId, onBack, onCalendarView, onTaskCli
       });
     }
     
-    // Добавляем участников команды
-    if (teamMembers) {
-      teamMembers.forEach((member) => {
-        if (!seenIds.has(member.id)) {
-          seenIds.add(member.id);
-          members.push({
-            id: member.id,
-            name: member.name,
-            email: member.email,
-          });
-        }
-      });
-    }
-    
     return members;
-  }, [project, teamMembers]);
+  }, [project]);
   
   // FIX Problem #1: Get categories from project.categoriesDetails
   const projectCategories = React.useMemo(() => {

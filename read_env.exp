@@ -1,0 +1,14 @@
+#!/usr/bin/expect -f
+
+set timeout 20
+set host "82.97.253.158"
+set user "root"
+set password "frGyWb_kF#651v"
+set project_path "/var/www/kanban.24task.ru"
+
+spawn ssh $user@$host "cat $project_path/.env"
+expect {
+    "yes/no" { send "yes\r"; exp_continue }
+    "assword:" { send "$password\r" }
+}
+expect eof

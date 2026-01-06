@@ -330,6 +330,7 @@ function transformTaskForResponse(task: any): any {
       size: att.size,
       mimeType: att.mimeType,
       createdAt: att.createdAt instanceof Date ? att.createdAt.toISOString() : att.createdAt,
+      uploadedBy: att.comment?.user?.name,
     })) : [],
     // Ensure comments is always an array (even if empty)
     comments: task.comments ? task.comments.map((comment: any) => ({
@@ -338,6 +339,14 @@ function transformTaskForResponse(task: any): any {
       createdBy: comment.createdBy,
       createdAt: comment.createdAt instanceof Date ? comment.createdAt.toISOString() : comment.createdAt,
       user: comment.user,
+      attachments: comment.attachments ? comment.attachments.map((att: any) => ({
+        id: att.id,
+        name: att.name,
+        url: att.url,
+        size: att.size,
+        mimeType: att.mimeType,
+        createdAt: att.createdAt instanceof Date ? att.createdAt.toISOString() : att.createdAt,
+      })) : [],
     })) : [],
   };
 }
@@ -2747,7 +2756,20 @@ apiRouter.get('/tasks/:taskId', async (req: AuthRequest, res: Response) => {
                 email: true,
                 avatarUrl: true
               }
-            }
+            },
+            attachments: {
+              include: {
+                comment: {
+                  include: {
+                    user: {
+                      select: {
+                        name: true
+                      }
+                    }
+                  }
+                }
+              }
+            },
           },
           orderBy: {
             createdAt: 'desc'
@@ -3261,9 +3283,18 @@ apiRouter.post('/tasks/:id/comments', (req: AuthRequest, res: Response, next: Ne
       const userId = req.user!.sub;
       const files = req.files as Express.Multer.File[];
 
+      console.log('📝 Comment creation request:', { 
+        id, 
+        text: text ? text.substring(0, 50) : 'empty', 
+        filesCount: files ? files.length : 0, 
+        bodyKeys: Object.keys(req.body) 
+      });
+
       // Validate comment text or files (allow empty text if files are present)
-      if ((!text || text.trim().length === 0) && (!files || files.length === 0)) {
-        return res.status(400).json({ error: 'Текст комментария не может быть пустым' });
+      if ((!text || (!text.trim && typeof text !== 'string') || text.trim().length === 0) && (!files || files.length === 0)) {
+        console.log('❌ Validation failed: text and files are empty');
+        const debugInfo = `Files: ${files ? files.length : 'null/undefined'}, BodyKeys: ${Object.keys(req.body).join(',')}, TextLen: ${text ? text.length : 0}`;
+        return res.status(400).json({ error: `Текст комментария не может быть пустым (${debugInfo})` });
       }
 
       // Check if task exists and user has access
@@ -3358,8 +3389,8 @@ apiRouter.post('/tasks/:id/comments', (req: AuthRequest, res: Response, next: Ne
                 url: fileUrl,
                 size: file.size,
                 mimeType: file.mimetype,
-                // Linked to task as well for easier file management
-                taskId: id
+                // Linked to task only via comment relation
+                // taskId: id  <-- REMOVED to prevent appearance in main attachments list
               };
             })
           } : undefined

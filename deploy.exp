@@ -1,0 +1,29 @@
+#!/usr/bin/expect -f
+
+set timeout 300
+set host "82.97.253.158"
+set user "root"
+set password "frGyWb_kF#651v"
+set project_path "/var/www/kanban.24task.ru"
+
+spawn ssh $user@$host
+expect {
+    "yes/no" { send "yes\r"; exp_continue }
+    "assword:" { send "$password\r" }
+}
+
+expect "#"
+send "cd $project_path\r"
+expect "#"
+send "git pull\r"
+expect "#"
+send "npm install\r"
+expect "#"
+send "npx prisma db push --accept-data-loss\r"
+expect "#"
+send "npm run build\r"
+expect "#"
+send "pm2 restart all\r"
+expect "#"
+send "exit\r"
+expect eof

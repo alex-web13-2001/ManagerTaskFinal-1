@@ -820,7 +820,8 @@ export function TaskModal({
   };
 
   const handleSubmitComment = async () => {
-    if (!commentText.trim() || !existingTask) return;
+    if ((!commentText || !commentText.trim()) && commentFiles.length === 0) return;
+    if (!existingTask) return;
     
     setIsSubmittingComment(true);
     try {
@@ -1451,9 +1452,18 @@ export function TaskModal({
                         <div className="flex items-center gap-3">
                           <Paperclip className="w-4 h-4 text-gray-500" />
                           <div>
-                            <p className="text-sm">{attachment.name}</p>
+                            <p className="text-sm" title={attachment.name}>
+                              {attachment.name.length > 25 
+                                ? `${attachment.name.slice(0, 15)}...${attachment.name.slice(-7)}`
+                                : attachment.name}
+                            </p>
                             <p className="text-xs text-gray-500">
                               {(attachment.size / 1024 / 1024).toFixed(2)} MB
+                              {attachment.uploadedBy && (
+                                <span className="ml-2 pl-2 border-l border-gray-300">
+                                  Загрузил: {attachment.uploadedBy}
+                                </span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -1531,7 +1541,11 @@ export function TaskModal({
                         <div className="flex flex-wrap gap-2 mb-2">
                           {commentFiles.map((file, index) => (
                             <div key={index} className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-xs border border-gray-200 dark:border-gray-700">
-                              <span className="truncate max-w-[150px]">{file.name}</span>
+                                                <span className="text-xs truncate max-w-[150px]" title={file.name}>
+                                                  {file.name.length > 20 
+                                                    ? `${file.name.slice(0, 10)}...${file.name.slice(-7)}`
+                                                    : file.name}
+                                                </span>
                               <Button
                                 type="button"
                                 variant="ghost"

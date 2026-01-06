@@ -464,7 +464,7 @@ export const tasksAPI = {
         method: 'POST',
         headers: {
           // Content-Type header excluded to let browser set boundary
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${token.trim()}`,
         },
         body: formData,
       });
