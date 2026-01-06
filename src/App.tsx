@@ -21,6 +21,7 @@ import { VerifyEmailPage } from './components/verify-email-page';
 import { ResetPasswordPage } from './components/reset-password-page';
 import { WelcomeModal } from './components/welcome-modal';
 import { TaskModal } from './components/task-modal';
+import { PublicBoardView } from './components/public-board-view';
 import { SidebarProvider, SidebarInset } from './components/ui/sidebar';
 import { Toaster } from './components/ui/sonner';
 import { authAPI } from './utils/api-client';
@@ -298,6 +299,7 @@ function AppRouter() {
           </AuthProvider>
         </ErrorBoundary>
       } />
+      <Route path="/public/board/:token" element={<PublicBoardView />} />
       
       {/* Protected routes */}
       {isAuthenticated ? (

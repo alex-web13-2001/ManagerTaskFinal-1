@@ -129,6 +129,8 @@ export interface Board {
   ownerId: string;
   createdAt: string;
   updatedAt: string;
+  isPublic?: boolean;
+  publicToken?: string;
 }
 
 export interface BoardElement {

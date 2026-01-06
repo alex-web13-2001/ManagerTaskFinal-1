@@ -23,6 +23,7 @@ interface BoardElementComponentProps {
   onDragDelta?: (deltaX: number, deltaY: number) => void;
   scale: number;
   offset: { x: number; y: number };
+  isReadOnly?: boolean;
 }
 
 export function BoardElementComponent({
@@ -33,7 +34,8 @@ export function BoardElementComponent({
   onDelete,
   onDragDelta,
   scale,
-  offset
+  offset,
+  isReadOnly = false
 }: BoardElementComponentProps) {
   const [isDragging, setIsDragging] = React.useState(false);
   const [isResizing, setIsResizing] = React.useState(false);
@@ -76,6 +78,8 @@ export function BoardElementComponent({
     if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable) {
       return;
     }
+
+    if (isReadOnly) return;
 
     e.stopPropagation();
     e.preventDefault();  // Prevent default browser behavior
@@ -198,6 +202,7 @@ export function BoardElementComponent({
 
   // Content editing
   const handleDoubleClick = () => {
+    if (isReadOnly) return;
     if (element.type === 'video') {
       // Toggle display mode for video
       onUpdate({
@@ -253,7 +258,7 @@ export function BoardElementComponent({
   // Keyboard delete
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isSelected && !isEditing && (e.key === 'Delete' || e.key === 'Backspace')) {
+      if (!isReadOnly && isSelected && !isEditing && (e.key === 'Delete' || e.key === 'Backspace')) {
         onDelete();
       }
     };
@@ -526,7 +531,7 @@ export function BoardElementComponent({
   return (
     <div
       ref={elementRef}
-      className="cursor-move"
+      className={isReadOnly ? "cursor-default" : "cursor-move"}
       style={{
         position: 'absolute',
         left: element.positionX,
@@ -553,7 +558,7 @@ export function BoardElementComponent({
         {renderContent()}
 
         {/* Selection controls */}
-        {isSelected && (
+        {isSelected && !isReadOnly && (
           <>
             {/* Delete button - top-right corner */}
             <Button

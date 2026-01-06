@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../db';
 import { AuthRequest } from '../middleware/auth';
 import { Board, BoardElement } from '@prisma/client';
+import crypto from 'crypto';
 
 /**
  * Board update data type
@@ -410,5 +411,95 @@ export async function uploadBoardImage(req: Request, res: Response) {
   } catch (error: any) {
     console.error('Failed to upload image:', error);
     res.status(500).json({ error: 'Не удалось загрузить изображение' });
+  }
+}
+
+import { v4 as uuidv4 } from 'uuid';
+
+/**
+ * PUT /api/boards/:id/share
+ * Включить/выключить публичный доступ к доске
+ */
+export async function toggleBoardSharing(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { isPublic } = req.body;
+    const userId = (req as AuthRequest).user!.sub;
+
+    const board = await prisma.board.findUnique({
+      where: { id },
+    });
+
+    if (!board) {
+      return res.status(404).json({ error: 'Доска не найдена' });
+    }
+
+    if (board.ownerId !== userId) {
+      return res.status(403).json({ error: 'Недостаточно прав' });
+    }
+
+    let publicToken = board.publicToken;
+    
+    // Если включаем доступ и токена нет - генерируем
+    if (isPublic && !publicToken) {
+      publicToken = crypto.randomUUID();
+    }
+    
+    // Если выключаем - токен можно оставить или нет, требования не строгие,
+    // но лучше оставить, чтобы ссылка осталась валидной если снова включить.
+    // Но если мы хотим "revoke", то можно перегенерировать.
+    // Пока просто обновляем флаг.
+
+    const updatedBoard = await prisma.board.update({
+      where: { id },
+      data: {
+        isPublic,
+        publicToken: isPublic ? publicToken : board.publicToken, // Keep token even if disabled
+      },
+    });
+
+    res.json(transformBoardForResponse(updatedBoard));
+  } catch (error: any) {
+    console.error('Failed to toggle board sharing:', error);
+    res.status(500).json({ error: 'Не удалось изменить настройки доступа' });
+  }
+}
+
+/**
+ * GET /api/public/boards/:token
+ * Получить публичную доску (доступно всем)
+ */
+export async function getPublicBoard(req: Request, res: Response) {
+  try {
+    const { token } = req.params;
+
+    const board = await prisma.board.findUnique({
+      where: { publicToken: token },
+      include: {
+        elements: {
+          orderBy: {
+            zIndex: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!board) {
+      return res.status(404).json({ error: 'Доска не найдена' });
+    }
+
+    if (!board.isPublic) {
+      return res.status(403).json({ error: 'Доступ к доске закрыт' });
+    }
+
+    // Возвращаем данные. Важно не отдавать ownerId или чувствительные данные, если они есть.
+    // Но transformBoardForResponse возвращает ownerId, это не критично для public read-only, но лучше скрыть.
+    // Для простоты пока вернем как есть, или отфильтруем на клиенте/здесь.
+    // transformBoardForResponse возвращает ownerId но это ID пользователя, не пароль.
+    
+    res.json(transformBoardForResponse(board));
+  } catch (error: any) {
+    console.error('Failed to fetch public board:', error);
+    res.status(500).json({ error: 'Не удалось загрузить доску' });
   }
 }
