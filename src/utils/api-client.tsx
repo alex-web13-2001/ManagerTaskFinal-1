@@ -1198,42 +1198,6 @@ export const boardsAPI = {
     }
     return response.json();
   },
-
-  /**
-   * Toggle board sharing
-   */
-  toggleSharing: async (boardId: string, isPublic: boolean) => {
-    const token = getAuthToken();
-    if (!token) throw new Error('Not authenticated');
-
-    const response = await fetch(`${API_BASE_URL}/api/boards/${boardId}/share`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({ isPublic }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to update share settings');
-    }
-
-    return response.json();
-  },
-
-  /**
-   * Get public board data
-   */
-  getPublic: async (token: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/public/boards/${token}`);
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch public board');
-    }
-
-    return response.json();
-  },
 };
 
 // ========== INVITATIONS API ==========

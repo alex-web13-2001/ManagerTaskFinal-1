@@ -4,9 +4,8 @@ import { Board, BoardElement } from '../types';
 import { BoardToolbar } from './board-toolbar';
 import { BoardElementComponent } from './board-element';
 import { VideoDialog } from './ui/video-dialog';
-import { ShareBoardDialog } from './share-board-dialog';
 import { Button } from './ui/button';
-import { ArrowLeft, Loader2, ZoomIn, ZoomOut, Undo, Redo, Focus, Share2 } from 'lucide-react';
+import { ArrowLeft, Loader2, ZoomIn, ZoomOut, Undo, Redo, Focus } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from './ui/utils';
 import { detectVideoType } from '../utils/video-parser';
@@ -14,14 +13,12 @@ import { detectVideoType } from '../utils/video-parser';
 interface BoardCanvasProps {
   boardId: string;
   onBack: () => void;
-  isReadOnly?: boolean;
-  initialBoard?: Board & { elements: BoardElement[] };
 }
 
-export function BoardCanvas({ boardId, onBack, isReadOnly = false, initialBoard }: BoardCanvasProps) {
-  const [board, setBoard] = React.useState<Board | null>(initialBoard || null);
-  const [elements, setElements] = React.useState<BoardElement[]>(initialBoard?.elements || []);
-  const [loading, setLoading] = React.useState(!initialBoard);
+export function BoardCanvas({ boardId, onBack }: BoardCanvasProps) {
+  const [board, setBoard] = React.useState<Board | null>(null);
+  const [elements, setElements] = React.useState<BoardElement[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [selectedElementIds, setSelectedElementIds] = React.useState<Set<string>>(new Set());
   const [videoDialogOpen, setVideoDialogOpen] = React.useState(false);
   
@@ -62,32 +59,12 @@ export function BoardCanvas({ boardId, onBack, isReadOnly = false, initialBoard 
 
   // Load board with elements
   React.useEffect(() => {
-    if (!initialBoard) {
-      loadBoard();
-    }
+    loadBoard();
   }, [boardId]);
 
   const loadBoard = async () => {
     try {
       setLoading(true);
-      // If readonly (public), we might need to use getPublic if we had the token here, 
-      // but BoardCanvas is designed to take boardId.
-      // For public view, we probably pass the board data directly or handle it outside.
-      // However, to reuse this component for authenticated regular view vs public view:
-      // If it's public, the API call 'boardsAPI.getById(boardId)' might fail if not authenticated.
-      // So checking logic:
-      // Ideally BoardCanvas should accept 'initialBoard' data or fetch logic.
-      // But let's assume for now BoardCanvas is used in two contexts:
-      // 1. Auth user viewing their board -> getById works.
-      // 2. Public user viewing board -> We passed boardId, but we need to fetch via public API?
-      // Actually, for public view, we'll likely fetch data in PublicBoardView and pass it relevantly,
-      // Or we need to support passing `publicToken` to BoardCanvas.
-      // For now, let's assume BoardCanvas fetches if boardId is present, but if we are in readOnly mode, 
-      // we might rely on a passed 'board' prop?
-      // Let's keep it simple: BoardCanvas fetches by ID. If public, the caller should probably 
-      // provide the data or we need a way to fetch public data.
-      // Refactoring BoardCanvas to accept `initialData` would be best.
-      
       const data = await boardsAPI.getById(boardId);
       setBoard(data);
       setElements(data.elements || []);
@@ -98,13 +75,6 @@ export function BoardCanvas({ boardId, onBack, isReadOnly = false, initialBoard 
       setLoading(false);
     }
   };
-  
-  // Provide a way to override data loading
-  // (We'll modify PublicBoardView to handle data fetching and pass it to BoardCanvas if we refactor,
-  // but since we are modifying BoardCanvas now, let's allow it to accept data)
-  
-  // ... (rest of the component implementation with isReadOnly checks)
-
 
   // Debounced history saving
   const saveHistoryDebounced = React.useRef<NodeJS.Timeout>();
@@ -162,8 +132,6 @@ export function BoardCanvas({ boardId, onBack, isReadOnly = false, initialBoard 
       if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
         return;
       }
-      
-      if (isReadOnly) return;
       
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
@@ -259,7 +227,6 @@ export function BoardCanvas({ boardId, onBack, isReadOnly = false, initialBoard 
   // Handle paste from clipboard
   React.useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
-      if (isReadOnly) return;
       // Don't interfere with paste in text inputs
       const activeElement = document.activeElement;
       if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
@@ -294,7 +261,6 @@ export function BoardCanvas({ boardId, onBack, isReadOnly = false, initialBoard 
 
   // Update element position/size
   const handleElementUpdate = async (elementId: string, updates: Partial<BoardElement>) => {
-    if (isReadOnly) return;
     try {
       // Optimistic update
       setElements(prev => prev.map(el => el.id === elementId ? { ...el, ...updates } : el));
@@ -309,7 +275,6 @@ export function BoardCanvas({ boardId, onBack, isReadOnly = false, initialBoard 
 
   // Delete element
   const handleElementDelete = async (elementId: string) => {
-    if (isReadOnly) return;
     try {
       await boardsAPI.deleteElement(boardId, elementId);
       setElements(prev => prev.filter(el => el.id !== elementId));
@@ -372,7 +337,7 @@ export function BoardCanvas({ boardId, onBack, isReadOnly = false, initialBoard 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.target === canvasRef.current || (e.target as HTMLElement).dataset.canvas) {
       // Если зажат Shift — начинаем выделение областью
-      if (e.shiftKey && !isReadOnly) {
+      if (e.shiftKey) {
         setIsSelecting(true);
         const rect = canvasRef.current?.getBoundingClientRect();
         if (rect) {
@@ -592,57 +557,38 @@ export function BoardCanvas({ boardId, onBack, isReadOnly = false, initialBoard 
           <Button variant="outline" size="sm" onClick={handleZoomIn}>
             <ZoomIn className="w-4 h-4" />
           </Button>
-          {!isReadOnly && (
-            <>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleUndo} 
-                disabled={historyIndex <= 0}
-                title="Отменить (Ctrl+Z)"
-              >
-                <Undo className="w-4 h-4" />
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRedo} 
-                disabled={historyIndex >= history.length - 1}
-                title="Повторить (Ctrl+Y)"
-              >
-                <Redo className="w-4 h-4" />
-              </Button>
-            </>
-          )}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleUndo} 
+            disabled={historyIndex <= 0}
+            title="Отменить (Ctrl+Z)"
+          >
+            <Undo className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRedo} 
+            disabled={historyIndex >= history.length - 1}
+            title="Повторить (Ctrl+Y)"
+          >
+            <Redo className="w-4 h-4" />
+          </Button>
           <Button variant="outline" size="sm" onClick={handleCenterOnContent} title="Центрировать на контенте">
             <Focus className="w-4 h-4" />
           </Button>
-          {!isReadOnly && board && (
-            <ShareBoardDialog 
-              boardId={boardId} 
-              isPublic={board.isPublic || false} 
-              publicToken={board.publicToken || ''} 
-              onUpdate={(updatedBoard: Partial<Board>) => setBoard(prev => prev ? { ...prev, ...updatedBoard } : updatedBoard as Board)}
-            >
-              <Button variant="outline" size="sm">
-                <Share2 className="w-4 h-4 mr-2" />
-                Поделиться
-              </Button>
-            </ShareBoardDialog>
-          )}
         </div>
       </div>
 
       {/* Toolbar */}
-      {!isReadOnly && (
-        <BoardToolbar
-          onAddNote={() => handleAddElement('note')}
-          onAddHeading={() => handleAddElement('heading')}
-          onAddText={() => handleAddElement('text')}
-          onAddImage={handleImageUpload}
-          onAddVideo={() => setVideoDialogOpen(true)}
-        />
-      )}
+      <BoardToolbar
+        onAddNote={() => handleAddElement('note')}
+        onAddHeading={() => handleAddElement('heading')}
+        onAddText={() => handleAddElement('text')}
+        onAddImage={handleImageUpload}
+        onAddVideo={() => setVideoDialogOpen(true)}
+      />
 
       {/* Canvas */}
       <div

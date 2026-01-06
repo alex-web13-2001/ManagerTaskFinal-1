@@ -511,9 +511,6 @@ app.get('/api/invitations/:token', async (req: Request, res: Response) => {
   }
 });
 
-// ========== PUBLIC BOARD ENDPOINTS ==========
-app.get('/api/public/boards/:token', boardHandlers.getPublicBoard);
-
 // ========== PROTECTED API ROUTES ==========
 // Create a separate router for all protected API endpoints
 const apiRouter = express.Router();
@@ -3600,12 +3597,6 @@ apiRouter.put('/boards/:id', boardHandlers.updateBoard);
  * Delete a board
  */
 apiRouter.delete('/boards/:id', boardHandlers.deleteBoard);
-
-/**
- * PUT /api/boards/:id/share
- * Toggle board sharing
- */
-apiRouter.put('/boards/:id/share', boardHandlers.toggleBoardSharing);
 
 // ========== BOARD ELEMENTS ENDPOINTS (PROTECTED) ==========
 

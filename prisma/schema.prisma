@@ -340,11 +340,8 @@ model Board {
   // Элементы на доске
   elements    BoardElement[]
   
-  // Участники доски
+  // Будущее: участники доски
   members     BoardMember[]
-
-  // Публичный доступ
-
 
   @@index([ownerId])
   @@map("boards")
