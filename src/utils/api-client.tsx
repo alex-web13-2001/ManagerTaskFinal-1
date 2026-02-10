@@ -1023,6 +1023,56 @@ export const projectsAPI = {
   },
 
   /**
+   * Upload attachment to a project
+   */
+  uploadAttachment: async (projectId: string, file: File) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('projectId', projectId);
+
+    const response = await fetch(`${API_BASE_URL}/api/upload-project-attachment`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to upload project attachment');
+    }
+
+    const data = await response.json();
+    return data.attachment;
+  },
+
+  /**
+   * Delete a project attachment
+   */
+  deleteAttachment: async (projectId: string, attachmentId: string) => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete project attachment');
+    }
+
+    return response.json();
+  },
+
+  /**
    * Get categories available for a specific project
    * FIX Problem #3: Returns only categories assigned to this project
    */
