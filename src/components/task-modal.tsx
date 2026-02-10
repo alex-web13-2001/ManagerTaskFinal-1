@@ -1867,6 +1867,7 @@ export function TaskModal({
                         <>
                           <SelectItem value="todo">К выполнению</SelectItem>
                           <SelectItem value="in_progress">В работе</SelectItem>
+                          <SelectItem value="needs_clarification">Нужно уточнение</SelectItem>
                           <SelectItem value="review">На проверке</SelectItem>
                           <SelectItem value="done">Готово</SelectItem>
                         </>

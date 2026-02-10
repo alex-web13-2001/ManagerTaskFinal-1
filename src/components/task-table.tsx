@@ -34,15 +34,17 @@ function NewTaskBadge({ task, currentUserId }: { task: TaskType; currentUserId: 
 // Categories are now loaded from the app context via useApp hook
 
 const statusColors = {
-  'todo': 'bg-gray-100 text-gray-700',
-  'in_progress': 'bg-blue-100 text-blue-700',
-  'review': 'bg-yellow-100 text-yellow-700',
-  'done': 'bg-green-100 text-green-700',
+  'todo': 'bg-gray-100 text-gray-700 border-gray-300',
+  'in_progress': 'bg-blue-100 text-blue-700 border-blue-300',
+  'needs_clarification': 'bg-orange-100 text-orange-700 border-orange-300',
+  'review': 'bg-yellow-100 text-yellow-700 border-yellow-300',
+  'done': 'bg-green-100 text-green-700 border-green-300',
 };
 
 const statusLabels = {
   'todo': 'К выполнению',
   'in_progress': 'В работе',
+  'needs_clarification': 'Нужно уточнение',
   'review': 'На проверке',
   'done': 'Готово',
 };
@@ -97,7 +99,7 @@ export function TaskTable({ searchQuery, filters, onTaskClick }: TaskTableProps)
   // Get all available statuses for a task (base + custom for personal tasks)
   const getAvailableStatuses = (task: TaskType) => {
     const baseStatuses = task.projectId 
-      ? ['todo', 'in_progress', 'review', 'done'] // Project tasks have review
+      ? ['todo', 'in_progress', 'needs_clarification', 'review', 'done'] // Project tasks have review and needs_clarification
       : ['todo', 'in_progress', 'done']; // Personal tasks don't have review by default
     
     console.log('[TaskTable] getAvailableStatuses for task:', {

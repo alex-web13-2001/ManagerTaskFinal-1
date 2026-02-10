@@ -51,6 +51,7 @@ type ProjectWithStats = {
   tasksByStatus: {
     todo: number;
     in_progress: number;
+    needs_clarification: number;
     review: number;
     done: number;
   };
@@ -142,6 +143,7 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
       const tasksByStatus = {
         todo: projectTasks.filter(t => t.status === 'todo').length,
         in_progress: projectTasks.filter(t => t.status === 'in_progress').length,
+        needs_clarification: projectTasks.filter(t => t.status === 'needs_clarification').length,
         review: projectTasks.filter(t => t.status === 'review').length,
         done: projectTasks.filter(t => t.status === 'done' || t.completed).length,
       };
@@ -479,8 +481,14 @@ export function ProjectsView({ onProjectClick }: ProjectsViewProps) {
                           )}
                         </div>
                         
-                        {/* Вторая строка: на проверке и завершено */}
+                        {/* Вторая строка: нужно уточнение, на проверке и завершено */}
                         <div className="flex items-center gap-3 text-xs flex-wrap">
+                          {project.tasksByStatus.needs_clarification > 0 && (
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 rounded-full bg-orange-500" />
+                              <span className="text-gray-600">{project.tasksByStatus.needs_clarification} нужно уточнение</span>
+                            </div>
+                          )}
                           {project.tasksByStatus.review > 0 && (
                             <div className="flex items-center gap-1">
                               <div className="w-2 h-2 rounded-full bg-orange-500" />

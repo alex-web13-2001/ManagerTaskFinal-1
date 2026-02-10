@@ -57,6 +57,7 @@ const priorityLabels = {
 const statusColors = {
   todo: 'bg-gray-100 text-gray-700 border-gray-300',
   in_progress: 'bg-blue-100 text-blue-700 border-blue-300',
+  needs_clarification: 'bg-orange-100 text-orange-700 border-orange-300',
   review: 'bg-yellow-100 text-yellow-700 border-yellow-300',
   done: 'bg-green-100 text-green-700 border-green-300',
 };
@@ -64,6 +65,7 @@ const statusColors = {
 const statusLabels = {
   todo: 'К выполнению',
   in_progress: 'В работе',
+  needs_clarification: 'Нужно уточнение',
   review: 'На проверке',
   done: 'Готово',
 };

@@ -32,6 +32,7 @@ type Filters = {
 const statusesList = [
   { id: 'todo', name: 'К выполнению' },
   { id: 'in_progress', name: 'В работе' },
+  { id: 'needs_clarification', name: 'Нужно уточнение' },
   { id: 'review', name: 'На проверке' },
   { id: 'done', name: 'Готово' },
 ];

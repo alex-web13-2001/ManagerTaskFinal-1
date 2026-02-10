@@ -38,6 +38,7 @@ type ProjectCalendarViewProps = {
 const STATUS_COLORS = {
   todo: 'bg-gray-500',
   in_progress: 'bg-blue-500',
+  needs_clarification: 'bg-orange-500',
   review: 'bg-yellow-500',
   done: 'bg-green-500',
 };
@@ -475,6 +476,7 @@ export function ProjectCalendarView({
               <SelectItem value="all">Все статусы</SelectItem>
               <SelectItem value="todo">К выполнению</SelectItem>
               <SelectItem value="in_progress">В работе</SelectItem>
+              <SelectItem value="needs_clarification">Нужно уточнение</SelectItem>
               <SelectItem value="review">На проверке</SelectItem>
               <SelectItem value="done">Готово</SelectItem>
             </SelectContent>
@@ -745,6 +747,10 @@ export function ProjectCalendarView({
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-blue-500 rounded" />
             <span className="text-gray-600">В работе</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-orange-500 rounded" />
+            <span className="text-gray-600">Нужно уточнение</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-yellow-500 rounded" />

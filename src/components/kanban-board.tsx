@@ -528,6 +528,7 @@ export function KanbanBoard({
   const baseColumnDefinitions = React.useMemo(() => [
     { id: 'todo', title: 'К выполнению', color: 'bg-gray-500' },
     { id: 'in_progress', title: 'В работе', color: 'bg-blue-500' },
+    { id: 'needs_clarification', title: 'Нужно уточнение', color: 'bg-orange-500' },
     { id: 'review', title: 'На проверке', color: 'bg-yellow-500' },
     { id: 'done', title: 'Готово', color: 'bg-green-500' },
   ], []);
